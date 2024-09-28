@@ -9,7 +9,13 @@ const (
 	IDENTIFIER
 	KEYWORD
 	NEWLINE
-	SYMBOL
+	MUL
+	DIV
+	ADD
+	SUB
+	ASSIGN
+	LPAREN
+	RPAREN
 	ROOT // this is for the root module nodes at the beginning of the parse tree
 	EOF
 	SPACE
@@ -32,11 +38,12 @@ func ErrorToken(message string, ln int) *Token {
 
 func PrintTokenType(ttype int) string {
 	typeMap := map[int]string{
-		NUMBER:     "NUMBER",
-		IDENTIFIER: "IDENTIFIER",
-		KEYWORD:    "KEYWORD",
-		NEWLINE:    "NEWLINE",
-		SYMBOL:     "SYMBOL",
+		NUMBER: "NUMBER", IDENTIFIER: "IDENTIFIER",
+		KEYWORD: "KEYWORD", NEWLINE: "NEWLINE",
+		MUL: "MUL", DIV: "DIV",
+		ADD: "ADD", SUB: "SUB",
+		ASSIGN: "ASSIGN", LPAREN: "LPAREN",
+		RPAREN: "RPAREN",
 	}
 
 	mapping, err := typeMap[ttype]

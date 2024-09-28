@@ -4,41 +4,6 @@ import (
 	"fmt"
 )
 
-// type Parser struct {
-// 	tokens   *Queue[Token]
-// 	curr_tok Token
-// }
-//
-// func (p *Parser) NewParser(tokens []Token) *Parser {
-// 	token_buffer := NewQueue(tokens)
-//
-// 	return &Parser{
-// 		tokens:   token_buffer,
-// 		curr_tok: token_buffer.pop(),
-// 	}
-// }
-//
-// func (p *Parser) generateParseTree() {
-// }
-//
-// func (p *Parser) expression() {
-// }
-//
-// func (p *Parser) comparison() {
-// }
-//
-// func (p *Parser) unary() {
-// }
-//
-// func (p *Parser) factor() {
-// }
-//
-// func (p *Parser) term() {
-// }
-//
-// func (p *Parser) atom() {
-// }
-
 // EXPRESSION
 // COMPARISON
 // UNARY
@@ -55,9 +20,11 @@ import (
 // primary    := NUMBER | "(" expression ")"
 
 type Parser struct {
-	tokens  *Queue[Token]
-	current Token
-	errors  []*Token
+	tokens     *Queue[Token]
+	previous   Token
+	current    Token
+	errors     []*Token
+	errorCheck bool
 }
 
 func (p *Parser) NewParser(tokens []Token) *Parser {
@@ -70,14 +37,14 @@ func (p *Parser) NewParser(tokens []Token) *Parser {
 }
 
 func (p *Parser) parse() *ParseNode {
-	p.cleanTokens()
+	// p.cleanTokens()
 	root := ModuleRootNode()
 
 	for !p.isAtEnd() {
 		// continue parsing until all lines in the source file are parsed
 
 		root.children = append(root.children, p.expression())
-		if p.peek().ttype == NEWLINE {
+		if p.current.ttype == NEWLINE {
 			p.consume(NEWLINE, "expected new line at end of expression parsing")
 		} else {
 			break
@@ -88,18 +55,19 @@ func (p *Parser) parse() *ParseNode {
 		for _, error := range p.errors {
 			fmt.Println(error.lexeme)
 		}
-		// root.errorCheck = true
+		p.errorCheck = true
 	}
 
 	return root
 }
 
-// func (p *Parser) block() *TreeNode {
-// 	// TODO: this function is responsable for parsing any parts of the code that aggregates multiple expressions into one node, like loops, functions, types, etc.
-// 	// if p.match([]int{IDENTIFIER})
-//
-// 	return nil
-// }
+func (p *Parser) block() *ParseNode {
+	// TODO: this function is responsable for parsing any parts of the code that aggregates multiple expressions into one node, like loops, functions, types, etc.
+
+
+
+	return nil
+}
 
 func (p *Parser) expression() *ParseNode {
 	return p.equality()
@@ -117,9 +85,9 @@ func (p *Parser) term() *ParseNode {
 	left := p.factor()
 
 	if p.match([]int{ADD, SUB}) {
-		operator := p.previous()
+		operator := p.previous
 		right := p.term()
-		return NewTreeNodeWith(operator, left, right)
+		return BinaryNode(&operator, left, right)
 	}
 
 	return left
@@ -129,9 +97,9 @@ func (p *Parser) factor() *ParseNode {
 	left := p.primary()
 
 	if p.match([]int{MUL, DIV}) {
-		operator := p.previous()
+		operator := p.previous
 		right := p.factor()
-		return NewTreeNodeWith(operator, left, right)
+		return BinaryNode(&operator, left, right)
 	}
 
 	return left
@@ -139,8 +107,8 @@ func (p *Parser) factor() *ParseNode {
 
 func (p *Parser) primary() *ParseNode {
 	if p.match([]int{NUMBER}) {
-		num := p.previous()
-		return NewTreeNode(num)
+		num := p.previous
+		return UnaryNode(&num)
 	}
 
 	if p.match([]int{LPAREN}) {
@@ -149,7 +117,7 @@ func (p *Parser) primary() *ParseNode {
 		return expr
 	}
 
-	var error = ErrorToken(fmt.Sprintf("Error found on line %d\n", p.peek().linenum))
+	var error = ErrorToken(fmt.Sprintf("Error found on line %d\n", p.current.linenum), p.current.linenum)
 	p.errors = append(p.errors, error)
 
 	return nil
@@ -167,16 +135,22 @@ func (p *Parser) match(types []int) bool {
 	return false
 }
 
-// func (p *Parser) consume(t int, message string) Token {
-// 	if p.check(t) {
-// 		return p.tokens.pop()
-// 		// return p.advance()
-// 	}
-//
-// 	error := ErrorToken(message, p.current.linenum)
-// 	p.errors = append(p.errors, error)
-// 	return nil
-// }
+func (p *Parser) consume(t int, message string) Token {
+	if p.check(t) {
+		return p.advance()
+	}
+
+	error := ErrorToken(message, p.current.linenum)
+	p.errors = append(p.errors, error)
+	return *error
+}
+
+func (p *Parser) advance() Token {
+	tok := p.tokens.pop()
+	p.previous = tok
+	return tok
+}
+
 
 // checks the current token against the type parameter
 func (p *Parser) check(t int) bool {

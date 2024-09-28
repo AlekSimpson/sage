@@ -13,22 +13,22 @@ type Lexer struct {
 }
 
 func (l *Lexer) lexForSymbols() {
-    var SYMBOLS = map[rune]string{
-        '(': "LPAREN",
-        ')': "RPAREN",
-        '+': "ADD",
-        '-': "SUB",
-        '*': "MUL",
-        '/': "DIV",
-        '=': "ASSIGN",
+    var SYMBOLS = map[rune]int{
+        '(': LPAREN,
+        ')': RPAREN,
+        '+': ADD,
+        '-': SUB,
+        '*': MUL,
+        '/': DIV,
+        '=': ASSIGN,
     }
 
-    _, err := SYMBOLS[l.char]
+    sym, err := SYMBOLS[l.char]
     if !err {
         return
     }
 
-    token := Token{SYMBOL, string(l.char), l.linenum}
+    token := Token{sym, string(l.char), l.linenum}
     l.char = rune(l.buffer.pop())
     l.tokens = append(l.tokens, token)
 }
