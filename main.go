@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -17,10 +18,11 @@ func main() {
 		panic(err)
 	}
 
-	queue := NewQueue(contents)
+	queue := NewQueue(contents, 0)
 	lexer := Lexer{queue, []Token{}, 0, ' '}
 	tokens := lexer.lex()
 
 	parser := NewParser(tokens)
-
+	tree := parser.parse()
+	fmt.Println(tree.print())
 }

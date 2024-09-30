@@ -4,80 +4,101 @@ import (
 	"fmt"
 )
 
-type Printable func() string
+type ParseNode interface {
+	print() string
+	showtree(depth int)
+}
 
-type ParseNode struct {
+//// BEGIN BLOCK NODE
+
+type BlockNode struct {
 	token    *Token
-	left     *ParseNode
-	right    *ParseNode
-	children []*ParseNode
-	print    Printable
+	children []ParseNode
 }
 
-//// BEGIN BINARY NODE ////
-
-func PrintBinaryNode(tok *Token, left *ParseNode, right *ParseNode) string {
-	return fmt.Sprintf("BinaryNode{%s, %s, %s}", tok.show(), left.token.show(), right.token.show())
-}
-
-func BinaryNode(t *Token, l *ParseNode, r *ParseNode) *ParseNode {
-	return &ParseNode{
-		token: t,
-		left:  l,
-		right: r,
-		print: func() string { return PrintBinaryNode(t, l, r) },
-	}
-}
-
-//// BEGIN BLOCK NODE ////
-
-func PrintBlockNode(tok *Token, children []*ParseNode) string {
-	var retval string
-	retval += fmt.Sprintf("BlockNode{%s, ", tok.show())
-	for _, child := range children {
-		retval += fmt.Sprintf("%s, ", child.print())
-	}
-	retval += fmt.Sprintf("%s}\n")
-	return retval
-}
-
-func BlockNode(tok *Token, c []*ParseNode) *ParseNode {
-	return &ParseNode{
-		token:    tok,
-		children: c,
-		print:    func() string { return PrintBlockNode(tok, c) },
-	}
-}
-
-//// BEGIN MODULE ROOT NODE ////
-
-func ModuleRootNode() *ParseNode {
+func ModuleRootNode() *BlockNode {
 	rootTok := &Token{
 		ttype:   ROOT,
 		lexeme:  "",
 		linenum: 0,
 	}
 
-	children := make([]*ParseNode, 0)
-
-	return &ParseNode{
-		token:    rootTok,
-		children: children,
-		print:    func() string { return PrintBlockNode(rootTok, children) },
+	return &BlockNode{
+		token: rootTok,
 	}
 }
 
-//// BEGIN UNARY NODE ////
+func NewBlockNode(tok *Token, c []ParseNode) *BlockNode {
+	return &BlockNode{
+		token:    tok,
+		children: c,
+	}
+}
 
-func PrintUnaryNode(tok *Token) string {
-	var retval string
-	retval += fmt.Sprintf("UnaryNode{%s}\n", tok.show())
+func (n *BlockNode) formatChildren() string {
+	if len(n.children) == 0 {
+		return "NO CHILDREN"
+	}
+
+	retval := ""
+	for _, child := range n.children {
+		retval += (child.print() + ", ")
+	}
+	retval = retval[:len(retval)-2]
 	return retval
 }
 
-func UnaryNode(tok *Token) *ParseNode {
-	return &ParseNode{
+func (n *BlockNode) print() string {
+	return fmt.Sprintf("BlockNode{ token: %s,  children: (\n\t%s\n) }", n.token.show(), n.formatChildren())
+}
+
+//	func (tn *TreeNode) print(indent string) {
+//		fmt.Println(indent + "- " + tn.node.value)
+//
+//		if tn.left != nil {
+//			tn.left.print(indent + "\t")
+//		}
+//		if tn.right != nil {
+//			tn.right.print(indent + "\t")
+//		}
+//	}
+func (n *BlockNode) showtree(depth int) {
+}
+
+//// BEGIN BINARY NODE
+
+type BinaryNode struct {
+	token *Token
+	left  ParseNode
+	right ParseNode
+}
+
+func NewBinaryNode(t *Token, l ParseNode, r ParseNode) *BinaryNode {
+	return &BinaryNode{
+		token: t,
+		left:  l,
+		right: r,
+	}
+}
+
+func (n *BinaryNode) print() string {
+	return fmt.Sprintf("BinaryNode{ token: %s, left: %s,  right: %s }", n.token.show(), n.left.print(), n.right.print())
+}
+
+//// BEGIN UNARY NODE
+
+type UnaryNode struct {
+	token *Token
+}
+
+func (n *UnaryNode) print() string {
+	var retval string
+	retval += fmt.Sprintf("UnaryNode{%s}", n.token.show())
+	return retval
+}
+
+func NewUnaryNode(tok *Token) *UnaryNode {
+	return &UnaryNode{
 		token: tok,
-		print: func() string { return PrintUnaryNode(tok) },
 	}
 }

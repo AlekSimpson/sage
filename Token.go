@@ -43,12 +43,13 @@ func PrintTokenType(ttype int) string {
 		MUL: "MUL", DIV: "DIV",
 		ADD: "ADD", SUB: "SUB",
 		ASSIGN: "ASSIGN", LPAREN: "LPAREN",
-		RPAREN: "RPAREN",
+		RPAREN: "RPAREN", ROOT: "ROOT",
+		EOF: "EOF", SPACE: "SPACE", ERROR: "ERROR",
 	}
 
 	mapping, err := typeMap[ttype]
 	if !err {
-		panic("Non existent type provided to token type")
+		panic(fmt.Sprintf("Non existent type provided to token type: %d\n", ttype))
 	}
 	return mapping
 }

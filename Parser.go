@@ -21,29 +21,29 @@ import (
 
 type Parser struct {
 	tokens     *Queue[Token]
-	previous   Token
 	current    Token
 	errors     []*Token
 	errorCheck bool
 }
 
-func (p *Parser) NewParser(tokens []Token) *Parser {
-	token_buffer := NewQueue(tokens)
+func NewParser(tokens []Token) *Parser {
+	token_buffer := NewQueue(tokens, Token{})
 
 	return &Parser{
-		tokens:  token_buffer,
-		current: token_buffer.pop(),
+		tokens:     token_buffer,
+		current:    token_buffer.pop(),
+		errors:     nil,
+		errorCheck: false,
 	}
 }
 
-func (p *Parser) parse() *ParseNode {
-	// p.cleanTokens()
+func (p *Parser) parse() ParseNode {
 	root := ModuleRootNode()
 
 	for !p.isAtEnd() {
 		// continue parsing until all lines in the source file are parsed
-
 		root.children = append(root.children, p.expression())
+
 		if p.current.ttype == NEWLINE {
 			p.consume(NEWLINE, "expected new line at end of expression parsing")
 		} else {
@@ -61,59 +61,59 @@ func (p *Parser) parse() *ParseNode {
 	return root
 }
 
-func (p *Parser) block() *ParseNode {
-	// TODO: this function is responsable for parsing any parts of the code that aggregates multiple expressions into one node, like loops, functions, types, etc.
-
-
-
+func (p *Parser) block() ParseNode {
 	return nil
 }
 
-func (p *Parser) expression() *ParseNode {
+func (p *Parser) expression() ParseNode {
 	return p.equality()
 }
 
-func (p *Parser) equality() *ParseNode {
+func (p *Parser) equality() ParseNode {
 	return p.comparison()
 }
 
-func (p *Parser) comparison() *ParseNode {
+func (p *Parser) comparison() ParseNode {
 	return p.term()
 }
 
-func (p *Parser) term() *ParseNode {
+func (p *Parser) term() ParseNode {
 	left := p.factor()
 
 	if p.match([]int{ADD, SUB}) {
-		operator := p.previous
+		operator := p.advance()
 		right := p.term()
-		return BinaryNode(&operator, left, right)
+
+		return NewBinaryNode(&operator, left, right)
 	}
 
 	return left
 }
 
-func (p *Parser) factor() *ParseNode {
+func (p *Parser) factor() ParseNode {
 	left := p.primary()
 
 	if p.match([]int{MUL, DIV}) {
-		operator := p.previous
+		operator := p.advance()
 		right := p.factor()
-		return BinaryNode(&operator, left, right)
+
+		return NewBinaryNode(&operator, left, right)
 	}
 
 	return left
 }
 
-func (p *Parser) primary() *ParseNode {
+func (p *Parser) primary() ParseNode {
 	if p.match([]int{NUMBER}) {
-		num := p.previous
-		return UnaryNode(&num)
+		num := p.advance() // get the number that was matched and update current with the next token in the queue
+		return NewUnaryNode(&num)
 	}
 
 	if p.match([]int{LPAREN}) {
+		p.advance() // advance past the '(' token
 		expr := p.expression()
 		p.consume(RPAREN, "Expected closing ')'")
+
 		return expr
 	}
 
@@ -128,7 +128,6 @@ func (p *Parser) primary() *ParseNode {
 func (p *Parser) match(types []int) bool {
 	for _, t := range types {
 		if p.check(t) {
-			p.advance()
 			return true
 		}
 	}
@@ -146,11 +145,11 @@ func (p *Parser) consume(t int, message string) Token {
 }
 
 func (p *Parser) advance() Token {
-	tok := p.tokens.pop()
-	p.previous = tok
-	return tok
+	// returns the old "current" token and updates current with the next token in the queue
+	oldtok := p.current
+	p.current = p.tokens.pop()
+	return oldtok
 }
-
 
 // checks the current token against the type parameter
 func (p *Parser) check(t int) bool {
