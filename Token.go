@@ -4,58 +4,65 @@ import (
 	"fmt"
 )
 
+// OPERATOR ENUMS
+type TokenType int
+
 const (
-	NUMBER = iota
-	IDENTIFIER
-	KEYWORD
+	EQUALITY TokenType = 0
+	ADD      TokenType = 1
+	SUB      TokenType = 1
+	MUL      TokenType = 2
+	DIV      TokenType = 2
+	EXP      TokenType = 3
+)
+
+// TOKEN ENUMS
+const (
+	NUM TokenType = iota + 4
+	IDENT
+	KEYWORDTOK
 	NEWLINE
-	MUL
-	DIV
-	ADD
-	SUB
 	ASSIGN
 	LPAREN
 	RPAREN
-	ROOT // this is for the root module nodes at the beginning of the parse tree
+	STRING
 	EOF
 	SPACE
 	ERROR
 )
 
 type Token struct {
-	ttype   int
-	lexeme  string
-	linenum int
+	token_type TokenType
+	lexeme     string
+	linenum    int
 }
 
 func ErrorToken(message string, ln int) *Token {
 	return &Token{
-		ttype:   ERROR,
-		lexeme:  message,
-		linenum: ln,
+		token_type: ERROR,
+		lexeme:     message,
+		linenum:    ln,
 	}
 }
 
-func PrintTokenType(ttype int) string {
-	typeMap := map[int]string{
-		NUMBER: "NUMBER", IDENTIFIER: "IDENTIFIER",
-		KEYWORD: "KEYWORD", NEWLINE: "NEWLINE",
-		MUL: "MUL", DIV: "DIV",
-		ADD: "ADD", SUB: "SUB",
+func PrintTokenType(token_type TokenType) string {
+	typeMap := map[TokenType]string{
+		NUM: "NUMBER", IDENT: "IDENTIFIER",
+		KEYWORDTOK: "KEYWORD", NEWLINE: "NEWLINE",
 		ASSIGN: "ASSIGN", LPAREN: "LPAREN",
-		RPAREN: "RPAREN", ROOT: "ROOT",
-		EOF: "EOF", SPACE: "SPACE", ERROR: "ERROR",
+		RPAREN: "RPAREN", EOF: "EOF",
+		SPACE: "SPACE", ERROR: "ERROR",
 	}
 
-	mapping, err := typeMap[ttype]
+	mapping, err := typeMap[token_type]
 	if !err {
-		panic(fmt.Sprintf("Non existent type provided to token type: %d\n", ttype))
+		panic(fmt.Sprintf("Non existent type provided to token type: %d\n", token_type))
 	}
 	return mapping
 }
 
 func (t *Token) show() string {
-	return fmt.Sprintf("Token{%s, %s, %d}", PrintTokenType(t.ttype), t.lexeme, t.linenum)
+	return fmt.Sprintf("Token{%s, %s, %d}", PrintTokenType(t.token_type), t.lexeme, t.linenum)
 }
 
 func (t *Token) print() {

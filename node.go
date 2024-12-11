@@ -4,27 +4,49 @@ import (
 	"fmt"
 )
 
+type NodeType int
+
+const (
+	NUMBER NodeType = iota
+	IDENTIFIER
+	KEYWORD
+	BLOCK
+	CODE_BLOCK
+	PARAM_LIST
+	FUNC
+	TYPE
+	STRUCT
+	IF
+	WHILE
+	FOR
+	BINARY
+	PROGRAM
+	EXPRESSION
+)
+
 type ParseNode interface {
 	print() string
-	showtree(depth int)
+	showtree(depth string)
+	get_token() *Token
 }
 
 //// BEGIN BLOCK NODE
 
 type BlockNode struct {
 	token    *Token
+	nodetype NodeType
 	children []ParseNode
 }
 
 func ModuleRootNode() *BlockNode {
 	rootTok := &Token{
-		ttype:   ROOT,
 		lexeme:  "",
 		linenum: 0,
 	}
 
 	return &BlockNode{
-		token: rootTok,
+		token:    rootTok,
+		nodetype: PROGRAM,
 	}
 }
 
@@ -35,70 +57,81 @@ func NewBlockNode(tok *Token, c []ParseNode) *BlockNode {
 	}
 }
 
-func (n *BlockNode) formatChildren() string {
-	if len(n.children) == 0 {
-		return "NO CHILDREN"
-	}
-
-	retval := ""
-	for _, child := range n.children {
-		retval += (child.print() + ", ")
-	}
-	retval = retval[:len(retval)-2]
-	return retval
+func (n *BlockNode) get_token() *Token {
+	return n.token
 }
 
 func (n *BlockNode) print() string {
-	return fmt.Sprintf("BlockNode{ token: %s,  children: (\n\t%s\n) }", n.token.show(), n.formatChildren())
+	return "BLOCK_NODE"
 }
 
-//	func (tn *TreeNode) print(indent string) {
-//		fmt.Println(indent + "- " + tn.node.value)
-//
-//		if tn.left != nil {
-//			tn.left.print(indent + "\t")
-//		}
-//		if tn.right != nil {
-//			tn.right.print(indent + "\t")
-//		}
-//	}
-func (n *BlockNode) showtree(depth int) {
+func (n *BlockNode) showtree(depth string) {
+	fmt.Println(depth + "- " + n.print())
+
+	for _, child := range n.children {
+		child.showtree(depth + "\t")
+	}
 }
 
 //// BEGIN BINARY NODE
 
 type BinaryNode struct {
-	token *Token
-	left  ParseNode
-	right ParseNode
+	token    *Token
+	nodetype NodeType
+	left     ParseNode
+	right    ParseNode
 }
 
-func NewBinaryNode(t *Token, l ParseNode, r ParseNode) *BinaryNode {
+func NewBinaryNode(t *Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
 	return &BinaryNode{
-		token: t,
-		left:  l,
-		right: r,
+		token:    t,
+		nodetype: nt,
+		left:     l,
+		right:    r,
 	}
 }
 
+func (n *BinaryNode) get_token() *Token {
+	return n.token
+}
+
 func (n *BinaryNode) print() string {
-	return fmt.Sprintf("BinaryNode{ token: %s, left: %s,  right: %s }", n.token.show(), n.left.print(), n.right.print())
+	return fmt.Sprintf("BINARY NODE (%s %s %s)", n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
+}
+
+func (n *BinaryNode) showtree(depth string) {
+	fmt.Println(depth + "- " + n.print())
+
+	if n.left != nil {
+		n.left.showtree(depth + "\t")
+	}
+	if n.right != nil {
+		n.right.showtree(depth + "\t")
+	}
 }
 
 //// BEGIN UNARY NODE
 
 type UnaryNode struct {
-	token *Token
+	token    *Token
+	nodetype NodeType
 }
 
 func (n *UnaryNode) print() string {
-	var retval string
-	retval += fmt.Sprintf("UnaryNode{%s}", n.token.show())
-	return retval
+	return fmt.Sprintf("UnaryNode{%s}", n.token.show())
 }
 
-func NewUnaryNode(tok *Token) *UnaryNode {
+func (n *UnaryNode) get_token() *Token {
+	return n.token
+}
+
+func (n *UnaryNode) showtree(depth string) {
+	fmt.Println(depth + "- " + n.print())
+}
+
+func NewUnaryNode(tok *Token, nodetype NodeType) *UnaryNode {
 	return &UnaryNode{
-		token: tok,
+		token:    tok,
+		nodetype: nodetype,
 	}
 }

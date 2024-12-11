@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strings"
 )
@@ -23,6 +22,6 @@ func main() {
 	tokens := lexer.lex()
 
 	parser := NewParser(tokens)
-	tree := parser.parse()
-	fmt.Println(tree.print())
+	tree := parser.parse_program()
+	tree.showtree("")
 }

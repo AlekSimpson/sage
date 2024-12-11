@@ -12,7 +12,7 @@ type Lexer struct {
 }
 
 func (l *Lexer) lexForSymbols() {
-	var SYMBOLS = map[rune]int{
+	var SYMBOLS = map[rune]TokenType{
 		'(': LPAREN,
 		')': RPAREN,
 		'+': ADD,
@@ -43,7 +43,7 @@ func (l *Lexer) lexForNumber() {
 		l.char = rune(l.buffer.pop())
 	}
 
-	token := Token{NUMBER, lexeme, l.linenum}
+	token := Token{NUM, lexeme, l.linenum}
 	l.tokens = append(l.tokens, token)
 }
 
@@ -64,11 +64,11 @@ func (l *Lexer) lexForIdentifier() {
 		l.char = rune(l.buffer.pop())
 	}
 
-	token := Token{IDENTIFIER, lexeme, l.linenum}
+	token := Token{IDENT, lexeme, l.linenum}
 	_, err := KEYWORDS[lexeme]
 	if err {
 		// check if the word is a keyword
-		token.ttype = KEYWORD
+		token.token_type = KEYWORDTOK
 	}
 
 	l.tokens = append(l.tokens, token)
@@ -94,6 +94,8 @@ func (l *Lexer) lex() []Token {
 		l.lexForIdentifier()
 		l.lexForNumber()
 	}
+
+	l.tokens = append(l.tokens, Token{EOF, "eof", l.linenum + 1})
 
 	return l.tokens
 }
