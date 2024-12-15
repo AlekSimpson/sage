@@ -13,13 +13,13 @@ type Lexer struct {
 
 func (l *Lexer) lexForSymbols() {
 	var SYMBOLS = map[rune]TokenType{
-		'(': LPAREN,
-		')': RPAREN,
-		'+': ADD,
-		'-': SUB,
-		'*': MUL,
-		'/': DIV,
-		'=': ASSIGN,
+		'(': TT_LPAREN,
+		')': TT_RPAREN,
+		'+': TT_ADD,
+		'-': TT_SUB,
+		'*': TT_MUL,
+		'/': TT_DIV,
+		'=': TT_ASSIGN,
 	}
 
 	sym, err := SYMBOLS[l.char]
@@ -43,7 +43,7 @@ func (l *Lexer) lexForNumber() {
 		l.char = rune(l.buffer.pop())
 	}
 
-	token := Token{NUM, lexeme, l.linenum}
+	token := Token{TT_NUM, lexeme, l.linenum}
 	l.tokens = append(l.tokens, token)
 }
 
@@ -64,11 +64,11 @@ func (l *Lexer) lexForIdentifier() {
 		l.char = rune(l.buffer.pop())
 	}
 
-	token := Token{IDENT, lexeme, l.linenum}
+	token := Token{TT_IDENT, lexeme, l.linenum}
 	_, err := KEYWORDS[lexeme]
 	if err {
 		// check if the word is a keyword
-		token.token_type = KEYWORDTOK
+		token.token_type = TT_KEYWORDTOK
 	}
 
 	l.tokens = append(l.tokens, token)
@@ -84,7 +84,7 @@ func (l *Lexer) lex() []Token {
 		}
 
 		if l.char == '\n' {
-			token := Token{NEWLINE, string(l.char), l.linenum}
+			token := Token{TT_NEWLINE, string(l.char), l.linenum}
 			l.linenum += 1
 			l.tokens = append(l.tokens, token)
 			l.char = rune(l.buffer.pop())
@@ -95,7 +95,7 @@ func (l *Lexer) lex() []Token {
 		l.lexForNumber()
 	}
 
-	l.tokens = append(l.tokens, Token{EOF, "eof", l.linenum + 1})
+	l.tokens = append(l.tokens, Token{TT_EOF, "eof", l.linenum + 1})
 
 	return l.tokens
 }

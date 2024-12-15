@@ -8,27 +8,33 @@ import (
 type TokenType int
 
 const (
-	EQUALITY TokenType = 0
-	ADD      TokenType = 1
-	SUB      TokenType = 1
-	MUL      TokenType = 2
-	DIV      TokenType = 2
-	EXP      TokenType = 3
+	TT_EQUALITY TokenType = 0
+	TT_ADD      TokenType = 1
+	TT_SUB      TokenType = 1
+	TT_MUL      TokenType = 2
+	TT_DIV      TokenType = 2
+	TT_EXP      TokenType = 3
 )
 
 // TOKEN ENUMS
 const (
-	NUM TokenType = iota + 4
-	IDENT
-	KEYWORDTOK
-	NEWLINE
-	ASSIGN
-	LPAREN
-	RPAREN
-	STRING
-	EOF
-	SPACE
-	ERROR
+	TT_NUM TokenType = iota + 4
+	TT_IDENT
+	TT_KEYWORDTOK
+	TT_NEWLINE
+	TT_ASSIGN
+	TT_LPAREN
+	TT_RPAREN
+	TT_STRING
+	TT_EOF
+	TT_SPACE
+	TT_ERROR
+	TT_INCLUDE
+	TT_RETURN
+	TT_FOR
+	TT_WHILE
+	TT_BINDING
+	TT_COMPILER_CREATED
 )
 
 type Token struct {
@@ -39,7 +45,7 @@ type Token struct {
 
 func ErrorToken(message string, ln int) *Token {
 	return &Token{
-		token_type: ERROR,
+		token_type: TT_ERROR,
 		lexeme:     message,
 		linenum:    ln,
 	}
@@ -47,11 +53,11 @@ func ErrorToken(message string, ln int) *Token {
 
 func PrintTokenType(token_type TokenType) string {
 	typeMap := map[TokenType]string{
-		NUM: "NUMBER", IDENT: "IDENTIFIER",
-		KEYWORDTOK: "KEYWORD", NEWLINE: "NEWLINE",
-		ASSIGN: "ASSIGN", LPAREN: "LPAREN",
-		RPAREN: "RPAREN", EOF: "EOF",
-		SPACE: "SPACE", ERROR: "ERROR",
+		TT_NUM: "NUMBER", TT_IDENT: "IDENTIFIER",
+		TT_KEYWORDTOK: "KEYWORD", TT_NEWLINE: "NEWLINE",
+		TT_ASSIGN: "ASSIGN", TT_LPAREN: "LPAREN",
+		TT_RPAREN: "RPAREN", TT_EOF: "EOF",
+		TT_SPACE: "SPACE", TT_ERROR: "ERROR",
 	}
 
 	mapping, err := typeMap[token_type]

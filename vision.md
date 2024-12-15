@@ -1,21 +1,19 @@
-// ALL VARIABLES ARE IMMUTABLE BY DEFAULT
-
 include "stdio.g"
 
 Car :: struct {
-    string  name,
-    int16   price,
-    string  plate_num,
-    [int32] serviceYears,
-    Car*    nextCar,
+    name          string, 
+    price         int16,
+    plate_num     string,
+    service_years [int32],
+    next_car      Car*,
 }
 
-add :: (int x, int y) -> int {
+add :: (x int, y int) -> int {
     ret x + y
 }
 
-mult :: (int x, int y) -> int {
-    mut int result
+mult :: (x int, y int) -> int {
+    result int
     for x in (0...50) {
         result++x
     }
@@ -23,40 +21,44 @@ mult :: (int x, int y) -> int {
 }
 
 honk :: () -> void {
-    printf("honk!\n")
+    message string = "honk!\n"
+    printf(message)
 }
 
 
 
+S               -> program
 
 STAR            -> *STAR | EMPTYSTRING
 primitive       -> int | char | array | void
 pointer         -> TYPE STAR
 TYPE            -> primitive | pointer
 
-program         -> libraries body 
-libraries       -> library libraries | library | EMPTYSTRING
+program         -> libraries statements | statements
+
 library         -> include string NEWLINE | EMPTYSTRING
+libraries       -> library libraries | library | EMPTYSTRING
 
-body            -> { statement_list }
-statement_list  -> statement statement_list | statement | EMPTYSTRING
-statement       -> value_assign | value_init | assign | return | construct | for | while | expression
+body            -> { statements }
+statements      -> statement statements | statement | EMPTYSTRING
+statement       -> value_dec | assign | return | construct | for | while | expression
 
-value_assign    -> TYPE ID = expression
-value_init      -> TYPE ID
-value_init_list -> value_init , value_init_list | value_init , | value_init
-assign          -> ID = expression
+value_dec       -> ID TYPE
+assign          -> ID = expression | ID TYPE = expression
+value_dec_list  -> value_dec , value_dec_list | value_dec , | value_dec
+
 range           -> expression ... expression | ( expression ... expression )
 return          -> ret expression
+
 binding         -> :: funcdef | :: structdef | :: TYPE
 construct       -> ID binding
 
-funcdef         -> ( value_init_list ) -> TYPE body | ( ) -> TYPE body
-structdef       -> struct { value_init_list }
+funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body
+structdef       -> struct { value_dec_list }
 for             -> for ID in range body
 while           -> while expression body
 
-expression -> addop
+expression -> recursive descent on lang operators
 
 VISION:
 

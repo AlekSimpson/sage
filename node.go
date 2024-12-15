@@ -7,7 +7,8 @@ import (
 type NodeType int
 
 const (
-	NUMBER NodeType = iota
+	BINARY NodeType = iota
+	NUMBER
 	IDENTIFIER
 	KEYWORD
 	BLOCK
@@ -19,15 +20,23 @@ const (
 	IF
 	WHILE
 	FOR
-	BINARY
 	PROGRAM
-	EXPRESSION
+	VAR_DEC
 )
 
 type ParseNode interface {
 	print() string
 	showtree(depth string)
 	get_token() *Token
+}
+
+func nodetype_to_string(type_ NodeType) string {
+	nodetype_map := map[NodeType]string{
+		BINARY: "BINARY", NUMBER: "NUMBER", IDENTIFIER: "IDENTIFIER",
+		KEYWORD: "KEYWORD", BLOCK: "BLOCK", CODE_BLOCK: "CODE_BLOCK", PARAM_LIST: "PARAM_LIST", FUNC: "FUNC",
+		TYPE: "TYPE", STRUCT: "STRUCT", IF: "IF", WHILE: "WHILE", FOR: "FOR", PROGRAM: "PROGRAM", VAR_DEC: "VAR_DEC",
+	}
+	return nodetype_map[type_]
 }
 
 //// BEGIN BLOCK NODE
@@ -96,7 +105,7 @@ func (n *BinaryNode) get_token() *Token {
 }
 
 func (n *BinaryNode) print() string {
-	return fmt.Sprintf("BINARY NODE (%s %s %s)", n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
+	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", nodetype_to_string(n.nodetype), n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
 }
 
 func (n *BinaryNode) showtree(depth string) {

@@ -38,7 +38,9 @@ func NewParser(tokens []Token) *Parser {
 }
 
 func (p *Parser) parse_program() ParseNode {
+	libraries := p.parse_libraries()
 	root := p.statements()
+	root.children = append(root.children, libraries.children...)
 
 	if len(p.errors) != 0 {
 		for _, error := range p.errors {
@@ -50,27 +52,103 @@ func (p *Parser) parse_program() ParseNode {
 	return root
 }
 
-func (p *Parser) statements() ParseNode {
+func (p *Parser) library_statement() ParseNode {
+	// TODO:
+	return nil
+}
+
+func (p *Parser) parse_libraries() *BlockNode {
 	list_node := ModuleRootNode()
 
 	for {
-		// consume all newlines until we reach actual code
-		for p.match_types(p.current.token_type, NEWLINE) {
+		for p.match_types(p.current.token_type, TT_NEWLINE) {
 			p.advance()
 		}
-		if p.match_types(p.current.token_type, EOF) {
+		if !p.match_types(p.current.token_type, TT_INCLUDE) {
 			break
 		}
 
-		first_statement := p.expression()
-		list_node.children = append(list_node.children, first_statement)
+		next_include := p.library_statement()
+		list_node.children = append(list_node.children, next_include)
 	}
 
 	return list_node
 }
 
+func (p *Parser) statements() *BlockNode {
+	list_node := ModuleRootNode()
+
+	for {
+		// consume all newlines until we reach actual code
+		for p.match_types(p.current.token_type, TT_NEWLINE) {
+			p.advance()
+		}
+		if p.match_types(p.current.token_type, TT_EOF) {
+			break
+		}
+
+		next_statement := p.parse_statement()
+		list_node.children = append(list_node.children, next_statement)
+	}
+
+	return list_node
+}
+
+func (p *Parser) parse_value_dec() ParseNode {
+	name_identifier_token := p.current
+	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
+	p.advance()
+
+	if !p.match_types(p.current.token_type, TT_IDENT) {
+		p.raise_error("Expected type to be associated with identifier in value declaration statement\n")
+		return nil
+	}
+
+	type_identifier_token := p.current
+	type_identifier_node := NewUnaryNode(&type_identifier_token, IDENTIFIER)
+	p.advance()
+
+	dec_lexeme := fmt.Sprintf("%s %s", name_identifier_token.lexeme, type_identifier_token.lexeme)
+
+	return &BinaryNode{
+		token:    &Token{TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.linenum},
+		nodetype: VAR_DEC,
+		left:     name_identifier_node,
+		right:    type_identifier_node,
+	}
+}
+
+func (p *Parser) parse_statement() ParseNode {
+	switch p.current.token_type {
+	// parse value_dec, assign and construct statements
+	case TT_IDENT:
+		// TODO: parse assign and construct statements
+		next_token := p.peek(1)
+		if p.match_types(next_token.token_type, TT_BINDING) {
+
+		}else if p.match_types(next_token.token_type, )
+		return p.parse_value_dec()
+
+	// TODO: parse return statement
+	case TT_RETURN:
+		return nil
+
+	// TODO: parse for statement
+	case TT_FOR:
+		return nil
+
+	// TODO: parse while statement
+	case TT_WHILE:
+		return nil
+
+	default:
+		return p.expression()
+
+	}
+}
+
 func (p *Parser) expression() ParseNode {
-	return p.parse_operator(p.parse_primary(), EQUALITY)
+	return p.parse_operator(p.parse_primary(), TT_EQUALITY)
 }
 
 func (p *Parser) parse_operator(left ParseNode, min_precedence TokenType) ParseNode {
@@ -89,27 +167,29 @@ func (p *Parser) parse_operator(left ParseNode, min_precedence TokenType) ParseN
 
 			current = p.current
 		}
-		left = NewBinaryNode(&op, EXPRESSION, left, right)
+		left = NewBinaryNode(&op, BINARY, left, right)
 	}
 
 	return left
 }
 
 func (p *Parser) parse_primary() ParseNode {
-	if p.match_types(p.current.token_type, NUM) {
-		ret := NewUnaryNode(&p.current, NUMBER)
+	if p.match_types(p.current.token_type, TT_NUM) {
+		token := p.current
+		ret := NewUnaryNode(&token, NUMBER)
 		p.advance() // get the number that was matched and update current with the next token in the queue
 		return ret
 	}
 
-	if p.match_types(p.current.token_type, LPAREN) {
-		p.consume(LPAREN, "Expected closing ')'")
+	if p.match_types(p.current.token_type, TT_LPAREN) {
+		p.consume(TT_LPAREN, "Expected closing ')'")
 		expr := p.expression()
-		p.consume(RPAREN, "Expected closing ')'")
+		p.consume(TT_RPAREN, "Expected closing ')'")
 
 		return expr
 	}
 
+	p.raise_error("Could not find valid primary\n")
 	return nil
 }
 
@@ -127,6 +207,12 @@ func decide_precedence_inc(curr_op_type TokenType, op_type TokenType) int {
 
 //// PARSER UTILITIES ////
 
+func (p *Parser) raise_error(message string) Token {
+	error := ErrorToken(message, p.current.linenum)
+	p.errors = append(p.errors, error)
+	return *error
+}
+
 func (p *Parser) match_types(type_a TokenType, type_b TokenType) bool {
 	return type_a == type_b
 }
@@ -139,16 +225,14 @@ func (p *Parser) consume(token_type TokenType, message string) Token {
 		return p.current
 	}
 
-	error := ErrorToken(message, p.current.linenum)
-	p.errors = append(p.errors, error)
-	return *error
+	error := p.raise_error(message)
+	return error
 }
 
 func (p *Parser) advance() {
 	// if the current token index is already at the end
 	//   then cap the index at the end of the array
 	if p.current_token_index == len(p.tokens)-1 {
-		p.current_token_index = len(p.tokens) - 1
 		p.current = p.tokens[p.current_token_index]
 		return
 	}
@@ -175,7 +259,7 @@ func (p *Parser) current_token_type_is(token_type TokenType) bool {
 }
 
 func (p *Parser) is_ending_token() bool {
-	return p.current.token_type == EOF
+	return p.current.token_type == TT_EOF
 }
 
 func (p *Parser) op_is_left_associative(op_literal string) bool {
