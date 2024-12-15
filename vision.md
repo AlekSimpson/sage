@@ -41,7 +41,14 @@ libraries       -> library libraries | library | EMPTYSTRING
 
 body            -> { statements }
 statements      -> statement statements | statement | EMPTYSTRING
-statement       -> value_dec | assign | return | construct | for | while | expression
+statement       -> value_dec  |
+                   assign     |
+                   return     |
+                   construct  |
+                   if_stmt    |
+                   for_stmt   |
+                   while_stmt |
+                   expression
 
 value_dec       -> ID TYPE
 assign          -> ID = expression | ID TYPE = expression
@@ -55,8 +62,12 @@ construct       -> ID binding
 
 funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body
 structdef       -> struct { value_dec_list }
-for             -> for ID in range body
-while           -> while expression body
+for_stmt        -> for ID in range body
+while_stmt      -> while expression body
+if_stmt         -> if expression body | if expression body elif_stmt
+elif_stmt       -> else if expression body elif_stmt |
+                   else if expression body else body |
+                   else if expression body
 
 expression -> recursive descent on lang operators
 

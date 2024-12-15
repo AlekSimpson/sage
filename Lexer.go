@@ -4,6 +4,7 @@ import (
 	"unicode"
 )
 
+// TODO: Need to update lexer with the new syntax and new constructs
 type Lexer struct {
 	buffer  *Queue[byte]
 	tokens  []Token
@@ -68,7 +69,7 @@ func (l *Lexer) lexForIdentifier() {
 	_, err := KEYWORDS[lexeme]
 	if err {
 		// check if the word is a keyword
-		token.token_type = TT_KEYWORDTOK
+		token.token_type = TT_KEYWORD
 	}
 
 	l.tokens = append(l.tokens, token)

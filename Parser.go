@@ -94,6 +94,33 @@ func (p *Parser) statements() *BlockNode {
 	return list_node
 }
 
+func (p *Parser) parse_statement() ParseNode {
+	switch p.current.token_type {
+	// parse value_dec, assign and construct statements
+	case TT_IDENT:
+		next_token := p.peek(1)
+		var node ParseNode
+		if p.match_types(next_token.token_type, TT_BINDING) {
+			// construct
+			node = p.parse_binding()
+		}else if p.match_types(next_token.token_type, TT_IDENT) {
+			// `x int` OR `x int = 4`
+			node = p.parse_value_dec()
+		}else if p.match_types(next_token.token_type, TT_ASSIGN) {
+			node = p.parse_assign()
+		}
+		return node
+
+	// TODO: parse keyword statement types
+	case TT_KEYWORD:
+		return p.parse_keyword_statement()
+
+	default:
+		return p.expression()
+
+	}
+}
+
 func (p *Parser) parse_value_dec() ParseNode {
 	name_identifier_token := p.current
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
@@ -108,6 +135,21 @@ func (p *Parser) parse_value_dec() ParseNode {
 	type_identifier_node := NewUnaryNode(&type_identifier_token, IDENTIFIER)
 	p.advance()
 
+	if p.match_types(p.current.token_type, TT_ASSIGN) {
+		p.advance() // move past the "=" symbol
+		rhs := p.expression()
+
+		new_lexeme := fmt.Sprintf("%s %s = %s", name_identifier_token.lexeme, type_identifier_token.lexeme, rhs.print())
+		dec_token := &Token{TT_ASSIGN, new_lexeme, name_identifier_token.linenum}
+		return NewTrinaryNode(
+			dec_token, 
+			ASSIGN,
+			name_identifier_node, 
+			type_identifier_node, 
+			rhs,
+		)
+	}
+
 	dec_lexeme := fmt.Sprintf("%s %s", name_identifier_token.lexeme, type_identifier_token.lexeme)
 
 	return &BinaryNode{
@@ -118,33 +160,51 @@ func (p *Parser) parse_value_dec() ParseNode {
 	}
 }
 
-func (p *Parser) parse_statement() ParseNode {
-	switch p.current.token_type {
-	// parse value_dec, assign and construct statements
-	case TT_IDENT:
-		// TODO: parse assign and construct statements
-		next_token := p.peek(1)
-		if p.match_types(next_token.token_type, TT_BINDING) {
+func (p *Parser) parse_assign() ParseNode {
+	name_token := p.current
+	name_node := NewUnaryNode(&name_token, IDENTIFIER)
 
-		}else if p.match_types(next_token.token_type, )
-		return p.parse_value_dec()
+	p.advance() // advance past the current identifier
+	p.advance() // advance past the "=" symbol
 
-	// TODO: parse return statement
-	case TT_RETURN:
+	value_node := p.expression()
+
+	return NewBinaryNode(&Token{}, ASSIGN, name_node, value_node)
+}
+
+func (p *Parser) parse_binding() ParseNode {
+	// TODO:
+	return nil
+}
+
+func (p *Parser) parse_keyword_statement() ParseNode {
+	switch p.current.lexeme {
+	case "ret":
+		return_token := p.current
+		lookahead := p.peek(1)
+		if p.match_types(lookahead.token_type, TT_NEWLINE) {
+			p.advance() // advance past return token
+			return NewUnaryNode(&return_token, KEYWORD)
+		}
+
+		p.advance() // advance past return token
+		expression := p.expression()
+		new_token := Token{
+			TT_KEYWORD, 
+			fmt.Sprintf("ret %s", expression.print()), 
+			return_token.linenum,
+		}
+		return NewUnaryNode(&new_token, KEYWORD)
+
+	case "if":
+	case "while":
+	case "for":
+	case "include": // should throw an error!! (include not allowed in body of code)
+		p.raise_error("Cannot include libraries during runtime !!")
 		return nil
-
-	// TODO: parse for statement
-	case TT_FOR:
-		return nil
-
-	// TODO: parse while statement
-	case TT_WHILE:
-		return nil
-
-	default:
-		return p.expression()
-
+	case "struct":
 	}
+	return nil
 }
 
 func (p *Parser) expression() ParseNode {
