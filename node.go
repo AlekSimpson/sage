@@ -8,33 +8,41 @@ type NodeType int
 
 const (
 	BINARY NodeType = iota
+	TRINARY
+	UNARY
 	NUMBER
 	IDENTIFIER
 	KEYWORD
 	BLOCK
 	CODE_BLOCK
 	PARAM_LIST
-	FUNC
+	FUNCDEF
+	FUNCCALL
 	TYPE
 	STRUCT
 	IF
+	IF_BRANCH
+	ELSE_BRANCH
 	WHILE
 	ASSIGN
 	FOR
 	PROGRAM
+	RANGE
 	VAR_DEC
+	VAR_REF
 )
 
 type ParseNode interface {
 	print() string
 	showtree(depth string)
 	get_token() *Token
+	get_nodetype() NodeType
 }
 
 func nodetype_to_string(type_ NodeType) string {
 	nodetype_map := map[NodeType]string{
 		BINARY: "BINARY", NUMBER: "NUMBER", IDENTIFIER: "IDENTIFIER",
-		KEYWORD: "KEYWORD", BLOCK: "BLOCK", CODE_BLOCK: "CODE_BLOCK", PARAM_LIST: "PARAM_LIST", FUNC: "FUNC",
+		KEYWORD: "KEYWORD", BLOCK: "BLOCK", CODE_BLOCK: "CODE_BLOCK", PARAM_LIST: "PARAM_LIST", FUNCDEF: "FUNCDEF", FUNCCALL: "FUNCCALL",
 		TYPE: "TYPE", STRUCT: "STRUCT", IF: "IF", WHILE: "WHILE", FOR: "FOR", PROGRAM: "PROGRAM", VAR_DEC: "VAR_DEC",
 	}
 	return nodetype_map[type_]
@@ -65,6 +73,10 @@ func NewBlockNode(tok *Token, c []ParseNode) *BlockNode {
 		token:    tok,
 		children: c,
 	}
+}
+
+func (n *BlockNode) get_nodetype() NodeType {
+	return BLOCK
 }
 
 func (n *BlockNode) get_token() *Token {
@@ -101,6 +113,10 @@ func NewBinaryNode(t *Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode 
 	}
 }
 
+func (n *BinaryNode) get_nodetype() NodeType {
+	return BINARY
+}
+
 func (n *BinaryNode) get_token() *Token {
 	return n.token
 }
@@ -123,21 +139,25 @@ func (n *BinaryNode) showtree(depth string) {
 //// BEGIN TRINARY NODE
 
 type TrinaryNode struct {
-	token *Token
+	token    *Token
 	nodetype NodeType
-	left ParseNode
-	middle ParseNode
-	right ParseNode
+	left     ParseNode
+	middle   ParseNode
+	right    ParseNode
 }
 
 func NewTrinaryNode(t *Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
 	return &TrinaryNode{
-		token: t,
+		token:    t,
 		nodetype: nodetype,
-		left: left,
-		middle: middle,
-		right: right,
+		left:     left,
+		middle:   middle,
+		right:    right,
 	}
+}
+
+func (n *TrinaryNode) get_nodetype() NodeType {
+	return TRINARY
 }
 
 func (n *TrinaryNode) get_token() *Token {
@@ -167,7 +187,12 @@ func (n *TrinaryNode) showtree(depth string) {
 type UnaryNode struct {
 	token    *Token
 	nodetype NodeType
-	node ParseNode
+	node     ParseNode
+	tag      string // author's message indicating extra meta information about node
+}
+
+func (n *UnaryNode) get_nodetype() NodeType {
+	return UNARY
 }
 
 func (n *UnaryNode) print() string {
@@ -186,17 +211,23 @@ func (n *UnaryNode) showtree(depth string) {
 	}
 }
 
+func (n *UnaryNode) addtag(message string) {
+	n.tag = message
+}
+
 func NewUnaryNode(tok *Token, nodetype NodeType) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
 		nodetype: nodetype,
+		tag:      "",
 	}
 }
 
 func NewBranchUnaryNode(tok *Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
 	return &UnaryNode{
-		token: tok,
-		nodetype: nodetype, 
-		node: branch_node,
+		token:    tok,
+		nodetype: nodetype,
+		node:     branch_node,
+		tag:      "",
 	}
 }

@@ -16,6 +16,7 @@ mult :: (x int, y int) -> int {
     result int
     for x in (0...50) {
         result++x
+        result--4
     }
     ret result
 }
@@ -30,6 +31,7 @@ honk :: () -> void {
 S               -> program
 
 STAR            -> *STAR | EMPTYSTRING
+array           -> [ primitive ] | [ ID ]
 primitive       -> int | char | array | void
 pointer         -> TYPE STAR
 TYPE            -> primitive | pointer
@@ -60,14 +62,15 @@ return          -> ret expression
 binding         -> :: funcdef | :: structdef | :: TYPE
 construct       -> ID binding
 
-funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body
+funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE
 structdef       -> struct { value_dec_list }
 for_stmt        -> for ID in range body
 while_stmt      -> while expression body
-if_stmt         -> if expression body | if expression body elif_stmt
+if_stmt         -> if expression body elif_stmt
 elif_stmt       -> else if expression body elif_stmt |
                    else if expression body else body |
-                   else if expression body
+                   else if expression body |
+                   EMPTYSTRING
 
 expression -> recursive descent on lang operators
 
