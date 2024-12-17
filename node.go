@@ -32,20 +32,64 @@ const (
 	VAR_REF
 )
 
+func (nt NodeType) String() string {
+	switch nt {
+	case BINARY:
+		return "BINARY"
+	case TRINARY:
+		return "TRINARY"
+	case UNARY:
+		return "UNARY"
+	case NUMBER:
+		return "NUMBER"
+	case IDENTIFIER:
+		return "IDENTIFIER"
+	case KEYWORD:
+		return "KEYWORD"
+	case BLOCK:
+		return "BLOCK"
+	case CODE_BLOCK:
+		return "CODE_BLOCK"
+	case PARAM_LIST:
+		return "PARAM_LIST"
+	case FUNCDEF:
+		return "FUNCDEF"
+	case FUNCCALL:
+		return "FUNCCALL"
+	case TYPE:
+		return "TYPE"
+	case STRUCT:
+		return "STRUCT"
+	case IF:
+		return "IF"
+	case IF_BRANCH:
+		return "IF_BRANCH"
+	case ELSE_BRANCH:
+		return "ELSE_BRANCH"
+	case WHILE:
+		return "WHILE"
+	case ASSIGN:
+		return "ASSIGN"
+	case FOR:
+		return "FOR"
+	case PROGRAM:
+		return "PROGRAM"
+	case RANGE:
+		return "RANGE"
+	case VAR_DEC:
+		return "VAR_DEC"
+	case VAR_REF:
+		return "VAR_REF"
+	default:
+		return "Unknown Node Type"
+	}
+}
+
 type ParseNode interface {
-	print() string
+	String() string
 	showtree(depth string)
 	get_token() *Token
 	get_nodetype() NodeType
-}
-
-func nodetype_to_string(type_ NodeType) string {
-	nodetype_map := map[NodeType]string{
-		BINARY: "BINARY", NUMBER: "NUMBER", IDENTIFIER: "IDENTIFIER",
-		KEYWORD: "KEYWORD", BLOCK: "BLOCK", CODE_BLOCK: "CODE_BLOCK", PARAM_LIST: "PARAM_LIST", FUNCDEF: "FUNCDEF", FUNCCALL: "FUNCCALL",
-		TYPE: "TYPE", STRUCT: "STRUCT", IF: "IF", WHILE: "WHILE", FOR: "FOR", PROGRAM: "PROGRAM", VAR_DEC: "VAR_DEC",
-	}
-	return nodetype_map[type_]
 }
 
 //// BEGIN BLOCK NODE
@@ -83,12 +127,12 @@ func (n *BlockNode) get_token() *Token {
 	return n.token
 }
 
-func (n *BlockNode) print() string {
+func (n *BlockNode) String() string {
 	return "BLOCK_NODE"
 }
 
 func (n *BlockNode) showtree(depth string) {
-	fmt.Println(depth + "- " + n.print())
+	fmt.Println(depth + "- " + n.String())
 
 	for _, child := range n.children {
 		child.showtree(depth + "\t")
@@ -121,12 +165,12 @@ func (n *BinaryNode) get_token() *Token {
 	return n.token
 }
 
-func (n *BinaryNode) print() string {
-	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", nodetype_to_string(n.nodetype), n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
+func (n *BinaryNode) String() string {
+	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", n.nodetype, n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
 }
 
 func (n *BinaryNode) showtree(depth string) {
-	fmt.Println(depth + "- " + n.print())
+	fmt.Println(depth + "- " + n.String())
 
 	if n.left != nil {
 		n.left.showtree(depth + "\t")
@@ -164,12 +208,12 @@ func (n *TrinaryNode) get_token() *Token {
 	return n.token
 }
 
-func (n *TrinaryNode) print() string {
-	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", nodetype_to_string(n.nodetype), n.token.lexeme, n.left.get_token().lexeme, n.middle.get_token().lexeme, n.right.get_token().lexeme)
+func (n *TrinaryNode) String() string {
+	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.nodetype, n.token.lexeme, n.left.get_token().lexeme, n.middle.get_token().lexeme, n.right.get_token().lexeme)
 }
 
 func (n *TrinaryNode) showtree(depth string) {
-	fmt.Println(depth + "- " + n.print())
+	fmt.Println(depth + "- " + n.String())
 
 	if n.left != nil {
 		n.left.showtree(depth + "\t")
@@ -195,8 +239,12 @@ func (n *UnaryNode) get_nodetype() NodeType {
 	return UNARY
 }
 
-func (n *UnaryNode) print() string {
-	return fmt.Sprintf("UNARY NODE (%s: %s | %s)", nodetype_to_string(n.nodetype), n.token.lexeme, n.node.get_token().lexeme)
+func (n *UnaryNode) String() string {
+	if n.node != nil {
+		return fmt.Sprintf("UNARY NODE (%s: %s | %s)", n.nodetype, n.token.lexeme, n.node)
+	}
+
+	return fmt.Sprintf("UNARY NODE (%s: %s)", n.nodetype, n.token.lexeme)
 }
 
 func (n *UnaryNode) get_token() *Token {
@@ -204,10 +252,10 @@ func (n *UnaryNode) get_token() *Token {
 }
 
 func (n *UnaryNode) showtree(depth string) {
-	fmt.Println(depth + "- " + n.print())
+	fmt.Println(depth + "- " + n.String())
 
 	if n.node != nil {
-		n.node.showtree(depth + "\n")
+		n.node.showtree(depth + "\t")
 	}
 }
 

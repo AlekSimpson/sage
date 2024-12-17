@@ -1,3 +1,45 @@
-2 - 1 * 3 + 4 - 8 / 32
-2 + 3
-count int
+
+Car :: struct {
+
+
+
+    door_count int,
+
+
+
+    plate_num int,
+
+}
+
+sub :: (a int, b int) -> int 
+{ <------------- STUFF LIKE THIS DOESN'T PARSE BUT IT SHOULD
+    ret a - b
+}
+
+main :: () -> void {
+    count int
+    pointer_test int* <---------- POINTER TYPE NOT PARSING CORRECTLY
+
+    for i in 5...10 {
+        printf(i)
+    }
+
+    if count > 10 {
+        count = count + 4
+    }else if count < 6 {
+        count = count + 50
+        ret count
+    }else {
+        ret count
+    }
+
+    another_var int
+    while 10 > another_var {
+        another_var = another_var - 1
+    }
+}
+
+
+add :: (a int, b int) -> int {
+    ret a + b
+}

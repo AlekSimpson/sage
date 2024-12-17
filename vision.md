@@ -50,27 +50,30 @@ statement       -> value_dec  |
                    if_stmt    |
                    for_stmt   |
                    while_stmt |
-                   expression
+                   expression |
+                   compile-time-run-stmt // TODO
 
 value_dec       -> ID TYPE
 assign          -> ID = expression | ID TYPE = expression
 value_dec_list  -> value_dec , value_dec_list | value_dec , | value_dec
 
 range           -> expression ... expression | ( expression ... expression )
-return          -> ret expression
+return          -> ret expression | ret
 
 binding         -> :: funcdef | :: structdef | :: TYPE
 construct       -> ID binding
 
 funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE
 structdef       -> struct { value_dec_list }
-for_stmt        -> for ID in range body
+for_stmt        -> for ID in range body // TODO: we should support more for loop formats
 while_stmt      -> while expression body
 if_stmt         -> if expression body elif_stmt
 elif_stmt       -> else if expression body elif_stmt |
                    else if expression body else body |
                    else if expression body |
                    EMPTYSTRING
+
+compile-time-run-stmt -> #run body // TODO
 
 expression -> recursive descent on lang operators
 
@@ -83,3 +86,6 @@ VISION:
 5. The build system is built into the compiler
 6. Arbitrary Compile Time Code Execution
 7. Functions as first class citizens
+
+TODO: LEXER UNIT TESTS
+TODO: PARSER UNIT TESTS

@@ -9,17 +9,19 @@ type TokenType int
 
 const (
 	TT_EQUALITY TokenType = 0
-	TT_ADD      TokenType = 1
-	TT_SUB      TokenType = 1
-	TT_MUL      TokenType = 2
-	TT_DIV      TokenType = 2
-	TT_EXP      TokenType = 3
-)
+	TT_LT       TokenType = 1
+	TT_GT       TokenType = 1
+	TT_GTE      TokenType = 2
+	TT_LTE      TokenType = 2
+	TT_ADD      TokenType = 3
+	TT_SUB      TokenType = 3
+	TT_MUL      TokenType = 4
+	TT_DIV      TokenType = 4
+	TT_EXP      TokenType = 5
 
-// TOKEN ENUMS
-const (
-	TT_NUM TokenType = iota + 4
+	TT_NUM TokenType = iota + 6
 	TT_IDENT
+	TT_FLOAT
 	TT_KEYWORD
 	TT_NEWLINE
 	TT_ASSIGN
@@ -40,6 +42,13 @@ const (
 	TT_BINDING
 	TT_RANGE
 	TT_COMPILER_CREATED
+	TT_BIT_AND
+	TT_BIT_OR
+	TT_DECREMENT
+	TT_INCREMENT
+	TT_AND
+	TT_OR
+	TT_FIELD_ACCESSOR // 'struct_name.value'
 )
 
 type Token struct {
@@ -48,32 +57,95 @@ type Token struct {
 	linenum    int
 }
 
-func ErrorToken(message string, ln int) *Token {
-	return &Token{
+func NewErrorToken(message string, ln int) Token {
+	return Token{
 		token_type: TT_ERROR,
 		lexeme:     message,
 		linenum:    ln,
 	}
 }
 
-func PrintTokenType(token_type TokenType) string {
-	typeMap := map[TokenType]string{
-		TT_NUM: "NUMBER", TT_IDENT: "IDENTIFIER",
-		TT_KEYWORD: "KEYWORD", TT_NEWLINE: "NEWLINE",
-		TT_ASSIGN: "ASSIGN", TT_LPAREN: "LPAREN",
-		TT_RPAREN: "RPAREN", TT_EOF: "EOF",
-		TT_SPACE: "SPACE", TT_ERROR: "ERROR",
+func (tt TokenType) String() string {
+	switch tt {
+	case TT_NUM:
+		return "TT_NUM"
+	case TT_IDENT:
+		return "TT_IDENT"
+	case TT_FLOAT:
+		return "TT_FLOAT"
+	case TT_KEYWORD:
+		return "TT_KEYWORD"
+	case TT_NEWLINE:
+		return "TT_NEWLINE"
+	case TT_ASSIGN:
+		return "TT_ASSIGN"
+	case TT_LPAREN:
+		return "TT_LPAREN"
+	case TT_RPAREN:
+		return "TT_RPAREN"
+	case TT_LBRACE:
+		return "TT_LBRACE"
+	case TT_RBRACE:
+		return "TT_RBRACE"
+	case TT_LBRACKET:
+		return "TT_LBRACKET"
+	case TT_RBRACKET:
+		return "TT_RBRACKET"
+	case TT_COMMA:
+		return "TT_COMMA"
+	case TT_FUNC_RETURN_TYPE:
+		return "TT_FUNC_RETURN_TYPE"
+	case TT_INCLUDE:
+		return "TT_INCLUDE"
+	case TT_STRING:
+		return "TT_STRING"
+	case TT_EOF:
+		return "TT_EOF"
+	case TT_SPACE:
+		return "TT_SPACE"
+	case TT_STAR:
+		return "TT_STAR"
+	case TT_ERROR:
+		return "TT_ERROR"
+	case TT_BINDING:
+		return "TT_BINDING"
+	case TT_RANGE:
+		return "TT_RANGE"
+	case TT_COMPILER_CREATED:
+		return "TT_COMPILER_CREATED"
+	case TT_BIT_AND:
+		return "TT_BIT_AND"
+	case TT_BIT_OR:
+		return "TT_BIT_OR"
+	case TT_DECREMENT:
+		return "TT_DECREMENT"
+	case TT_INCREMENT:
+		return "TT_INCREMENT"
+	case TT_GTE:
+		return "TT_GTE or TT_LTE"
+	case TT_AND:
+		return "TT_AND"
+	case TT_OR:
+		return "TT_OR"
+	case TT_LT:
+		return "TT_LT or TT_GT"
+	case TT_FIELD_ACCESSOR:
+		return "TT_FIELD_ACCESSOR"
+	case TT_EQUALITY:
+		return "TT_EQUALITY"
+	case TT_ADD:
+		return "TT_ADD or TT_SUB"
+	case TT_MUL:
+		return "TT_MUL or TT_DIV"
+	case TT_EXP:
+		return "TT_EXP"
+	default:
+		return "Unkown Token Type"
 	}
-
-	mapping, err := typeMap[token_type]
-	if !err {
-		panic(fmt.Sprintf("Non existent type provided to token type: %d\n", token_type))
-	}
-	return mapping
 }
 
 func (t *Token) show() string {
-	return fmt.Sprintf("Token{%s, %s, %d}", PrintTokenType(t.token_type), t.lexeme, t.linenum)
+	return fmt.Sprintf("Token{%s, %s, %d}", t.token_type.String(), t.lexeme, t.linenum)
 }
 
 func (t *Token) print() {

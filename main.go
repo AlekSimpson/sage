@@ -18,10 +18,11 @@ func main() {
 	}
 
 	queue := NewQueue(contents, 0)
-	lexer := Lexer{queue, []Token{}, 0, ' '}
-	tokens := lexer.lex()
+	lexer := NewLexer(queue)
 
-	parser := NewParser(tokens)
+	parser := NewParser(lexer)
 	tree := parser.parse_program()
-	tree.showtree("")
+	if tree != nil {
+		tree.showtree("")
+	}
 }

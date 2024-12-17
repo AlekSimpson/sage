@@ -20,33 +20,33 @@ import (
 // primary    := NUMBER | "(" expression ")"
 
 type Parser struct {
-	tokens              []Token
-	current             Token
-	current_token_index int
-	errors              []*Token
-	errorCheck          bool
+	lexer      Lexer
+	current    Token
+	errors     []*Token
+	errorCheck bool
 }
 
-func NewParser(tokens []Token) *Parser {
+func NewParser(lexer Lexer) *Parser {
 	return &Parser{
-		tokens:              tokens,
-		current:             tokens[0],
-		current_token_index: 0,
-		errors:              nil,
-		errorCheck:          false,
+		lexer:      lexer,
+		errors:     nil,
+		errorCheck: false,
 	}
 }
 
 func (p *Parser) parse_program() ParseNode {
-	libraries := p.parse_libraries()
+	// TODO: libraries := p.parse_libraries()
+	p.current = p.lexer.get_token()
 	root := p.statements()
-	root.children = append(root.children, libraries.children...)
+	// TODO: root.children = append(root.children, libraries.children...)
 
 	if len(p.errors) != 0 {
 		for _, error := range p.errors {
 			fmt.Println(error.lexeme)
 		}
 		p.errorCheck = true
+
+		return nil
 	}
 
 	return root
@@ -58,6 +58,7 @@ func (p *Parser) library_statement() ParseNode {
 }
 
 func (p *Parser) parse_libraries() *BlockNode {
+	// TODO:
 	list_node := ModuleRootNode()
 
 	for {
@@ -78,7 +79,7 @@ func (p *Parser) parse_libraries() *BlockNode {
 func (p *Parser) statements() *BlockNode {
 	list_node := ModuleRootNode()
 
-	for {
+	for len(p.errors) == 0 {
 		// consume all newlines until we reach actual code
 		for p.match_types(p.current.token_type, TT_NEWLINE) {
 			p.advance()
@@ -96,36 +97,31 @@ func (p *Parser) statements() *BlockNode {
 
 func (p *Parser) parse_statement() ParseNode {
 	switch p.current.token_type {
-	// parse value_dec, assign and construct statements
 	case TT_IDENT:
-		next_token := p.peek(1)
-		var node ParseNode
+		next_token := p.peek()
 		if p.match_types(next_token.token_type, TT_BINDING) {
 			// construct
-			node = p.parse_construct()
-		} else if p.match_types(next_token.token_type, TT_IDENT) {
+			return p.parse_construct()
+		} else if p.match_types(next_token.token_type, TT_KEYWORD) {
 			// `x int` OR `x int = 4`
-			node = p.parse_value_dec()
+			return p.parse_value_dec()
 		} else if p.match_types(next_token.token_type, TT_ASSIGN) {
-			node = p.parse_assign()
+			return p.parse_assign()
 		}
-		return node
 
-	// TODO: parse keyword statement types
 	case TT_KEYWORD:
 		return p.parse_keyword_statement()
-
-	default:
-		return p.expression()
 	}
+
+	return p.expression()
 }
 
 func (p *Parser) parse_value_dec() ParseNode {
 	name_identifier_token := p.current
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
-	p.advance()
+	p.advance() // move past identifier
 
-	if !p.match_types(p.current.token_type, TT_IDENT) {
+	if !p.match_types(p.current.token_type, TT_KEYWORD) {
 		p.raise_error("Expected type to be associated with identifier in value declaration statement\n")
 		return nil
 	}
@@ -137,7 +133,7 @@ func (p *Parser) parse_value_dec() ParseNode {
 		p.advance() // move past the "=" symbol
 		rhs := p.expression()
 
-		new_lexeme := fmt.Sprintf("%s %s = %s", name_identifier_token.lexeme, type_identifier_token.lexeme, rhs.print())
+		new_lexeme := fmt.Sprintf("%s %s = %s", name_identifier_token.lexeme, type_identifier_token.lexeme, rhs)
 		dec_token := &Token{TT_ASSIGN, new_lexeme, name_identifier_token.linenum}
 		return NewTrinaryNode(
 			dec_token,
@@ -159,10 +155,28 @@ func (p *Parser) parse_value_dec() ParseNode {
 }
 
 func (p *Parser) parse_value_dec_list() ParseNode {
+	// first we check if the parameter list is empty, if it is an empty list then the first token in the list should be the ending ')' character
+	if p.match_types(p.current.token_type, TT_RPAREN) {
+		return &BlockNode{
+			token:    &Token{TT_COMPILER_CREATED, "Empty Parameter List", p.current.linenum},
+			nodetype: PARAM_LIST,
+			children: []ParseNode{},
+		}
+	}
+
+	// newlines before a value dec list are allowed
+	for p.match_types(p.current.token_type, TT_NEWLINE) {
+		p.advance()
+	}
+
+	// otherwise we expected the list to be populated with var dec entries beginning with an identifier
 	if !p.match_types(p.current.token_type, TT_IDENT) {
+		p.raise_error("Expecting value dec to begin with identifier\n")
 		return nil
 	}
+
 	list_node := &BlockNode{}
+	list_node.nodetype = PARAM_LIST
 	var list_token_lexeme string
 	list_token := Token{TT_COMPILER_CREATED, "", p.current.linenum}
 
@@ -170,7 +184,7 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 		value_dec := p.parse_value_dec()
 		if value_dec.get_nodetype() == TRINARY {
 			// NOTE: Maybe this could be a compiler warning and we just omit the assigned value
-			p.raise_error("Cannot initialize value in value declaration list")
+			p.raise_error("Cannot initialize value in value declaration list\n")
 			return nil
 		}
 
@@ -183,6 +197,11 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 		p.consume(TT_COMMA, "Expected comma symbol after value declaration value declaration list\n")
 		list_token_lexeme += fmt.Sprintf("%s, ", value_dec.get_token().lexeme)
 		list_node.children = append(list_node.children, value_dec)
+
+		// value declarations are allowed to be seperated by newline(s)
+		for p.match_types(p.current.token_type, TT_NEWLINE) {
+			p.advance()
+		}
 	}
 
 	list_token.lexeme = list_token_lexeme
@@ -196,18 +215,19 @@ func (p *Parser) parse_assign() ParseNode {
 	name_node := NewUnaryNode(&name_token, IDENTIFIER)
 	p.advance() // advance past the current identifier
 
-	p.advance() // advance past the "=" symbol
+	p.consume(TT_ASSIGN, "Expected '=' symbol in assign statement\n")
 
 	value_node := p.expression()
 
-	return NewBinaryNode(&Token{}, ASSIGN, name_node, value_node)
+	token_lexeme := fmt.Sprintf("%s = %s", name_token.lexeme, value_node.get_token().lexeme)
+	return NewBinaryNode(&Token{TT_ASSIGN, token_lexeme, name_token.linenum}, ASSIGN, name_node, value_node)
 }
 
 func (p *Parser) parse_keyword_statement() ParseNode {
 	switch p.current.lexeme {
 	case "ret":
 		return_token := p.current
-		lookahead := p.peek(1)
+		lookahead := p.peek()
 		if p.match_types(lookahead.token_type, TT_NEWLINE) {
 			p.advance() // advance past return token
 			return NewUnaryNode(&return_token, KEYWORD)
@@ -217,7 +237,7 @@ func (p *Parser) parse_keyword_statement() ParseNode {
 		expression := p.expression()
 		new_token := Token{
 			TT_KEYWORD,
-			fmt.Sprintf("ret %s", expression.print()),
+			fmt.Sprintf("ret %s", expression),
 			return_token.linenum,
 		}
 		return NewUnaryNode(&new_token, KEYWORD)
@@ -251,7 +271,7 @@ func (p *Parser) parse_if_statement() ParseNode {
 
 	// check for elif statements
 	for p.current.lexeme == "else" {
-		p.advance()
+		p.advance() // move past else
 
 		if p.current.lexeme != "if" && p.current.lexeme != "{" {
 			p.raise_error("Expected body or if statements after else keyword\n")
@@ -259,7 +279,7 @@ func (p *Parser) parse_if_statement() ParseNode {
 		}
 
 		if p.current.lexeme == "if" {
-			p.advance()
+			p.advance() // move past if
 
 			condition_exp := p.expression()
 			condition_bod := p.parse_body()
@@ -268,7 +288,6 @@ func (p *Parser) parse_if_statement() ParseNode {
 			next_elif_statement := NewBinaryNode(node_token, IF_BRANCH, condition_exp, condition_bod)
 			elif_statements = append(elif_statements, next_elif_statement)
 		} else if p.match_types(p.current.token_type, TT_LBRACE) {
-			p.advance()
 
 			else_body := p.parse_body()
 			node_token := &Token{TT_COMPILER_CREATED, "else { ... }", else_body.get_token().linenum}
@@ -283,7 +302,7 @@ func (p *Parser) parse_if_statement() ParseNode {
 }
 
 func (p *Parser) parse_while_statement() ParseNode {
-	p.consume(TT_IDENT, "Expected 'while' keyword in while statement\n")
+	p.consume(TT_KEYWORD, "Expected 'while' keyword in while statement\n")
 
 	condition_node := p.expression()
 
@@ -298,7 +317,7 @@ func (p *Parser) parse_while_statement() ParseNode {
 }
 
 func (p *Parser) parse_for_statement() ParseNode {
-	p.consume(TT_IDENT, "Expected 'for' keyword in for statement\n")
+	p.consume(TT_KEYWORD, "Expected 'for' keyword in for statement\n")
 
 	if !p.match_types(p.current.token_type, TT_IDENT) {
 		p.raise_error("For statement expects iterator name\n")
@@ -307,13 +326,13 @@ func (p *Parser) parse_for_statement() ParseNode {
 
 	iterator_variable_token := p.current
 	iterator_variable_node := NewUnaryNode(&iterator_variable_token, VAR_DEC)
-	p.advance()
+	p.advance() // move past iterator
 
 	if p.current.lexeme != "in" {
 		p.raise_error("Expected 'in' keyword in for statement\n")
 		return nil
 	}
-	p.advance()
+	p.advance() // move past in keyword
 
 	range_node := p.parse_range()
 
@@ -350,8 +369,7 @@ func (p *Parser) parse_construct() ParseNode {
 
 	name_identifier_token := p.current
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
-
-	p.advance()
+	p.advance() // move identifier
 
 	p.consume(TT_BINDING, "Expected '::' symbol in binding statement\n")
 
@@ -371,7 +389,12 @@ func (p *Parser) parse_construct() ParseNode {
 		nodetype = TYPE
 	}
 
-	construct_token := Token{}
+	if binding_node == nil {
+		return nil
+	}
+
+	token_lexeme := fmt.Sprintf("%s :: %s", name_identifier_token.lexeme, binding_node.get_token().lexeme)
+	construct_token := Token{TT_COMPILER_CREATED, token_lexeme, name_identifier_token.linenum}
 	return NewBinaryNode(&construct_token, nodetype, name_identifier_node, binding_node)
 }
 
@@ -380,6 +403,7 @@ func (p *Parser) parse_struct() ParseNode {
 		p.raise_error("Expected 'struct' keyword in structure defintion\n")
 		return nil
 	}
+	p.advance() // advance past the struct keyword
 
 	p.consume(TT_LBRACE, "Expected LBRACE in structure definition\n")
 
@@ -387,7 +411,7 @@ func (p *Parser) parse_struct() ParseNode {
 
 	p.consume(TT_RBRACE, "Expected RBRACE in structure definintion\n")
 
-	return NewBranchUnaryNode(&Token{}, STRUCT, struct_contents)
+	return struct_contents
 }
 
 func (p *Parser) parse_function() ParseNode {
@@ -395,13 +419,17 @@ func (p *Parser) parse_function() ParseNode {
 
 	signature_lexeme := "("
 	parameter_list := p.parse_value_dec_list()
+	if parameter_list == nil {
+		return nil
+	}
+
 	signature_lexeme += parameter_list.get_token().lexeme
 
 	p.consume(TT_RPAREN, "Expected RPAREN in function definition\n")
 	p.consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition\n")
 	signature_lexeme += ") -> "
 
-	if !p.match_types(p.current.token_type, TT_IDENT) {
+	if !p.match_types(p.current.token_type, TT_KEYWORD) {
 		p.raise_error("Function must have a return type\n")
 		return nil
 	}
@@ -409,12 +437,12 @@ func (p *Parser) parse_function() ParseNode {
 	return_type_token := p.current
 	return_type_node := NewUnaryNode(&return_type_token, TYPE)
 	signature_lexeme += return_type_token.lexeme
-	p.advance()
+	p.advance() // move past type keyword
 
 	function_signature := &Token{TT_COMPILER_CREATED, signature_lexeme, parameter_list.get_token().linenum}
 
 	if p.match_types(p.current.token_type, TT_NEWLINE) {
-		p.advance()
+		p.advance() // move past the newline, NOTE: !!!! it might turn out that this advance breaks parsing flow, might need to remove it but I'm just going to leave it for now until it starts causing problems !!!!
 		return NewBinaryNode(function_signature, FUNCDEF, parameter_list, return_type_node)
 	}
 
@@ -458,7 +486,7 @@ func (p *Parser) parse_type() ParseNode {
 
 	} else if p.match_types(p.current.token_type, TT_LBRACKET) {
 		// array type
-		p.advance()
+		p.advance() // move past lbracket
 
 		array_type := p.parse_type()
 
@@ -473,7 +501,7 @@ func (p *Parser) parse_type() ParseNode {
 		p.advance() // advance past the identifier
 	}
 
-	if p.match_types(p.current.token_type, TT_STAR) {
+	if p.match_types(p.current.token_type, TT_MUL) {
 		p.advance() // advance past the star
 		new_return_node := NewBranchUnaryNode(return_node.get_token(), TYPE, return_node)
 		new_return_node.addtag("pointer_to_")
@@ -510,23 +538,30 @@ func (p *Parser) parse_operator(left ParseNode, min_precedence TokenType) ParseN
 }
 
 func (p *Parser) parse_primary() ParseNode {
-	if p.match_types(p.current.token_type, TT_NUM) {
+	switch p.current.token_type {
+	case TT_NUM:
 		token := p.current
 		ret := NewUnaryNode(&token, NUMBER)
-		p.advance() // get the number that was matched and update current with the next token in the queue
+		p.advance()
 		return ret
-	}
 
-	if p.match_types(p.current.token_type, TT_LPAREN) {
-		p.consume(TT_LPAREN, "Expected closing ')'")
+	case TT_IDENT:
+		// TODO: parse function calls
+		token := p.current
+		ret := NewUnaryNode(&token, VAR_REF)
+		p.advance()
+		return ret
+
+	case TT_LPAREN:
+		p.consume(TT_LPAREN, "Expected opening '('")
 		expr := p.expression()
 		p.consume(TT_RPAREN, "Expected closing ')'")
-
 		return expr
-	}
 
-	p.raise_error("Could not find valid primary\n")
-	return nil
+	default:
+		p.raise_error("Could not find valid primary\n")
+		return nil
+	}
 }
 
 func is_operator(tokentype TokenType) bool {
@@ -544,9 +579,9 @@ func decide_precedence_inc(curr_op_type TokenType, op_type TokenType) int {
 //// PARSER UTILITIES ////
 
 func (p *Parser) raise_error(message string) Token {
-	error := ErrorToken(message, p.current.linenum)
-	p.errors = append(p.errors, error)
-	return *error
+	error := NewErrorToken(message, p.current.linenum)
+	p.errors = append(p.errors, &error)
+	return error
 }
 
 func (p *Parser) match_types(type_a TokenType, type_b TokenType) bool {
@@ -566,23 +601,13 @@ func (p *Parser) consume(token_type TokenType, message string) Token {
 }
 
 func (p *Parser) advance() {
-	// if the current token index is already at the end
-	//   then cap the index at the end of the array
-	if p.current_token_index == len(p.tokens)-1 {
-		p.current = p.tokens[p.current_token_index]
-		return
-	}
-
-	p.current_token_index = p.current_token_index + 1
-	p.current = p.tokens[p.current_token_index]
+	p.current = p.lexer.get_token()
 }
 
-func (p *Parser) peek(amount int) Token {
-	if p.current_token_index+amount >= len(p.tokens)-1 {
-		return p.tokens[len(p.tokens)-1]
-	}
-
-	return p.tokens[p.current_token_index+amount]
+func (p *Parser) peek() Token {
+	retval := p.lexer.get_token()
+	p.lexer.unget_token()
+	return retval
 }
 
 // checks the current token against the type parameter
