@@ -11,6 +11,7 @@ const (
 	TRINARY
 	UNARY
 	NUMBER
+	STRING
 	IDENTIFIER
 	KEYWORD
 	BLOCK
@@ -80,8 +81,10 @@ func (nt NodeType) String() string {
 		return "VAR_DEC"
 	case VAR_REF:
 		return "VAR_REF"
+	case STRING:
+		return "STRING"
 	default:
-		return "Unknown Node Type"
+		return "Unknown Node Type (Could have forgot to add String() impl for new type)"
 	}
 }
 

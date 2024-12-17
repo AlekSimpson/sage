@@ -11,14 +11,14 @@ Car :: struct {
 
 }
 
-sub :: (a int, b int) -> int 
-{ <------------- STUFF LIKE THIS DOESN'T PARSE BUT IT SHOULD
+sub :: (a int, b int) -> int {
     ret a - b
 }
 
 main :: () -> void {
     count int
-    pointer_test int* <---------- POINTER TYPE NOT PARSING CORRECTLY
+    pointer_test int*
+    arraytest [[char]]
 
     for i in 5...10 {
         printf(i)

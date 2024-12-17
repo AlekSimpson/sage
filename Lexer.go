@@ -20,8 +20,33 @@ func NewLexer(buffer *Queue[byte]) Lexer {
 	}
 }
 
+func (l *Lexer) check_for_string() *Token {
+	lexeme := ""
+	if l.current_char == '"' {
+		// add the first '"' character to kick off the loop
+		lexeme += "\""
+		l.current_char = rune(l.buffer.pop())
+
+		for l.current_char != '"' {
+			lexeme += string(l.current_char)
+			l.current_char = rune(l.buffer.pop())
+		}
+
+		lexeme += "\""
+		return &Token{TT_STRING, lexeme, l.linenum}
+	}
+
+	return nil
+}
+
 func (l *Lexer) lex_for_symbols() *Token {
 	// multi-char symbols: ::, ->, ..., ==, -- ++, >=, <=, &&, ||
+	return_val := l.check_for_string()
+	if return_val != nil {
+		// if the return isn't nil that means it did find a string
+		return return_val
+	}
+
 	var SYMBOLS = map[rune]TokenType{
 		'(': TT_LPAREN,
 		')': TT_RPAREN,

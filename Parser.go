@@ -102,17 +102,20 @@ func (p *Parser) parse_statement() ParseNode {
 		if p.match_types(next_token.token_type, TT_BINDING) {
 			// construct
 			return p.parse_construct()
-		} else if p.match_types(next_token.token_type, TT_KEYWORD) {
-			// `x int` OR `x int = 4`
+		} else if p.matches_any(next_token.token_type, []TokenType{TT_KEYWORD, TT_LBRACKET, TT_IDENT}) {
+			// value declaration
 			return p.parse_value_dec()
 		} else if p.match_types(next_token.token_type, TT_ASSIGN) {
+			// value assignment
 			return p.parse_assign()
 		}
 
 	case TT_KEYWORD:
+		// a keyword statement is found
 		return p.parse_keyword_statement()
 	}
 
+	// otherwise it must be a normal expression
 	return p.expression()
 }
 
@@ -121,12 +124,16 @@ func (p *Parser) parse_value_dec() ParseNode {
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
 	p.advance() // move past identifier
 
-	if !p.match_types(p.current.token_type, TT_KEYWORD) {
+	if !p.matches_any(p.current.token_type, []TokenType{TT_KEYWORD, TT_LBRACKET, TT_IDENT}) {
 		p.raise_error("Expected type to be associated with identifier in value declaration statement\n")
 		return nil
 	}
 
 	type_identifier_node := p.parse_type()
+	if type_identifier_node == nil {
+		return nil
+	}
+
 	type_identifier_token := type_identifier_node.get_token()
 
 	if p.match_types(p.current.token_type, TT_ASSIGN) {
@@ -188,7 +195,7 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 			return nil
 		}
 
-		if p.match_types(p.current.token_type, TT_RBRACE) || p.match_types(p.current.token_type, TT_RPAREN) {
+		if p.matches_any(p.current.token_type, []TokenType{TT_RBRACE, TT_RPAREN}) {
 			list_token.lexeme += value_dec.get_token().lexeme
 			list_node.children = append(list_node.children, value_dec)
 			break
@@ -482,17 +489,46 @@ func (p *Parser) parse_type() ParseNode {
 		// function type
 		function_type := p.parse_function()
 		return_node = NewBranchUnaryNode(function_type.get_token(), TYPE, function_type)
-		return_node.addtag("function_type_")
+		return_node.addtag("function_type_") // add a tag to give further info about what kind of type it is
+
+		return return_node // return now because pointers to function types aren't allowed
 
 	} else if p.match_types(p.current.token_type, TT_LBRACKET) {
 		// array type
-		p.advance() // move past lbracket
 
-		array_type := p.parse_type()
+		// keep track of how many dims this array has
+		lbracket_nest_count := 0
+		token_lexeme := ""
+		for p.match_types(p.current.token_type, TT_LBRACKET) {
+			p.advance() // move past lbracket
+			lbracket_nest_count++
+			token_lexeme += "["
+		}
 
-		p.consume(TT_RBRACKET, "Expected RBRACKET in array type expression\n")
+		if !p.matches_any(p.current.token_type, []TokenType{TT_KEYWORD, TT_IDENT}) {
+			p.raise_error("Expected valid type identifier in array type\n")
+			return nil
+		}
 
-		return_node = NewBranchUnaryNode(array_type.get_token(), TYPE, array_type)
+		array_type_token := p.current
+		array_type_node := NewUnaryNode(&array_type_token, TYPE)
+		token_lexeme += array_type_token.lexeme
+		p.advance() // advance past the identifier
+
+		// match the corresponding rbrackets after the type keyword
+		for p.match_types(p.current.token_type, TT_RBRACKET) {
+			p.advance()
+			lbracket_nest_count--
+			token_lexeme += "]"
+		}
+
+		if lbracket_nest_count != 0 {
+			p.raise_error("Unambiguous array nesting found, please ensure all '[' have a matching ']'\n")
+			return nil
+		}
+
+		new_token := &Token{array_type_token.token_type, token_lexeme, array_type_token.linenum}
+		return_node = NewBranchUnaryNode(new_token, TYPE, array_type_node)
 		return_node.addtag("array_of_")
 	} else {
 		type_token := p.current
@@ -501,9 +537,11 @@ func (p *Parser) parse_type() ParseNode {
 		p.advance() // advance past the identifier
 	}
 
-	if p.match_types(p.current.token_type, TT_MUL) {
+	if p.current.lexeme == "*" {
 		p.advance() // advance past the star
-		new_return_node := NewBranchUnaryNode(return_node.get_token(), TYPE, return_node)
+		retnode_token := return_node.get_token()
+		new_token := &Token{retnode_token.token_type, fmt.Sprintf("%s*", retnode_token.lexeme), retnode_token.linenum}
+		new_return_node := NewBranchUnaryNode(new_token, TYPE, return_node)
 		new_return_node.addtag("pointer_to_")
 		return new_return_node
 	}
@@ -558,8 +596,14 @@ func (p *Parser) parse_primary() ParseNode {
 		p.consume(TT_RPAREN, "Expected closing ')'")
 		return expr
 
+	case TT_STRING:
+		token := p.current
+		ret := NewUnaryNode(&token, STRING)
+		p.advance()
+		return ret
+
 	default:
-		p.raise_error("Could not find valid primary\n")
+		p.raise_error("Unrecognized statement; could not find valid primary\n")
 		return nil
 	}
 }
@@ -586,6 +630,15 @@ func (p *Parser) raise_error(message string) Token {
 
 func (p *Parser) match_types(type_a TokenType, type_b TokenType) bool {
 	return type_a == type_b
+}
+
+func (p *Parser) matches_any(type_a TokenType, possible_types []TokenType) bool {
+	for _, type_i := range possible_types {
+		if p.match_types(type_a, type_i) {
+			return true
+		}
+	}
+	return false
 }
 
 // if the current token is token_type then advance otherwise throw an error
