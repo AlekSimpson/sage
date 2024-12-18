@@ -1,4 +1,4 @@
-package main
+package sage
 
 type Queueable interface {
 	string | int | byte | Token

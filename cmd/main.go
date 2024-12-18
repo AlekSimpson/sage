@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"sage/internal/parser"
 	"strings"
 )
 
@@ -17,12 +18,9 @@ func main() {
 		panic(err)
 	}
 
-	queue := NewQueue(contents, 0)
-	lexer := NewLexer(queue)
-
-	parser := NewParser(lexer)
-	tree := parser.parse_program()
+	parser := sage.NewParser(contents)
+	tree := parser.Parse_program()
 	if tree != nil {
-		tree.showtree("")
+		tree.Showtree("")
 	}
 }

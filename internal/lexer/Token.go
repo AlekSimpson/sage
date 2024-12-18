@@ -1,4 +1,4 @@
-package main
+package sage
 
 import (
 	"fmt"
@@ -52,16 +52,24 @@ const (
 )
 
 type Token struct {
-	token_type TokenType
-	lexeme     string
-	linenum    int
+	Token_type TokenType
+	Lexeme     string
+	Linenum    int
+}
+
+func NewToken(token_type TokenType, lexeme string, linenum int) Token {
+	return Token{
+		Token_type: token_type,
+		Lexeme:     lexeme,
+		Linenum:    linenum,
+	}
 }
 
 func NewErrorToken(message string, ln int) Token {
 	return Token{
-		token_type: TT_ERROR,
-		lexeme:     message,
-		linenum:    ln,
+		Token_type: TT_ERROR,
+		Lexeme:     message,
+		Linenum:    ln,
 	}
 }
 
@@ -144,10 +152,10 @@ func (tt TokenType) String() string {
 	}
 }
 
-func (t *Token) show() string {
-	return fmt.Sprintf("Token{%s, %s, %d}", t.token_type.String(), t.lexeme, t.linenum)
+func (t *Token) Show() string {
+	return fmt.Sprintf("Token{%s, %s, %d}", t.Token_type.String(), t.Lexeme, t.Linenum)
 }
 
-func (t *Token) print() {
-	fmt.Println(t.show())
+func (t *Token) Print() {
+	fmt.Println(t.Show())
 }

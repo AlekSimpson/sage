@@ -1,4 +1,4 @@
-package main
+package sage
 
 import (
 	"unicode"
@@ -76,7 +76,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 		first_peek := rune(l.buffer.pop())
 		l.current_char = first_peek
 
-		if l.last_token.token_type == TT_IDENT && first_peek != '.' {
+		if l.last_token.Token_type == TT_IDENT && first_peek != '.' {
 			return &Token{TT_FIELD_ACCESSOR, ".", l.linenum}
 		}
 
@@ -180,7 +180,7 @@ func (l *Lexer) lex_for_numbers() *Token {
 
 	token := &Token{TT_NUM, lexeme, l.linenum}
 	if is_a_float {
-		token.token_type = TT_FLOAT
+		token.Token_type = TT_FLOAT
 	}
 
 	return token
@@ -222,13 +222,13 @@ func (l *Lexer) lex_for_identifiers() *Token {
 	_, err := KEYWORDS[lexeme]
 	if err {
 		// check if the word is a keyword
-		token.token_type = TT_KEYWORD
+		token.Token_type = TT_KEYWORD
 	}
 
 	return &token
 }
 
-func (l *Lexer) get_token() Token {
+func (l *Lexer) Get_token() Token {
 	if !l.tokens.empty() {
 		tok := l.tokens.pop()
 		return tok
@@ -274,6 +274,6 @@ func (l *Lexer) get_token() Token {
 	return l.last_token
 }
 
-func (l *Lexer) unget_token() {
+func (l *Lexer) Unget_token() {
 	l.tokens.stack(l.last_token)
 }

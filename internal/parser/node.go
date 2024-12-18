@@ -1,7 +1,8 @@
-package main
+package sage
 
 import (
 	"fmt"
+	"sage/internal/lexer"
 )
 
 type NodeType int
@@ -90,23 +91,23 @@ func (nt NodeType) String() string {
 
 type ParseNode interface {
 	String() string
-	showtree(depth string)
-	get_token() *Token
+	Showtree(depth string)
+	get_token() *sage.Token
 	get_nodetype() NodeType
 }
 
 //// BEGIN BLOCK NODE
 
 type BlockNode struct {
-	token    *Token
+	token    *sage.Token
 	nodetype NodeType
 	children []ParseNode
 }
 
 func ModuleRootNode() *BlockNode {
-	rootTok := &Token{
-		lexeme:  "",
-		linenum: 0,
+	rootTok := &sage.Token{
+		Lexeme:  "",
+		Linenum: 0,
 	}
 
 	return &BlockNode{
@@ -115,7 +116,7 @@ func ModuleRootNode() *BlockNode {
 	}
 }
 
-func NewBlockNode(tok *Token, c []ParseNode) *BlockNode {
+func NewBlockNode(tok *sage.Token, c []ParseNode) *BlockNode {
 	return &BlockNode{
 		token:    tok,
 		children: c,
@@ -126,7 +127,7 @@ func (n *BlockNode) get_nodetype() NodeType {
 	return BLOCK
 }
 
-func (n *BlockNode) get_token() *Token {
+func (n *BlockNode) get_token() *sage.Token {
 	return n.token
 }
 
@@ -134,24 +135,24 @@ func (n *BlockNode) String() string {
 	return "BLOCK_NODE"
 }
 
-func (n *BlockNode) showtree(depth string) {
+func (n *BlockNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
 	for _, child := range n.children {
-		child.showtree(depth + "\t")
+		child.Showtree(depth + "\t")
 	}
 }
 
 //// BEGIN BINARY NODE
 
 type BinaryNode struct {
-	token    *Token
+	token    *sage.Token
 	nodetype NodeType
 	left     ParseNode
 	right    ParseNode
 }
 
-func NewBinaryNode(t *Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
+func NewBinaryNode(t *sage.Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
 	return &BinaryNode{
 		token:    t,
 		nodetype: nt,
@@ -164,36 +165,36 @@ func (n *BinaryNode) get_nodetype() NodeType {
 	return BINARY
 }
 
-func (n *BinaryNode) get_token() *Token {
+func (n *BinaryNode) get_token() *sage.Token {
 	return n.token
 }
 
 func (n *BinaryNode) String() string {
-	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", n.nodetype, n.token.lexeme, n.left.get_token().lexeme, n.right.get_token().lexeme)
+	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", n.nodetype, n.token.Lexeme, n.left.get_token().Lexeme, n.right.get_token().Lexeme)
 }
 
-func (n *BinaryNode) showtree(depth string) {
+func (n *BinaryNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
 	if n.left != nil {
-		n.left.showtree(depth + "\t")
+		n.left.Showtree(depth + "\t")
 	}
 	if n.right != nil {
-		n.right.showtree(depth + "\t")
+		n.right.Showtree(depth + "\t")
 	}
 }
 
 //// BEGIN TRINARY NODE
 
 type TrinaryNode struct {
-	token    *Token
+	token    *sage.Token
 	nodetype NodeType
 	left     ParseNode
 	middle   ParseNode
 	right    ParseNode
 }
 
-func NewTrinaryNode(t *Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
+func NewTrinaryNode(t *sage.Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
 	return &TrinaryNode{
 		token:    t,
 		nodetype: nodetype,
@@ -207,32 +208,32 @@ func (n *TrinaryNode) get_nodetype() NodeType {
 	return TRINARY
 }
 
-func (n *TrinaryNode) get_token() *Token {
+func (n *TrinaryNode) get_token() *sage.Token {
 	return n.token
 }
 
 func (n *TrinaryNode) String() string {
-	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.nodetype, n.token.lexeme, n.left.get_token().lexeme, n.middle.get_token().lexeme, n.right.get_token().lexeme)
+	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.nodetype, n.token.Lexeme, n.left.get_token().Lexeme, n.middle.get_token().Lexeme, n.right.get_token().Lexeme)
 }
 
-func (n *TrinaryNode) showtree(depth string) {
+func (n *TrinaryNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
 	if n.left != nil {
-		n.left.showtree(depth + "\t")
+		n.left.Showtree(depth + "\t")
 	}
 	if n.middle != nil {
-		n.middle.showtree(depth + "\t")
+		n.middle.Showtree(depth + "\t")
 	}
 	if n.right != nil {
-		n.right.showtree(depth + "\t")
+		n.right.Showtree(depth + "\t")
 	}
 }
 
 //// BEGIN UNARY NODE
 
 type UnaryNode struct {
-	token    *Token
+	token    *sage.Token
 	nodetype NodeType
 	node     ParseNode
 	tag      string // author's message indicating extra meta information about node
@@ -244,21 +245,21 @@ func (n *UnaryNode) get_nodetype() NodeType {
 
 func (n *UnaryNode) String() string {
 	if n.node != nil {
-		return fmt.Sprintf("UNARY NODE (%s: %s | %s)", n.nodetype, n.token.lexeme, n.node)
+		return fmt.Sprintf("UNARY NODE (%s: %s | %s)", n.nodetype, n.token.Lexeme, n.node)
 	}
 
-	return fmt.Sprintf("UNARY NODE (%s: %s)", n.nodetype, n.token.lexeme)
+	return fmt.Sprintf("UNARY NODE (%s: %s)", n.nodetype, n.token.Lexeme)
 }
 
-func (n *UnaryNode) get_token() *Token {
+func (n *UnaryNode) get_token() *sage.Token {
 	return n.token
 }
 
-func (n *UnaryNode) showtree(depth string) {
+func (n *UnaryNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
 	if n.node != nil {
-		n.node.showtree(depth + "\t")
+		n.node.Showtree(depth + "\t")
 	}
 }
 
@@ -266,7 +267,7 @@ func (n *UnaryNode) addtag(message string) {
 	n.tag = message
 }
 
-func NewUnaryNode(tok *Token, nodetype NodeType) *UnaryNode {
+func NewUnaryNode(tok *sage.Token, nodetype NodeType) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
 		nodetype: nodetype,
@@ -274,7 +275,7 @@ func NewUnaryNode(tok *Token, nodetype NodeType) *UnaryNode {
 	}
 }
 
-func NewBranchUnaryNode(tok *Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
+func NewBranchUnaryNode(tok *sage.Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
 		nodetype: nodetype,
