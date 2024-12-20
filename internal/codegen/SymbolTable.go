@@ -9,3 +9,12 @@ func (st *SymbolTable) NewSymbolTable() *SymbolTable {
 		table: map[string]any{},
 	}
 }
+
+func (st *SymbolTable) GetEntry(name string) any {
+	entry, exists := st.table[name]
+	if !exists {
+		return nil
+	}
+
+	return entry
+}

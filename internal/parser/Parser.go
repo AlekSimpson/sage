@@ -155,7 +155,7 @@ func (p *Parser) parse_value_dec() ParseNode {
 		return nil
 	}
 
-	type_identifier_token := type_identifier_node.get_token()
+	type_identifier_token := type_identifier_node.Get_token()
 
 	if p.match_types(p.current.Token_type, sage.TT_ASSIGN) {
 		p.advance() // move past the "=" symbol
@@ -179,8 +179,8 @@ func (p *Parser) parse_value_dec() ParseNode {
 	return &BinaryNode{
 		token:    &token,
 		nodetype: VAR_DEC,
-		left:     name_identifier_node,
-		right:    type_identifier_node,
+		Left:     name_identifier_node,
+		Right:    type_identifier_node,
 	}
 }
 
@@ -212,20 +212,20 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 
 	for p.match_types(p.current.Token_type, sage.TT_IDENT) {
 		value_dec := p.parse_value_dec()
-		if value_dec.get_nodetype() == TRINARY {
+		if value_dec.Get_nodetype() == TRINARY {
 			// NOTE: Maybe this could be a compiler warning and we just omit the assigned value
 			p.raise_error("Cannot initialize value in value declaration list\n")
 			return nil
 		}
 
 		if p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_RBRACE, sage.TT_RPAREN}) {
-			list_token.Lexeme += value_dec.get_token().Lexeme
+			list_token.Lexeme += value_dec.Get_token().Lexeme
 			list_node.children = append(list_node.children, value_dec)
 			break
 		}
 
 		p.consume(sage.TT_COMMA, "Expected comma symbol after value declaration value declaration list\n")
-		list_token_lexeme += fmt.Sprintf("%s, ", value_dec.get_token().Lexeme)
+		list_token_lexeme += fmt.Sprintf("%s, ", value_dec.Get_token().Lexeme)
 		list_node.children = append(list_node.children, value_dec)
 
 		// value declarations are allowed to be seperated by newline(s)
@@ -249,7 +249,7 @@ func (p *Parser) parse_assign() ParseNode {
 
 	value_node := p.expression()
 
-	token_lexeme := fmt.Sprintf("%s = %s", name_token.Lexeme, value_node.get_token().Lexeme)
+	token_lexeme := fmt.Sprintf("%s = %s", name_token.Lexeme, value_node.Get_token().Lexeme)
 	token := sage.NewToken(sage.TT_ASSIGN, token_lexeme, name_token.Linenum)
 	return NewBinaryNode(&token, ASSIGN, name_node, value_node)
 }
@@ -292,7 +292,7 @@ func (p *Parser) parse_if_statement() ParseNode {
 
 	condition_expression := p.expression()
 	condition_body := p.parse_body()
-	prime_node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "if ... { ... }", condition_expression.get_token().Linenum)
+	prime_node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "if ... { ... }", condition_expression.Get_token().Linenum)
 	primary_if := NewBinaryNode(&prime_node_token, IF_BRANCH, condition_expression, condition_body)
 
 	elif_statements = append(elif_statements, primary_if)
@@ -312,20 +312,20 @@ func (p *Parser) parse_if_statement() ParseNode {
 			condition_exp := p.expression()
 			condition_bod := p.parse_body()
 			// TODO: more detailed token lexeme
-			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else if ... { ... }", condition_exp.get_token().Linenum)
+			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else if ... { ... }", condition_exp.Get_token().Linenum)
 			next_elif_statement := NewBinaryNode(&node_token, IF_BRANCH, condition_exp, condition_bod)
 			elif_statements = append(elif_statements, next_elif_statement)
 		} else if p.match_types(p.current.Token_type, sage.TT_LBRACE) {
 
 			else_body := p.parse_body()
-			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else { ... }", else_body.get_token().Linenum)
+			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else { ... }", else_body.Get_token().Linenum)
 			new_node := NewBranchUnaryNode(&node_token, ELSE_BRANCH, else_body)
 			elif_statements = append(elif_statements, new_node)
 			break
 		}
 	}
 
-	if_statement := &BlockNode{condition_expression.get_token(), IF, elif_statements}
+	if_statement := &BlockNode{condition_expression.Get_token(), IF, elif_statements}
 	return if_statement
 }
 
@@ -336,7 +336,7 @@ func (p *Parser) parse_while_statement() ParseNode {
 
 	body_node := p.parse_body()
 
-	token := sage.NewToken(sage.TT_COMPILER_CREATED, "while <condition> {...}", condition_node.get_token().Linenum)
+	token := sage.NewToken(sage.TT_COMPILER_CREATED, "while <condition> {...}", condition_node.Get_token().Linenum)
 	return NewBinaryNode(
 		&token,
 		WHILE,
@@ -369,7 +369,7 @@ func (p *Parser) parse_for_statement() ParseNode {
 
 	for_token := sage.NewToken(
 		sage.TT_COMPILER_CREATED,
-		fmt.Sprintf("for %s in %s {...}", iterator_variable_token.Lexeme, range_node.get_token().Lexeme),
+		fmt.Sprintf("for %s in %s {...}", iterator_variable_token.Lexeme, range_node.Get_token().Lexeme),
 		iterator_variable_token.Linenum,
 	)
 	return NewTrinaryNode(&for_token, FOR, iterator_variable_node, range_node, body_node)
@@ -384,8 +384,8 @@ func (p *Parser) parse_range() ParseNode {
 
 	range_token := sage.NewToken(
 		sage.TT_COMPILER_CREATED,
-		fmt.Sprintf("%s...%s", lhs.get_token().Lexeme, rhs.get_token().Lexeme),
-		lhs.get_token().Linenum,
+		fmt.Sprintf("%s...%s", lhs.Get_token().Lexeme, rhs.Get_token().Lexeme),
+		lhs.Get_token().Linenum,
 	)
 
 	return NewBinaryNode(&range_token, RANGE, lhs, rhs)
@@ -423,7 +423,7 @@ func (p *Parser) parse_construct() ParseNode {
 		return nil
 	}
 
-	token_lexeme := fmt.Sprintf("%s :: %s", name_identifier_token.Lexeme, binding_node.get_token().Lexeme)
+	token_lexeme := fmt.Sprintf("%s :: %s", name_identifier_token.Lexeme, binding_node.Get_token().Lexeme)
 	construct_token := sage.NewToken(sage.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum)
 	// construct_token := sage.Token{sage.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum}
 	return NewBinaryNode(&construct_token, nodetype, name_identifier_node, binding_node)
@@ -454,7 +454,7 @@ func (p *Parser) parse_function() ParseNode {
 		return nil
 	}
 
-	signature_lexeme += parameter_list.get_token().Lexeme
+	signature_lexeme += parameter_list.Get_token().Lexeme
 
 	p.consume(sage.TT_RPAREN, "Expected RPAREN in function definition\n")
 	p.consume(sage.TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition\n")
@@ -470,8 +470,8 @@ func (p *Parser) parse_function() ParseNode {
 	signature_lexeme += return_type_token.Lexeme
 	p.advance() // move past type keyword
 
-	function_signature := sage.NewToken(sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.get_token().Linenum)
-	// function_signature := &sage.Token{sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.get_token().Linenum}
+	function_signature := sage.NewToken(sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum)
+	// function_signature := &sage.Token{sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum}
 
 	if p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
 		p.advance() // move past the newline, NOTE: !!!! it might turn out that this advance breaks parsing flow, might need to remove it but I'm just going to leave it for now until it starts causing problems !!!!
@@ -514,7 +514,7 @@ func (p *Parser) parse_type() ParseNode {
 	if p.match_types(p.current.Token_type, sage.TT_LPAREN) {
 		// function type
 		function_type := p.parse_function()
-		return_node = NewBranchUnaryNode(function_type.get_token(), TYPE, function_type)
+		return_node = NewBranchUnaryNode(function_type.Get_token(), TYPE, function_type)
 		return_node.addtag("function_type_") // add a tag to give further info about what kind of type it is
 
 		return return_node // return now because pointers to function types aren't allowed
@@ -565,7 +565,7 @@ func (p *Parser) parse_type() ParseNode {
 
 	if p.current.Lexeme == "*" {
 		p.advance() // advance past the star
-		retnode_token := return_node.get_token()
+		retnode_token := return_node.Get_token()
 		new_token := &sage.Token{retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum}
 		new_return_node := NewBranchUnaryNode(new_token, TYPE, return_node)
 		new_return_node.addtag("pointer_to_")
@@ -612,6 +612,11 @@ func (p *Parser) parse_primary() ParseNode {
 	case sage.TT_IDENT:
 		// TODO: parse function calls
 		token := p.current
+		lookahead := p.peek()
+		if p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR) {
+			return p.parse_struct_field_access()
+		}
+		
 		ret := NewUnaryNode(&token, VAR_REF)
 		p.advance()
 		return ret
@@ -632,6 +637,26 @@ func (p *Parser) parse_primary() ParseNode {
 		p.raise_error("Unrecognized statement; could not find valid primary\n")
 		return nil
 	}
+}
+
+func (p *Parser) parse_struct_field_access() ParseNode {
+	var identifier_lexemes []string
+	identifier_lexemes = append(identifier_lexemes, p.current.Lexeme)
+	p.advance()
+
+	for p.match_types(p.current.Token_type, sage.TT_FIELD_ACCESSOR) {
+		p.advance()
+		if !p.match_types(p.current.Token_type, sage.TT_IDENT) {
+			p.raise_error("Expected identifier in struct field accessor statement\n")
+			return nil
+		}
+
+		identifier_lexemes = append(identifier_lexemes, p.current.Lexeme)
+		p.advance()
+	}
+
+	token := sage.NewToken(sage.TT_COMPILER_CREATED, "", -1)
+	return NewListNode(&token, LIST, identifier_lexemes)
 }
 
 func is_operator(tokentype sage.TokenType) bool {

@@ -26,25 +26,23 @@ const (
 )
 
 type BuildSettings struct {
-	targetfile         string // apart of ir module header
-	executable_name    string
-	platform           Platform
-	architecture       Architecture
-	bitsize            int
-	optimization_level OptLevel
+	Targetfile         string // apart of ir module header
+	Executable_name    string
+	Platform           Platform
+	Architecture       Architecture
+	Bitsize            int
+	Optimization_level OptLevel
+	Program_arguments  []string
+	Argument_count	   int
 }
 
 func NewBuildSettings(filename string, executable_name string, platform Platform, arch Architecture, bitsize int) *BuildSettings {
 	return &BuildSettings{
-		targetfile:         filename,
-		executable_name:    executable_name,
-		platform:           platform,
-		architecture:       arch,
-		bitsize:            bitsize,
-		optimization_level: NONE,
+		Targetfile:         filename,
+		Executable_name:    executable_name,
+		Platform:           platform,
+		Architecture:       arch,
+		Bitsize:            bitsize,
+		Optimization_level: NONE,
 	}
-}
-
-func (bs *BuildSettings) set_optimization_level(level OptLevel) {
-	bs.optimization_level = level
 }
