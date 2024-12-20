@@ -53,7 +53,7 @@ statement       -> value_dec  |
                    for_stmt   |
                    while_stmt |
                    expression |
-                   compile-time-run-stmt // TODO
+                   compile-time-run-stmt
 
 value_dec       -> ID TYPE
 assign          -> ID = expression | ID TYPE = expression
@@ -75,7 +75,7 @@ elif_stmt       -> else if expression body elif_stmt |
                    else if expression body |
                    EMPTYSTRING
 
-compile-time-run-stmt -> #run body // TODO
+compile-time-run-stmt -> #run body
 
 expression -> recursive descent on lang operators
 
@@ -89,5 +89,61 @@ VISION:
 6. Arbitrary Compile Time Code Execution
 7. Functions as first class citizens
 
-TODO: LEXER UNIT TESTS
-TODO: PARSER UNIT TESTS
+target datalayouts for the most common platforms:
+Linux x86_64:
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+Linux x86 (32-bit):
+target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
+target triple = "i686-unknown-linux-gnu"
+
+macOS x86_64:
+target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-apple-darwin"
+
+macOS ARM64 (Apple Silicon):
+target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "arm64-apple-darwin"
+
+Windows x64:
+target datalayout = "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-windows-msvc"
+
+Windows x86 (32-bit):
+target datalayout = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
+target triple = "i686-pc-windows-msvc"
+
+---------------------------------------------------------------------------------------
+Compiler CLI ideas:
+"sage infuse ..." - Could be for importing or including dependencies
+"sage pour ..." - For outputting or exporting ir code
+"sage steep <optimization-level> ..." - Could control compilation optimization levels
+    - "sage steep light ..." for -O1
+    - "sage steep medium ..." for -O2
+    - "sage steep strong ..." for -O3
+    - "sage steep none ..." for -O0
+"sage chai ..." - For checking/testing code
+"sage decant ..." - For deploying or distributing compiled code
+"sage sift ..." - For linting or static analysis
+"sage simmer ..." - For running in debug mode
+"sage steward ..." - For package management
+"sage distill ..." - For creating minimal builds
+
+not confirmed ideas:
+"sage harest"
+"sage prune ..." - For removing unused code or dependencies
+"sage graft ..." - For integrating new modules or features
+"sage cultivate ..." - For initializing a new project
+"sage propagate ..." - For copying or duplicating code components
+"sage mulch ..." - For managing build artifacts or caching
+"sage repot ..." - For migrating or restructuring code
+"sage pinch ..." - For trimming debug statements or comments
+"sage mist ..." - For running light debug checks
+"sage root ..." - For dependency resolution
+"sage shape ..." - For code formatting
+"sage feed ..." - For updating dependencies
+"sage clip ..." - For creating smaller builds or snippets
+"sage thin ..." - For code optimization
+"sage bind ..." - For tying modules together (like binding branches in bonsai)
+"sage split ..." - For breaking apart modules (like air-layering a bonsai)

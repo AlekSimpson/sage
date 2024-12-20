@@ -57,6 +57,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 		']': TT_RBRACKET,
 		'{': TT_LBRACE,
 		'}': TT_RBRACE,
+		'#': TT_POUND,
 	}
 
 	switch l.current_char {

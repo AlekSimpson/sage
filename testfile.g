@@ -1,1 +1,3 @@
-teststr string = "this is a test"
+add :: (a int, b int) -> int {
+    ret a + b
+}

@@ -117,10 +117,27 @@ func (p *Parser) parse_statement() ParseNode {
 	case sage.TT_KEYWORD:
 		// a keyword statement is found
 		return p.parse_keyword_statement()
+	case sage.TT_POUND:
+		return p.parse_compile_time_execute()
 	}
 
 	// otherwise it must be a normal expression
 	return p.expression()
+}
+
+func (p *Parser) parse_compile_time_execute() ParseNode {
+	p.consume(sage.TT_POUND, "Expected 'run' statement to begin with '#' symbol\n")
+
+	if p.current.Token_type != sage.TT_IDENT || p.current.Lexeme != "run" {
+		p.raise_error("Expected 'run' keyword in compile time execution statement\n")
+		return nil
+	}
+	p.advance()
+
+	run_token := sage.NewToken(sage.TT_COMPILER_CREATED, "#run { ... }", p.current.Linenum)
+	run_body := p.parse_body()
+
+	return NewBranchUnaryNode(&run_token, COMPILE_TIME_EXECUTE, run_body)
 }
 
 func (p *Parser) parse_value_dec() ParseNode {

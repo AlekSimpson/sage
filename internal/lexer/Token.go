@@ -49,6 +49,7 @@ const (
 	TT_AND
 	TT_OR
 	TT_FIELD_ACCESSOR // 'struct_name.value'
+	TT_POUND
 )
 
 type Token struct {

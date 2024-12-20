@@ -32,6 +32,7 @@ const (
 	RANGE
 	VAR_DEC
 	VAR_REF
+	COMPILE_TIME_EXECUTE
 )
 
 func (nt NodeType) String() string {
@@ -84,6 +85,8 @@ func (nt NodeType) String() string {
 		return "VAR_REF"
 	case STRING:
 		return "STRING"
+	case COMPILE_TIME_EXECUTE:
+		return "COMPILE_TIME_EXECUTE"
 	default:
 		return "Unknown Node Type (Could have forgot to add String() impl for new type)"
 	}
