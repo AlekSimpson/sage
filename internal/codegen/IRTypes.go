@@ -37,9 +37,10 @@ type IRModule struct {
 	Globals           []IRGlobal
 	Structs           []IRStruct
 	Body              []IRInstructionProtocol
+	GLOBAL_TABLE      *SymbolTable
 }
 
-func NewIRModule(filename string) *IRModule {
+func NewIRModule(filename string, globals *SymbolTable) *IRModule {
 	return &IRModule{
 		source_filename:   filename,
 		target_datalayout: "",

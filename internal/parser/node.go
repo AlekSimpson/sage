@@ -99,15 +99,16 @@ type ParseNode interface {
 	String() string
 	Showtree(depth string)
 	Get_token() *sage.Token
-	Get_nodetype() NodeType
+	Get_nodetype() NodeType // identifies the host structure type (Unary vs Block vs List vs Binary vs Trinary)
 	Get_child_node() ParseNode
+	Get_true_nodetype() NodeType // identifies the set nodetype
 }
 
 //// BEGIN BLOCK NODE
 
 type BlockNode struct {
 	token    *sage.Token
-	nodetype NodeType
+	Nodetype NodeType
 	children []ParseNode
 }
 
@@ -119,7 +120,7 @@ func ModuleRootNode() *BlockNode {
 
 	return &BlockNode{
 		token:    rootTok,
-		nodetype: PROGRAM,
+		Nodetype: PROGRAM,
 	}
 }
 
@@ -128,6 +129,10 @@ func NewBlockNode(tok *sage.Token, c []ParseNode) *BlockNode {
 		token:    tok,
 		children: c,
 	}
+}
+
+func (n *BlockNode) Get_true_nodetype() NodeType {
+	return n.Nodetype
 }
 
 func (n *BlockNode) Get_child_node() ParseNode {
@@ -161,7 +166,7 @@ func (n *BlockNode) Showtree(depth string) {
 
 type BinaryNode struct {
 	token    *sage.Token
-	nodetype NodeType
+	Nodetype NodeType
 	Left     ParseNode
 	Right    ParseNode
 }
@@ -169,10 +174,14 @@ type BinaryNode struct {
 func NewBinaryNode(t *sage.Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
 	return &BinaryNode{
 		token:    t,
-		nodetype: nt,
+		Nodetype: nt,
 		Left:     l,
 		Right:    r,
 	}
+}
+
+func (n *BinaryNode) Get_true_nodetype() NodeType {
+	return n.Nodetype
 }
 
 func (n *BinaryNode) Get_child_node() ParseNode {
@@ -188,7 +197,7 @@ func (n *BinaryNode) Get_token() *sage.Token {
 }
 
 func (n *BinaryNode) String() string {
-	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", n.nodetype, n.token.Lexeme, n.Left.Get_token().Lexeme, n.Right.Get_token().Lexeme)
+	return fmt.Sprintf("BINARY NODE (%s: %s | %s | %s)", n.Nodetype, n.token.Lexeme, n.Left.Get_token().Lexeme, n.Right.Get_token().Lexeme)
 }
 
 func (n *BinaryNode) Showtree(depth string) {
@@ -206,7 +215,7 @@ func (n *BinaryNode) Showtree(depth string) {
 
 type TrinaryNode struct {
 	token    *sage.Token
-	nodetype NodeType
+	Nodetype NodeType
 	left     ParseNode
 	middle   ParseNode
 	right    ParseNode
@@ -215,11 +224,15 @@ type TrinaryNode struct {
 func NewTrinaryNode(t *sage.Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
 	return &TrinaryNode{
 		token:    t,
-		nodetype: nodetype,
+		Nodetype: nodetype,
 		left:     left,
 		middle:   middle,
 		right:    right,
 	}
+}
+
+func (n *TrinaryNode) Get_true_nodetype() NodeType {
+	return n.Nodetype
 }
 
 func (n *TrinaryNode) Get_child_node() ParseNode {
@@ -235,7 +248,7 @@ func (n *TrinaryNode) Get_token() *sage.Token {
 }
 
 func (n *TrinaryNode) String() string {
-	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.nodetype, n.token.Lexeme, n.left.Get_token().Lexeme, n.middle.Get_token().Lexeme, n.right.Get_token().Lexeme)
+	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.Nodetype, n.token.Lexeme, n.left.Get_token().Lexeme, n.middle.Get_token().Lexeme, n.right.Get_token().Lexeme)
 }
 
 func (n *TrinaryNode) Showtree(depth string) {
@@ -256,9 +269,13 @@ func (n *TrinaryNode) Showtree(depth string) {
 
 type UnaryNode struct {
 	token    *sage.Token
-	nodetype NodeType
+	Nodetype NodeType
 	node     ParseNode
 	Tag      string // author's message indicating extra meta information about node
+}
+
+func (n *UnaryNode) Get_true_nodetype() NodeType {
+	return n.Nodetype
 }
 
 func (n *UnaryNode) Get_child_node() ParseNode {
@@ -271,10 +288,10 @@ func (n *UnaryNode) Get_nodetype() NodeType {
 
 func (n *UnaryNode) String() string {
 	if n.node != nil {
-		return fmt.Sprintf("UNARY NODE (%s: %s | %s)", n.nodetype, n.token.Lexeme, n.node)
+		return fmt.Sprintf("UNARY NODE (%s: %s | %s)", n.Nodetype, n.token.Lexeme, n.node)
 	}
 
-	return fmt.Sprintf("UNARY NODE (%s: %s)", n.nodetype, n.token.Lexeme)
+	return fmt.Sprintf("UNARY NODE (%s: %s)", n.Nodetype, n.token.Lexeme)
 }
 
 func (n *UnaryNode) Get_token() *sage.Token {
@@ -296,7 +313,7 @@ func (n *UnaryNode) addtag(message string) {
 func NewUnaryNode(tok *sage.Token, nodetype NodeType) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
-		nodetype: nodetype,
+		Nodetype: nodetype,
 		Tag:      "",
 	}
 }
@@ -304,7 +321,7 @@ func NewUnaryNode(tok *sage.Token, nodetype NodeType) *UnaryNode {
 func NewBranchUnaryNode(tok *sage.Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
-		nodetype: nodetype,
+		Nodetype: nodetype,
 		node:     branch_node,
 		Tag:      "",
 	}
@@ -314,18 +331,22 @@ func NewBranchUnaryNode(tok *sage.Token, nodetype NodeType, branch_node ParseNod
 
 type ListNode struct {
 	token    *sage.Token
-	nodetype NodeType
+	Nodetype NodeType
 	Lexemes  []string
-	node	 ParseNode
+	node     ParseNode
 }
 
 func NewListNode(token *sage.Token, nodetype NodeType, lexemes []string) *ListNode {
 	return &ListNode{
-		token: token,
-		nodetype: nodetype,
-		Lexemes: lexemes,
-		node: nil,
+		token:    token,
+		Nodetype: nodetype,
+		Lexemes:  lexemes,
+		node:     nil,
 	}
+}
+
+func (n *ListNode) Get_true_nodetype() NodeType {
+	return n.Nodetype
 }
 
 func (n *ListNode) Get_child_node() ParseNode {
@@ -338,13 +359,13 @@ func (n *ListNode) Get_nodetype() NodeType {
 
 func (n *ListNode) String() string {
 	if n.node != nil {
-		return fmt.Sprintf("LIST NODE (%s: %s | %s)", n.nodetype, n.get_full_lexeme(), n.node)
+		return fmt.Sprintf("LIST NODE (%s: %s | %s)", n.Nodetype, n.Get_full_lexeme(), n.node)
 	}
 
-	return fmt.Sprintf("LIST NODE (%s: %s)", n.nodetype, n.get_full_lexeme())
+	return fmt.Sprintf("LIST NODE (%s: %s)", n.Nodetype, n.Get_full_lexeme())
 }
 
-func (n *ListNode) get_full_lexeme() string {
+func (n *ListNode) Get_full_lexeme() string {
 	full_lexeme := ""
 	for _, lex := range n.Lexemes {
 		full_lexeme += lex
@@ -366,4 +387,3 @@ func (n *ListNode) Showtree(depth string) {
 		n.node.Showtree(depth + "\t")
 	}
 }
-

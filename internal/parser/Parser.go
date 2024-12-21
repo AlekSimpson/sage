@@ -23,6 +23,7 @@ import (
 type Parser struct {
 	lexer      sage.Lexer
 	current    sage.Token
+	node_cache ParseNode
 	errors     []*sage.Token
 	errorCheck bool
 }
@@ -84,7 +85,7 @@ func (p *Parser) statements() *BlockNode {
 	list_node := ModuleRootNode()
 
 	for len(p.errors) == 0 {
-		// consume all newlines until we reach actual code
+		// consume all newlines until we reach actul code
 		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
 			p.advance()
 		}
@@ -106,12 +107,20 @@ func (p *Parser) parse_statement() ParseNode {
 		if p.match_types(next_token.Token_type, sage.TT_BINDING) {
 			// construct
 			return p.parse_construct()
-		} else if p.matches_any(next_token.Token_type, []sage.TokenType{sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT}) {
+		} else if p.matches_any(next_token.Token_type, []sage.TokenType{
+			sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT,
+		}) {
 			// value declaration
 			return p.parse_value_dec()
-		} else if p.match_types(next_token.Token_type, sage.TT_ASSIGN) {
+		} else if p.matches_any(next_token.Token_type, []sage.TokenType{sage.TT_ASSIGN, sage.TT_FIELD_ACCESSOR}) {
 			// value assignment
-			return p.parse_assign()
+			retval := p.parse_assign()
+			if retval == nil {
+				// nil means that we actually were parsing an expression and should stop parsing for assign
+				break
+			}
+
+			return retval
 		}
 
 	case sage.TT_KEYWORD:
@@ -178,7 +187,7 @@ func (p *Parser) parse_value_dec() ParseNode {
 	token := sage.NewToken(sage.TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.Linenum)
 	return &BinaryNode{
 		token:    &token,
-		nodetype: VAR_DEC,
+		Nodetype: VAR_DEC,
 		Left:     name_identifier_node,
 		Right:    type_identifier_node,
 	}
@@ -189,7 +198,7 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 	if p.match_types(p.current.Token_type, sage.TT_RPAREN) {
 		return &BlockNode{
 			token:    &sage.Token{Token_type: sage.TT_COMPILER_CREATED, Lexeme: "Empty Parameter List", Linenum: p.current.Linenum},
-			nodetype: PARAM_LIST,
+			Nodetype: PARAM_LIST,
 			children: []ParseNode{},
 		}
 	}
@@ -206,7 +215,7 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 	}
 
 	list_node := &BlockNode{}
-	list_node.nodetype = PARAM_LIST
+	list_node.Nodetype = PARAM_LIST
 	var list_token_lexeme string
 	list_token := sage.Token{Token_type: sage.TT_COMPILER_CREATED, Lexeme: "", Linenum: p.current.Linenum}
 
@@ -242,8 +251,28 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 
 func (p *Parser) parse_assign() ParseNode {
 	name_token := p.current
-	name_node := NewUnaryNode(&name_token, IDENTIFIER)
-	p.advance() // advance past the current identifier
+	var name_node ParseNode = NewUnaryNode(&name_token, IDENTIFIER)
+
+	// this code section is here to handle field accessor cases
+	lookahead := p.peek()
+	is_field_access := p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR)
+	if is_field_access {
+		// we could be assigning something new to a struct field
+		name_node = p.parse_struct_field_access()
+		temp_name_node := name_node.(*ListNode)
+		name_token.Lexeme = temp_name_node.Get_full_lexeme()
+	} else {
+		// parse_struct_field_access leaves the current token cursor on the next token already
+		// so if it is a field access then calling this p.advance() would be unnecessary
+		p.advance() // advance past the current identifier
+	}
+
+	// it could be that we are referencing the field in some expression,
+	if is_field_access && p.current.Token_type != sage.TT_ASSIGN {
+		p.set_node_cache(name_node)
+		return nil // return nil to signify that we actually are parsing a different kind of statement
+	}
+	/////
 
 	p.consume(sage.TT_ASSIGN, "Expected '=' symbol in assign statement\n")
 
@@ -576,6 +605,15 @@ func (p *Parser) parse_type() ParseNode {
 }
 
 func (p *Parser) expression() ParseNode {
+	// if the node cache isn't empty then that means we were previously parsing,
+	//	  an identifier that looked like another statement but actually was an expression,
+	//	  so instead of parsing for a primary we simply use the primary that was already found first.
+	if p.node_cache != nil {
+		first_primary := p.node_cache
+		p.clear_node_cache()
+
+		return p.parse_operator(first_primary, sage.TT_EQUALITY)
+	}
 	return p.parse_operator(p.parse_primary(), sage.TT_EQUALITY)
 }
 
@@ -616,7 +654,7 @@ func (p *Parser) parse_primary() ParseNode {
 		if p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR) {
 			return p.parse_struct_field_access()
 		}
-		
+
 		ret := NewUnaryNode(&token, VAR_REF)
 		p.advance()
 		return ret
@@ -741,4 +779,12 @@ func (p *Parser) op_is_left_associative(op_literal string) bool {
 
 func (p *Parser) op_is_right_associative(op_literal string) bool {
 	return !p.op_is_left_associative(op_literal)
+}
+
+func (p *Parser) set_node_cache(node ParseNode) {
+	p.node_cache = node
+}
+
+func (p *Parser) clear_node_cache() {
+	p.node_cache = nil
 }

@@ -77,7 +77,9 @@ func (l *Lexer) lex_for_symbols() *Token {
 		first_peek := rune(l.buffer.pop())
 		l.current_char = first_peek
 
-		if l.last_token.Token_type == TT_IDENT && first_peek != '.' {
+		// if the '.' is in between an identifier token and unicode chars then its a field accessor
+		if l.last_token.Token_type == TT_IDENT && (unicode.IsLetter(first_peek) || first_peek == '_') {
+			l.buffer.stack(byte(first_peek))
 			return &Token{TT_FIELD_ACCESSOR, ".", l.linenum}
 		}
 

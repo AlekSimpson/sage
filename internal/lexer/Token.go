@@ -148,6 +148,8 @@ func (tt TokenType) String() string {
 		return "TT_MUL or TT_DIV"
 	case TT_EXP:
 		return "TT_EXP"
+	case TT_POUND:
+		return "TT_POUND"
 	default:
 		return "Unkown Token Type"
 	}

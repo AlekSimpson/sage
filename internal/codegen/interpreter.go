@@ -7,11 +7,11 @@ import (
 
 type SageInterpreter struct {
 	Global_table *SymbolTable
-	errors []*SageError
+	errors       []*SageError
 }
 
-func (i *SageInterpreter) interpret(node sage.ParseNode) {
-	// TODO: 
+func (i *SageInterpreter) interpret(node sage.ParseNode) string {
+	// TODO:
 	// BINARY
 	// TRINARY
 	// UNARY
@@ -33,7 +33,7 @@ func (i *SageInterpreter) interpret(node sage.ParseNode) {
 	current_node := node
 	interpretting := true
 	for interpretting {
-		nodetype := current_node.Get_nodetype()
+		nodetype := current_node.Get_true_nodetype()
 		switch nodetype {
 		case sage.ASSIGN:
 			// assign node:
@@ -48,20 +48,11 @@ func (i *SageInterpreter) interpret(node sage.ParseNode) {
 
 			bin_node := current_node.(*sage.BinaryNode)
 			left_side := bin_node.Left
-
 			right_side := bin_node.Right
+			right_value := i.interpret(right_side)
 
-			entry := i.Global_table.GetEntry(left_side.Get_token().Lexeme)
-			// if the entry doesn't exist then we throw an error because we cannot assign a value to a non existent variable
-			if entry == nil {
-				error := NewSageError("Expected binary assignment", "TODO", "Interpreter is WIP", "needs implementation lol")
-				i.errors = append(i.errors, error)
-				interpretting = false
-				break
-			}
-
-
-
+			i.Global_table.SetEntry(left_side.Get_token().Lexeme, right_value)
+			return ""
 
 		case sage.COMPILE_TIME_EXECUTE:
 			current_node = current_node.Get_child_node()
@@ -71,21 +62,24 @@ func (i *SageInterpreter) interpret(node sage.ParseNode) {
 			error := NewSageError("Invalid statement", fmt.Sprintf("Cannot interpret %s node", nodetype.String()), "Node probably isn't supported at this time", "solutions")
 			i.errors = append(i.errors, error)
 			error.RaiseError()
+			return ""
 		}
 	}
+
+	return ""
 }
 
-func (i *SageInterpreter) retrieve_lhs_table_entry(table *SymbolTable, lhs sage.ParseNode, depth int) any {
+func (i *SageInterpreter) retrieve_lhs_table_entry(table *SymbolTable, lhs sage.ParseNode, depth int) SymbolTableEntry {
 	if lhs.Get_nodetype() == sage.LIST {
 		// retrieve structure field
 		list_node := lhs.(*sage.ListNode)
 
 		struct_scope_table := table.GetEntry(list_node.Lexemes[depth])
-		if struct_scope_table == nil {
-			return nil
+		if struct_scope_table.erroneous_entry {
+			return NewEntryError()
 		}
 
-		return i.retrieve_lhs_table_entry(struct_scope_table, lhs, depth + 1)
+		return i.retrieve_lhs_table_entry(struct_scope_table.entry_table, lhs, depth+1)
 	}
 
 	return table.GetEntry(lhs.Get_token().Lexeme)

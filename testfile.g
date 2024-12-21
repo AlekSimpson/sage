@@ -1,3 +1,6 @@
-add :: (a int, b int) -> int {
-    ret a + b
+
+#run {
+    bigtest.field.other.test = 50
+    1 + bigtest.field.other.test
 }
+
