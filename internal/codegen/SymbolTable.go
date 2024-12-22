@@ -8,19 +8,19 @@ type SymbolTableEntry struct {
 	entry_table     *SymbolTable
 }
 
-func NewEntryError() SymbolTableEntry {
-	return SymbolTableEntry{
+func NewEntryError() *SymbolTableEntry {
+	return &SymbolTableEntry{
 		erroneous_entry: true,
 	}
 }
 
 type SymbolTable struct {
-	table map[string]SymbolTableEntry
+	table map[string]*SymbolTableEntry
 }
 
 func NewSymbolTable() *SymbolTable {
 	return &SymbolTable{
-		table: map[string]SymbolTableEntry{},
+		table: map[string]*SymbolTableEntry{},
 	}
 }
 
@@ -30,11 +30,11 @@ func (st *SymbolTable) NewEntry(name string) bool {
 		return false
 	}
 
-	st.table[name] = SymbolTableEntry{false, nil, nil}
+	st.table[name] = &SymbolTableEntry{false, nil, nil}
 	return true
 }
 
-func (st *SymbolTable) GetEntry(name_node sage.ParseNode) SymbolTableEntry {
+func (st *SymbolTable) GetEntry(name_node sage.ParseNode) *SymbolTableEntry {
 	if name_node.Get_true_nodetype() == sage.IDENTIFIER {
 		name := name_node.Get_token().Lexeme
 		return st.GetEntryNamed(name)
@@ -44,7 +44,7 @@ func (st *SymbolTable) GetEntry(name_node sage.ParseNode) SymbolTableEntry {
 	return st.get_entry_nested(list_node)
 }
 
-func (st *SymbolTable) get_entry_nested(name_node *sage.ListNode) SymbolTableEntry {
+func (st *SymbolTable) get_entry_nested(name_node *sage.ListNode) *SymbolTableEntry {
 	var current_table *SymbolTable = st
 	var lastname string
 	for _, name := range name_node.Lexemes {
@@ -59,7 +59,7 @@ func (st *SymbolTable) get_entry_nested(name_node *sage.ListNode) SymbolTableEnt
 	return current_table.GetEntryNamed(lastname)
 }
 
-func (st *SymbolTable) GetEntryNamed(name string) SymbolTableEntry {
+func (st *SymbolTable) GetEntryNamed(name string) *SymbolTableEntry {
 	entry, exists := st.table[name]
 	if !exists {
 		return NewEntryError()
@@ -84,7 +84,7 @@ func (st *SymbolTable) SetEntryNamed(name string, value Result) bool {
 		return false
 	}
 
-	st.table[name] = SymbolTableEntry{false, value, prev.entry_table}
+	st.table[name] = &SymbolTableEntry{false, value, prev.entry_table}
 	return true
 }
 
@@ -100,5 +100,9 @@ func (st *SymbolTable) set_entry_nested(name_node *sage.ListNode, value Result) 
 		current_table = entry.entry_table
 	}
 
-	return st.SetEntryNamed(lastname, value)
+	return current_table.SetEntryNamed(lastname, value)
+}
+
+func (st *SymbolTable) Insert(name string, entry *SymbolTableEntry) {
+	st.table[name] = entry
 }

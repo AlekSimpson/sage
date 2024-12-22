@@ -1,0 +1,26 @@
+source_filename = "add"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+; External declaration of printf
+declare i32 @printf(i8* noundef, ...)
+
+; Global constant for our format string
+@format = private constant [4 x i8] c"%d\0A\00"
+
+; Main function
+define i32 @main() {
+entry:
+    %num1 = add i32 5, 0        ; First number (5)
+    %num2 = add i32 3, 0        ; Second number (3)
+    
+    %result = add i32 5, 3
+    
+    %printf_ret = call i32 (i8*, ...) @printf(
+        i8* getelementptr inbounds ([4 x i8], [4 x i8]* @format, i64 0, i64 0),
+        i32 %num1,
+        i32 %num2,
+        i32 %result)
+    
+    ret i32 0
+}

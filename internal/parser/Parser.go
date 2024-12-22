@@ -121,6 +121,8 @@ func (p *Parser) parse_statement() ParseNode {
 			}
 
 			return retval
+		} else if p.match_types(next_token.Token_type, sage.TT_LPAREN) {
+			return p.parse_function_call()
 		}
 
 	case sage.TT_KEYWORD:
@@ -253,7 +255,7 @@ func (p *Parser) parse_assign() ParseNode {
 	name_token := p.current
 	var name_node ParseNode = NewUnaryNode(&name_token, IDENTIFIER)
 
-	// this code section is here to handle field accessor cases
+	// this code section is here to handle field accessor cases and function call cases
 	lookahead := p.peek()
 	is_field_access := p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR)
 	if is_field_access {
@@ -269,8 +271,8 @@ func (p *Parser) parse_assign() ParseNode {
 
 	// it could be that we are referencing the field in some expression,
 	if is_field_access && p.current.Token_type != sage.TT_ASSIGN {
-		p.set_node_cache(name_node)
-		return nil // return nil to signify that we actually are parsing a different kind of statement
+		p.set_node_cache(name_node) // save parsed node for further expression parsing
+		return nil                  // return nil to signify that we actually are parsing a different kind of statement
 	}
 	/////
 
@@ -500,7 +502,6 @@ func (p *Parser) parse_function() ParseNode {
 	p.advance() // move past type keyword
 
 	function_signature := sage.NewToken(sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum)
-	// function_signature := &sage.Token{sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum}
 
 	if p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
 		p.advance() // move past the newline, NOTE: !!!! it might turn out that this advance breaks parsing flow, might need to remove it but I'm just going to leave it for now until it starts causing problems !!!!
@@ -510,6 +511,33 @@ func (p *Parser) parse_function() ParseNode {
 	body_node := p.parse_body()
 
 	return NewTrinaryNode(&function_signature, FUNCDEF, parameter_list, return_type_node, body_node)
+}
+
+func (p *Parser) parse_function_call() ParseNode {
+	function_name_token := p.current
+	p.advance() // move past func name identifier
+
+	// next token should be a '('
+	p.consume(sage.TT_LPAREN, "Expected function call to include opening '(' bracket\n")
+
+	var params []ParseNode
+	for {
+		param := p.parse_primary()
+		params = append(params, param)
+
+		if !p.match_types(p.current.Token_type, sage.TT_COMMA) {
+			break
+		}
+		p.advance()
+	}
+
+	p.consume(sage.TT_RPAREN, "Expected function call to include closing ')' bracket\n")
+
+	// create block node to hold params in
+	params_token := sage.NewToken(sage.TT_COMPILER_CREATED, "", -1)
+	params_node := NewBlockNode(&params_token, params)
+
+	return NewBranchUnaryNode(&function_name_token, FUNCCALL, params_node)
 }
 
 func (p *Parser) parse_body() ParseNode {
@@ -582,8 +610,9 @@ func (p *Parser) parse_type() ParseNode {
 			return nil
 		}
 
-		new_token := &sage.Token{array_type_token.Token_type, token_lexeme, array_type_token.Linenum}
-		return_node = NewBranchUnaryNode(new_token, TYPE, array_type_node)
+		// new_token := &sage.Token{array_type_token.Token_type, token_lexeme, array_type_token.Linenum}
+		new_token := sage.NewToken(array_type_token.Token_type, token_lexeme, array_type_token.Linenum)
+		return_node = NewBranchUnaryNode(&new_token, TYPE, array_type_node)
 		return_node.addtag("array_of_")
 	} else {
 		type_token := p.current
@@ -595,8 +624,9 @@ func (p *Parser) parse_type() ParseNode {
 	if p.current.Lexeme == "*" {
 		p.advance() // advance past the star
 		retnode_token := return_node.Get_token()
-		new_token := &sage.Token{retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum}
-		new_return_node := NewBranchUnaryNode(new_token, TYPE, return_node)
+		// new_token := &sage.Token{retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum}
+		new_token := sage.NewToken(retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum)
+		new_return_node := NewBranchUnaryNode(&new_token, TYPE, return_node)
 		new_return_node.addtag("pointer_to_")
 		return new_return_node
 	}
@@ -648,11 +678,12 @@ func (p *Parser) parse_primary() ParseNode {
 		return ret
 
 	case sage.TT_IDENT:
-		// TODO: parse function calls
 		token := p.current
 		lookahead := p.peek()
 		if p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR) {
 			return p.parse_struct_field_access()
+		} else if p.match_types(lookahead.Token_type, sage.TT_LPAREN) {
+			return p.parse_function_call()
 		}
 
 		ret := NewUnaryNode(&token, VAR_REF)

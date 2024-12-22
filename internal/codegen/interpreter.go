@@ -17,6 +17,26 @@ type Result interface {
 	ResultValue() Value
 }
 
+type AtomicResult struct {
+	result_type string
+	value       string
+}
+
+func (a *AtomicResult) ResultType() string {
+	return a.result_type
+}
+
+func (a *AtomicResult) ResultValue() Value {
+	return a.value
+}
+
+func NewInterpreter(symbol_table *SymbolTable) *SageInterpreter {
+	return &SageInterpreter{
+		Global_table: symbol_table,
+		errors:       nil,
+	}
+}
+
 func (i *SageInterpreter) interpret(node sage.ParseNode) Result {
 	// TODO:
 	// BINARY
@@ -65,6 +85,11 @@ func (i *SageInterpreter) interpret(node sage.ParseNode) Result {
 		case sage.COMPILE_TIME_EXECUTE:
 			current_node = current_node.Get_child_node()
 			continue
+
+		case sage.STRING:
+			return &AtomicResult{"string", node.Get_token().Lexeme}
+		case sage.NUMBER:
+			return &AtomicResult{"int", node.Get_token().Lexeme}
 
 		default:
 			error := NewSageError("Invalid statement", fmt.Sprintf("Cannot interpret %s node", nodetype.String()), "Node probably isn't supported at this time", "solutions")
