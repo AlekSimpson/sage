@@ -109,7 +109,7 @@ type ParseNode interface {
 type BlockNode struct {
 	token    *sage.Token
 	Nodetype NodeType
-	children []ParseNode
+	Children []ParseNode
 }
 
 func ModuleRootNode() *BlockNode {
@@ -127,7 +127,7 @@ func ModuleRootNode() *BlockNode {
 func NewBlockNode(tok *sage.Token, c []ParseNode) *BlockNode {
 	return &BlockNode{
 		token:    tok,
-		children: c,
+		Children: c,
 	}
 }
 
@@ -136,10 +136,10 @@ func (n *BlockNode) Get_true_nodetype() NodeType {
 }
 
 func (n *BlockNode) Get_child_node() ParseNode {
-	if len(n.children) == 0 {
+	if len(n.Children) == 0 {
 		return nil
 	}
-	return n.children[0]
+	return n.Children[0]
 }
 
 func (n *BlockNode) Get_nodetype() NodeType {
@@ -157,7 +157,7 @@ func (n *BlockNode) String() string {
 func (n *BlockNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
-	for _, child := range n.children {
+	for _, child := range n.Children {
 		child.Showtree(depth + "\t")
 	}
 }

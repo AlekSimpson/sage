@@ -75,7 +75,7 @@ func (p *Parser) parse_libraries() *BlockNode {
 		}
 
 		next_include := p.library_statement()
-		list_node.children = append(list_node.children, next_include)
+		list_node.Children = append(list_node.Children, next_include)
 	}
 
 	return list_node
@@ -94,7 +94,7 @@ func (p *Parser) statements() *BlockNode {
 		}
 
 		next_statement := p.parse_statement()
-		list_node.children = append(list_node.children, next_statement)
+		list_node.Children = append(list_node.Children, next_statement)
 	}
 
 	return list_node
@@ -199,7 +199,7 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 		return &BlockNode{
 			token:    &sage.Token{Token_type: sage.TT_COMPILER_CREATED, Lexeme: "Empty Parameter List", Linenum: p.current.Linenum},
 			Nodetype: PARAM_LIST,
-			children: []ParseNode{},
+			Children: []ParseNode{},
 		}
 	}
 
@@ -229,13 +229,13 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 
 		if p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_RBRACE, sage.TT_RPAREN}) {
 			list_token.Lexeme += value_dec.Get_token().Lexeme
-			list_node.children = append(list_node.children, value_dec)
+			list_node.Children = append(list_node.Children, value_dec)
 			break
 		}
 
 		p.consume(sage.TT_COMMA, "Expected comma symbol after value declaration value declaration list\n")
 		list_token_lexeme += fmt.Sprintf("%s, ", value_dec.Get_token().Lexeme)
-		list_node.children = append(list_node.children, value_dec)
+		list_node.Children = append(list_node.Children, value_dec)
 
 		// value declarations are allowed to be seperated by newline(s)
 		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
@@ -528,7 +528,7 @@ func (p *Parser) parse_body() ParseNode {
 		}
 
 		next_statement := p.parse_statement()
-		body_node.children = append(body_node.children, next_statement)
+		body_node.Children = append(body_node.Children, next_statement)
 	}
 
 	p.consume(sage.TT_RBRACE, "Expected RBRACE in body definition statement\n")
@@ -693,7 +693,7 @@ func (p *Parser) parse_struct_field_access() ParseNode {
 		p.advance()
 	}
 
-	token := sage.NewToken(sage.TT_COMPILER_CREATED, "", -1)
+	token := sage.NewToken(sage.TT_COMPILER_CREATED, identifier_lexemes[0], -1)
 	return NewListNode(&token, LIST, identifier_lexemes)
 }
 
