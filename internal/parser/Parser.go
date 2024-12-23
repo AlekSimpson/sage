@@ -561,6 +561,7 @@ func (p *Parser) parse_body() ParseNode {
 
 	p.consume(sage.TT_RBRACE, "Expected RBRACE in body definition statement\n")
 
+	body_node.Nodetype = BLOCK
 	return body_node
 }
 

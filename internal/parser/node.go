@@ -216,18 +216,18 @@ func (n *BinaryNode) Showtree(depth string) {
 type TrinaryNode struct {
 	token    *sage.Token
 	Nodetype NodeType
-	left     ParseNode
-	middle   ParseNode
-	right    ParseNode
+	Left     ParseNode
+	Middle   ParseNode
+	Right    ParseNode
 }
 
 func NewTrinaryNode(t *sage.Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
 	return &TrinaryNode{
 		token:    t,
 		Nodetype: nodetype,
-		left:     left,
-		middle:   middle,
-		right:    right,
+		Left:     left,
+		Middle:   middle,
+		Right:    right,
 	}
 }
 
@@ -236,7 +236,7 @@ func (n *TrinaryNode) Get_true_nodetype() NodeType {
 }
 
 func (n *TrinaryNode) Get_child_node() ParseNode {
-	return n.left
+	return n.Left
 }
 
 func (n *TrinaryNode) Get_nodetype() NodeType {
@@ -248,20 +248,20 @@ func (n *TrinaryNode) Get_token() *sage.Token {
 }
 
 func (n *TrinaryNode) String() string {
-	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.Nodetype, n.token.Lexeme, n.left.Get_token().Lexeme, n.middle.Get_token().Lexeme, n.right.Get_token().Lexeme)
+	return fmt.Sprintf("TRINARY NODE (%s: %s | %s | %s | %s)", n.Nodetype, n.token.Lexeme, n.Left.Get_token().Lexeme, n.Middle.Get_token().Lexeme, n.Right.Get_token().Lexeme)
 }
 
 func (n *TrinaryNode) Showtree(depth string) {
 	fmt.Println(depth + "- " + n.String())
 
-	if n.left != nil {
-		n.left.Showtree(depth + "\t")
+	if n.Left != nil {
+		n.Left.Showtree(depth + "\t")
 	}
-	if n.middle != nil {
-		n.middle.Showtree(depth + "\t")
+	if n.Middle != nil {
+		n.Middle.Showtree(depth + "\t")
 	}
-	if n.right != nil {
-		n.right.Showtree(depth + "\t")
+	if n.Right != nil {
+		n.Right.Showtree(depth + "\t")
 	}
 }
 

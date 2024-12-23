@@ -147,3 +147,69 @@ not confirmed ideas:
 "sage thin ..." - For code optimization
 "sage bind ..." - For tying modules together (like binding branches in bonsai)
 "sage split ..." - For breaking apart modules (like air-layering a bonsai)
+
+
+
+- BLOCK_NODE
+	- UNARY NODE (COMPILE_TIME_EXECUTE: #run { ... } | BLOCK_NODE)
+		- BLOCK_NODE
+			- BINARY NODE (ASSIGN: build_settings.executable_name = "output" | build_settings | "output")
+				- LIST NODE (LIST: build_settings.executable_name)
+				- UNARY NODE (STRING: "output")
+			- BINARY NODE (ASSIGN: build_settings.platform = "LINUX" | build_settings | "LINUX")
+				- LIST NODE (LIST: build_settings.platform)
+				- UNARY NODE (STRING: "LINUX")
+			- BINARY NODE (ASSIGN: build_settings.architecture = "X86" | build_settings | "X86")
+				- LIST NODE (LIST: build_settings.architecture)
+				- UNARY NODE (STRING: "X86")
+			- BINARY NODE (ASSIGN: build_settings.bitsize = 64 | build_settings | 64)
+				- LIST NODE (LIST: build_settings.bitsize)
+				- UNARY NODE (NUMBER: 64)
+	- BINARY NODE (FUNCDEF: main :: (Empty Parameter List) -> void | main | (Empty Parameter List) -> void)
+		- UNARY NODE (IDENTIFIER: main)
+		- TRINARY NODE (FUNCDEF: (Empty Parameter List) -> void | Empty Parameter List | void | { ... })
+			- BLOCK_NODE
+			- UNARY NODE (TYPE: void)
+			- BLOCK_NODE
+				- TRINARY NODE (ASSIGN: result int = BINARY NODE (BINARY: + | 2 | 2) | result | int | +)
+					- UNARY NODE (IDENTIFIER: result)
+					- UNARY NODE (TYPE: int)
+					- BINARY NODE (BINARY: + | 2 | 2)
+						- UNARY NODE (NUMBER: 2)
+						- UNARY NODE (NUMBER: 2)
+				- UNARY NODE (FUNCCALL: printf | BLOCK_NODE)
+					- BLOCK_NODE
+						- UNARY NODE (STRING: "%d\n")
+						- UNARY NODE (VAR_REF: result)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

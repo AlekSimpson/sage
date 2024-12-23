@@ -13,6 +13,10 @@ type IRInstructionProtocol interface {
 	ToLLVM() string
 }
 
+type InstructionList interface{}
+
+// type InstructionList []IRInstructionProtocol
+
 type VarInstructionType int
 
 const (
@@ -36,7 +40,6 @@ type IRModule struct {
 	FuncDefs          []IRFunc
 	Globals           []IRGlobal
 	Structs           []IRStruct
-	Body              []IRInstructionProtocol
 	GLOBAL_TABLE      *SymbolTable
 }
 
@@ -49,7 +52,6 @@ func NewIRModule(filename string, globals *SymbolTable) *IRModule {
 		FuncDefs:          []IRFunc{},
 		Globals:           []IRGlobal{},
 		Structs:           []IRStruct{},
-		Body:              []IRInstructionProtocol{},
 	}
 }
 
@@ -76,11 +78,6 @@ func (ir *IRModule) ToLLVM() string {
 
 	for _, construct := range ir.Structs {
 		builder.WriteString(construct.ToLLVM())
-		builder.WriteString("\n")
-	}
-
-	for _, stmt := range ir.Body {
-		builder.WriteString(stmt.ToLLVM())
 		builder.WriteString("\n")
 	}
 

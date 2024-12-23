@@ -2,8 +2,8 @@ package main
 
 import (
 	"os"
-	"sage/internal/parser"
-	// "sage/internal/codegen"
+	// "sage/internal/parser"
+	"sage/internal/codegen"
 	"strings"
 )
 
@@ -19,10 +19,11 @@ func main() {
 		panic(err)
 	}
 
-	// sage.BeginCodeCompilation(contents, del[0])
-	parser := sage.NewParser(contents)
-	tree := parser.Parse_program()
-	if tree != nil {
-		tree.Showtree("")
-	}
+	sage.BeginCodeCompilation(contents, del[0])
+
+	// parser := sage.NewParser(contents)
+	// tree := parser.Parse_program()
+	// if tree != nil {
+	// 	tree.Showtree("")
+	// }
 }
