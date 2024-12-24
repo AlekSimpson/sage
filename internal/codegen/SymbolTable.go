@@ -1,17 +1,54 @@
 package sage
 
-import "sage/internal/parser"
+import (
+	"github.com/google/uuid"
+	lexer "sage/internal/lexer"
+	"sage/internal/parser"
+)
 
 type SymbolTableEntry struct {
 	erroneous_entry bool
 	entry_value     Result
 	entry_table     *SymbolTable
+	registers       *lexer.Queue[lexer.RegisterPair]
 }
 
 func NewEntryError() *SymbolTableEntry {
 	return &SymbolTableEntry{
 		erroneous_entry: true,
 	}
+}
+
+func NewEntry() *SymbolTableEntry {
+	return &SymbolTableEntry{
+		erroneous_entry: false,
+		entry_value:     nil,
+		entry_table:     nil,
+		registers:       lexer.NewQueue([]lexer.RegisterPair{}, lexer.NewRegisterPair("", "")),
+	}
+}
+
+func NewEntryWith(error bool, value Result, table *SymbolTable) *SymbolTableEntry {
+	return &SymbolTableEntry{
+		erroneous_entry: error,
+		entry_value:     value,
+		entry_table:     table,
+		registers:       lexer.NewQueue([]lexer.RegisterPair{}, lexer.NewRegisterPair("", "")),
+	}
+}
+
+func (entry *SymbolTableEntry) GetRegister() lexer.RegisterPair {
+	return entry.registers.Pop()
+}
+
+func (entry *SymbolTableEntry) UpdateRegisters(value string, name string) {
+	entry.registers.Stack(lexer.NewRegisterPair(name, value))
+}
+
+func (entry *SymbolTableEntry) NewRegisterFor(value string) string {
+	register_id := uuid.New().String()[:5] // unique 5 character string id
+	entry.registers.Stack(lexer.NewRegisterPair(register_id, value))
+	return register_id
 }
 
 type SymbolTable struct {
@@ -30,7 +67,7 @@ func (st *SymbolTable) NewEntry(name string) bool {
 		return false
 	}
 
-	st.table[name] = &SymbolTableEntry{false, nil, nil}
+	st.table[name] = NewEntry()
 	return true
 }
 
@@ -42,6 +79,16 @@ func (st *SymbolTable) GetEntry(name_node sage.ParseNode) *SymbolTableEntry {
 
 	list_node := name_node.(*sage.ListNode)
 	return st.get_entry_nested(list_node)
+}
+
+func (st *SymbolTable) GetEntryValue(name string) Result {
+	// not meant for accessing structs via list node lexeme list
+	entry, exists := st.table[name]
+	if !exists {
+		return nil
+	}
+
+	return entry.entry_value
 }
 
 func (st *SymbolTable) get_entry_nested(name_node *sage.ListNode) *SymbolTableEntry {
@@ -84,7 +131,7 @@ func (st *SymbolTable) SetEntryNamed(name string, value Result) bool {
 		return false
 	}
 
-	st.table[name] = &SymbolTableEntry{false, value, prev.entry_table}
+	st.table[name] = NewEntryWith(false, value, prev.entry_table)
 	return true
 }
 
@@ -105,4 +152,8 @@ func (st *SymbolTable) set_entry_nested(name_node *sage.ListNode, value Result) 
 
 func (st *SymbolTable) Insert(name string, entry *SymbolTableEntry) {
 	st.table[name] = entry
+}
+
+func (st *SymbolTable) InsertValue(name string, entry Result) {
+	st.table[name].entry_value = entry
 }

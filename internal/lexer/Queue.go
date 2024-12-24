@@ -1,7 +1,19 @@
 package sage
 
+type RegisterPair struct {
+	Register         string
+	Associated_value string
+}
+
+func NewRegisterPair(register string, value string) RegisterPair {
+	return RegisterPair{
+		Register:         register,
+		Associated_value: value,
+	}
+}
+
 type Queueable interface {
-	string | int | byte | Token
+	string | int | byte | Token | RegisterPair
 }
 
 type Queue[Q Queueable] struct {
@@ -27,12 +39,12 @@ func (q *Queue[Q]) push(value Q) {
 	q.array = append(q.array, value)
 }
 
-func (q *Queue[Q]) stack(value Q) {
+func (q *Queue[Q]) Stack(value Q) {
 	// Append the value to the beginning of the array like a stack
 	q.array = append([]Q{value}, q.array...)
 }
 
-func (q *Queue[Q]) pop() Q {
+func (q *Queue[Q]) Pop() Q {
 	if len(q.array) == 0 {
 		return q.null_value
 	} else if len(q.array) == 1 {

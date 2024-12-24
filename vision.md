@@ -36,7 +36,7 @@ STAR            -> *STAR | EMPTYSTRING
 array           -> [ primitive ] | [ ID ]
 primitive       -> int | char | array | void
 pointer         -> TYPE STAR
-TYPE            -> primitive | pointer
+TYPE            -> primitive | pointer | TODO: ( ID primitive ) | TODO: ( ID pointer )
 
 program         -> libraries statements | statements
 
@@ -88,6 +88,7 @@ VISION:
 5. The build system is built into the compiler
 6. Arbitrary Compile Time Code Execution
 7. Functions as first class citizens
+(eventually i want to add macros)
 
 target datalayouts for the most common platforms:
 Linux x86_64:

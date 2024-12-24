@@ -5,17 +5,11 @@ import (
 	"strings"
 )
 
-type IRGenerator struct {
-	temp_name_id int
-}
-
 type IRInstructionProtocol interface {
 	ToLLVM() string
 }
 
 type InstructionList interface{}
-
-// type InstructionList []IRInstructionProtocol
 
 type VarInstructionType int
 
@@ -91,7 +85,6 @@ type IRFunc struct {
 	calling_conv string
 	attribute    string
 	body         []IRBlock
-	is_main      bool
 }
 
 func (ir *IRFunc) ToLLVM() string {
@@ -141,14 +134,13 @@ type IRFuncCall struct {
 	return_type  string
 	name         string
 	parameters   []IRAtom
-	generator    *IRGenerator
+	table        *SymbolTableEntry // this should point to the same table that was passed into the entry for the IRFuncDef as well
 }
 
 func (ir *IRFuncCall) ToLLVM() string {
 	var builder strings.Builder
 	if ir.return_type != "void" {
-		result_name := "i" + string(ir.generator.temp_name_id)
-		ir.generator.temp_name_id++
+		result_name := ir.table.NewRegisterFor(ir.name)
 		builder.WriteString(fmt.Sprintf("%%%s = ", result_name))
 	}
 
@@ -203,7 +195,7 @@ type IRAtom struct {
 	value            string
 	instruction_type VarInstructionType
 	is_last_param    bool
-	generator        *IRGenerator
+	table            *SymbolTableEntry // corresponding table entry also stores all associated register names in the order they were declared
 }
 
 func (ir *IRAtom) ToLLVM() string {
@@ -214,8 +206,8 @@ func (ir *IRAtom) ToLLVM() string {
 
 	case REF:
 		// NOTE: the logic around this might need to be different
-		builder.WriteString(fmt.Sprintf("%%%s = load %s, %s* %%%s", "i"+string(ir.generator.temp_name_id), ir.irtype, ir.irtype, ir.name))
-		ir.generator.temp_name_id++
+		result_reg := ir.table.NewRegisterFor(ir.name)
+		builder.WriteString(fmt.Sprintf("%%%s = load %s, %s* %%%s", result_reg, ir.irtype, ir.irtype, ir.name))
 
 	case PARAM:
 		if ir.is_last_param {
@@ -231,17 +223,11 @@ func (ir *IRAtom) ToLLVM() string {
 			builder.WriteString(fmt.Sprintf("ret void"))
 		}
 
+	case ASSIGN:
+		builder.WriteString(fmt.Sprintf("store %s %%%s, %s* %%%s", ir.irtype, ir.value, ir.irtype, ir.name))
+
 	}
 	return builder.String()
-}
-
-type IRStringLiteral struct {
-	irtype          string
-	literal_content string
-}
-
-func (ir *IRStringLiteral) ToLLVM() string {
-	return fmt.Sprintf("[%d x %s] c\"%s\"", len(ir.literal_content), ir.irtype, ir.literal_content)
 }
 
 type IRFunctionType struct {
@@ -299,13 +285,12 @@ type IRExpression struct {
 	irtype         string
 	operand1       string
 	operand2       string
-	generator      *IRGenerator
+	table          *SymbolTableEntry
 }
 
 func (ir *IRExpression) ToLLVM() string {
 	var builder strings.Builder
-	var result_name = "i" + string(ir.generator.temp_name_id)
-	ir.generator.temp_name_id++
+	result_name := ir.table.NewRegisterFor(fmt.Sprintf("%s %s %s", ir.operand1, ir.operation_name, ir.operand2))
 	builder.WriteString(fmt.Sprintf("%%%s = %s %s %s, %s", result_name, ir.operation_name, ir.irtype, ir.operand1, ir.operand2))
 	return builder.String()
 }
