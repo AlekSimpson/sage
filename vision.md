@@ -33,8 +33,8 @@ CFG:
 S               -> program
 
 STAR            -> *STAR | EMPTYSTRING
-array           -> [ primitive ] | [ ID ]
-primitive       -> int | char | array | void
+array           -> [ primitive ] | [ ID ] // TODO: PROBABLY WILL NEED TO REWORK THE ARRAY TYPE SYNTAX
+primitive       -> int | float | char | array | void
 pointer         -> TYPE STAR
 TYPE            -> primitive | pointer | TODO: ( ID primitive ) | TODO: ( ID pointer )
 
@@ -88,16 +88,27 @@ VISION:
 5. The build system is built into the compiler
 6. Arbitrary Compile Time Code Execution
 7. Functions as first class citizens
-(eventually i want to add macros)
+- eventually i want to add macros
+- also want to add function pattern matching definition types like in haskell, ex:
+    and 1 1 = 1
+    and 0 1 = 0
+    and 1 0 = 0
+    and 0 0 = 0
+    and _ _ = 0
+- ternary expressions
+- Automated AST Manipulation / Refactoring
+- the ':=' operator
+- infix array initialization, ex: `ages [int:5] = [50, 20, 1, 17, 80]`
+- fallthrough keyword
 
 target datalayouts for the most common platforms:
 Linux x86_64:
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-unknown-linux-gnu"
+target triple = "x86_64-pc-linux-gnu"
 
 Linux x86 (32-bit):
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
-target triple = "i686-unknown-linux-gnu"
+target triple = "i686-pc-linux-gnu"
 
 macOS x86_64:
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

@@ -15,7 +15,7 @@ type Lexer struct {
 func NewLexer(buffer *Queue[byte]) Lexer {
 	return Lexer{
 		buffer:  buffer,
-		tokens:  NewEmptyQueue(NewErrorToken("empty queue", -1)),
+		tokens:  NewEmptyQueue[Token](),
 		linenum: 0,
 	}
 }
@@ -25,11 +25,11 @@ func (l *Lexer) check_for_string() *Token {
 	if l.current_char == '"' {
 		// add the first '"' character to kick off the loop
 		lexeme += "\""
-		l.current_char = rune(l.buffer.Pop())
+		l.current_char = rune(*l.buffer.Pop())
 
 		for l.current_char != '"' {
 			lexeme += string(l.current_char)
-			l.current_char = rune(l.buffer.Pop())
+			l.current_char = rune(*l.buffer.Pop())
 		}
 
 		lexeme += "\""
@@ -65,7 +65,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 		return l.followed_by(':', TT_BINDING, "::")
 
 	case '-':
-		peekahead := rune(l.buffer.Pop())
+		peekahead := rune(*l.buffer.Pop())
 		if peekahead == '>' {
 			return &Token{TT_FUNC_RETURN_TYPE, "->", l.linenum}
 		} else if peekahead == '-' {
@@ -74,7 +74,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 		return &Token{TT_SUB, "-", l.linenum}
 
 	case '.':
-		first_peek := rune(l.buffer.Pop())
+		first_peek := rune(*l.buffer.Pop())
 		l.current_char = first_peek
 
 		// if the '.' is in between an identifier token and unicode chars then its a field accessor
@@ -84,7 +84,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 		}
 
 		if first_peek == '.' {
-			second_peek := rune(l.buffer.Pop())
+			second_peek := rune(*l.buffer.Pop())
 			if second_peek == '.' {
 				return &Token{TT_RANGE, "...", l.linenum}
 			}
@@ -145,7 +145,7 @@ func (l *Lexer) lex_for_symbols() *Token {
 }
 
 func (l *Lexer) followed_by(expected_char rune, expected_type TokenType, expected_lexeme string) *Token {
-	l.current_char = rune(l.buffer.Pop())
+	l.current_char = rune(*l.buffer.Pop())
 	if l.current_char == expected_char {
 		return &Token{expected_type, expected_lexeme, l.linenum}
 	}
@@ -167,7 +167,7 @@ func (l *Lexer) lex_for_numbers() *Token {
 		}
 
 		lexeme += string(l.current_char)
-		l.current_char = rune(l.buffer.Pop())
+		l.current_char = rune(*l.buffer.Pop())
 	}
 
 	// if the number ends in a '.' then this is a number before the range operator and not actually a float number
@@ -215,7 +215,7 @@ func (l *Lexer) lex_for_identifiers() *Token {
 
 	for unicode.IsLetter(l.current_char) || l.current_char == '_' {
 		lexeme += string(l.current_char)
-		l.current_char = rune(l.buffer.Pop())
+		l.current_char = rune(*l.buffer.Pop())
 	}
 
 	// Add the last read char back onto to the top of the buffer because it was not matched to the current Token
@@ -234,7 +234,7 @@ func (l *Lexer) lex_for_identifiers() *Token {
 func (l *Lexer) Get_token() Token {
 	if !l.tokens.empty() {
 		tok := l.tokens.Pop()
-		return tok
+		return *tok
 	}
 
 	if l.buffer.empty() {
@@ -242,10 +242,10 @@ func (l *Lexer) Get_token() Token {
 		return l.last_token
 	}
 
-	l.current_char = rune(l.buffer.Pop())
+	l.current_char = rune(*l.buffer.Pop())
 
 	for l.current_char == ' ' || l.current_char == '\t' {
-		l.current_char = rune(l.buffer.Pop())
+		l.current_char = rune(*l.buffer.Pop())
 	}
 
 	if l.current_char == '\n' {

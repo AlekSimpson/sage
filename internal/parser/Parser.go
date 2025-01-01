@@ -2,7 +2,7 @@ package sage
 
 import (
 	"fmt"
-	"sage/internal/lexer"
+	sage "sage/internal/lexer"
 )
 
 // EXPRESSION
@@ -29,7 +29,7 @@ type Parser struct {
 }
 
 func NewParser(file_contents []byte) *Parser {
-	queue := sage.NewQueue(file_contents, 0)
+	queue := sage.NewQueue(file_contents)
 	lexer := sage.NewLexer(queue)
 
 	return &Parser{
@@ -40,11 +40,13 @@ func NewParser(file_contents []byte) *Parser {
 }
 
 func (p *Parser) Parse_program() ParseNode {
-	// TODO: libraries := p.parse_libraries()
 	p.current = p.lexer.Get_token()
-	root := p.statements()
-	// TODO: root.children = append(root.children, libraries.children...)
+	root := p.parse_libraries()
+	program_root := p.statements()
 
+	root.Children = append(root.Children, program_root.Children...)
+
+	// check for errors to report
 	if len(p.errors) != 0 {
 		for _, error := range p.errors {
 			fmt.Println(error.Lexeme)
@@ -58,19 +60,30 @@ func (p *Parser) Parse_program() ParseNode {
 }
 
 func (p *Parser) library_statement() ParseNode {
-	// TODO:
-	return nil
+	p.consume(sage.TT_KEYWORD, "Expected include keyword in include statement.\n")
+
+	if p.current.Token_type != sage.TT_STRING {
+		p.raise_error("Expected string literal in include statement.\n")
+		return nil
+	}
+	string_token := p.current
+	node := NewUnaryNode(&string_token, INCLUDE)
+
+	p.advance()
+	p.consume(sage.TT_NEWLINE, "Must have include statements on individual lines.\n")
+
+	return node
 }
 
 func (p *Parser) parse_libraries() *BlockNode {
-	// TODO:
 	list_node := ModuleRootNode()
 
-	for {
+	for len(p.errors) == 0 {
 		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
 			p.advance()
 		}
-		if !p.match_types(p.current.Token_type, sage.TT_INCLUDE) {
+
+		if !p.match_types(p.current.Token_type, sage.TT_KEYWORD) {
 			break
 		}
 
@@ -140,6 +153,7 @@ func (p *Parser) parse_compile_time_execute() ParseNode {
 	p.consume(sage.TT_POUND, "Expected 'run' statement to begin with '#' symbol\n")
 
 	if p.current.Token_type != sage.TT_IDENT || p.current.Lexeme != "run" {
+		fmt.Println(p.current.Lexeme)
 		p.raise_error("Expected 'run' keyword in compile time execution statement\n")
 		return nil
 	}
@@ -299,7 +313,7 @@ func (p *Parser) parse_keyword_statement() ParseNode {
 		expression := p.expression()
 		new_token := sage.NewToken(sage.TT_KEYWORD, fmt.Sprintf("ret %s", expression), return_token.Linenum)
 
-		return NewUnaryNode(&new_token, KEYWORD)
+		return NewBranchUnaryNode(&new_token, KEYWORD, expression)
 
 	case "if":
 		return p.parse_if_statement()
@@ -307,9 +321,6 @@ func (p *Parser) parse_keyword_statement() ParseNode {
 		return p.parse_while_statement()
 	case "for":
 		return p.parse_for_statement()
-	case "include": // should throw an error!! (include not allowed in body of code)
-		p.raise_error("Cannot include libraries during runtime !!\n")
-		return nil
 	}
 
 	p.raise_error("Could not recognize statement\n")
@@ -456,7 +467,6 @@ func (p *Parser) parse_construct() ParseNode {
 
 	token_lexeme := fmt.Sprintf("%s :: %s", name_identifier_token.Lexeme, binding_node.Get_token().Lexeme)
 	construct_token := sage.NewToken(sage.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum)
-	// construct_token := sage.Token{sage.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum}
 	return NewBinaryNode(&construct_token, nodetype, name_identifier_node, binding_node)
 }
 
@@ -599,6 +609,18 @@ func (p *Parser) parse_type() ParseNode {
 		token_lexeme += array_type_token.Lexeme
 		p.advance() // advance past the identifier
 
+		if p.match_types(p.current.Token_type, sage.TT_COLON) {
+			p.advance() // advance past the colon
+
+			if !p.match_types(p.current.Token_type, sage.TT_NUM) {
+				p.raise_error("Expected a number to define the length of the array in array type declaration\n")
+				return nil
+			}
+
+			return_node.addtag(fmt.Sprintf("ARRAY_LENGTH: %s", p.current.Lexeme))
+			p.advance() // advance past the number
+		}
+
 		// match the corresponding rbrackets after the type keyword
 		for p.match_types(p.current.Token_type, sage.TT_RBRACKET) {
 			p.advance()
@@ -675,6 +697,12 @@ func (p *Parser) parse_primary() ParseNode {
 	case sage.TT_NUM:
 		token := p.current
 		ret := NewUnaryNode(&token, NUMBER)
+		p.advance()
+		return ret
+
+	case sage.TT_FLOAT:
+		token := p.current
+		ret := NewUnaryNode(&token, FLOAT)
 		p.advance()
 		return ret
 

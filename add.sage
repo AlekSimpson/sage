@@ -1,3 +1,5 @@
+include "modules/io"
+
 #run {
     build_settings.executable_name = "output"
     build_settings.platform = "LINUX"

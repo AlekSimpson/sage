@@ -18,12 +18,10 @@ const (
 	REF
 	PARAM
 	RET_STMT
-	ASSIGN
+	STORE
+	GLOBAL
 )
 
-// TODO: if statement IR
-// TODO: while statement IR
-// TODO: for statement IR
 // TODO: range statement IR
 
 type IRModule struct {
@@ -32,7 +30,7 @@ type IRModule struct {
 	target_triple     string
 	FuncDecs          []IRFunc
 	FuncDefs          []IRFunc
-	Globals           []IRGlobal
+	Globals           []IRInstructionProtocol
 	Structs           []IRStruct
 	GLOBAL_TABLE      *SymbolTable
 }
@@ -44,12 +42,12 @@ func NewIRModule(filename string, globals *SymbolTable) *IRModule {
 		target_triple:     "",
 		FuncDecs:          []IRFunc{},
 		FuncDefs:          []IRFunc{},
-		Globals:           []IRGlobal{},
+		Globals:           []IRInstructionProtocol{},
 		Structs:           []IRStruct{},
 	}
 }
 
-func (ir *IRModule) ToLLVM() string {
+func (ir IRModule) ToLLVM() string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("source_filename = \"%s\"\n", ir.source_filename))
 	builder.WriteString(fmt.Sprintf("target datalayout = \"%s\"\n", ir.target_datalayout))
@@ -87,17 +85,11 @@ type IRFunc struct {
 	body         []IRBlock
 }
 
-func (ir *IRFunc) ToLLVM() string {
+func (ir IRFunc) ToLLVM() string {
 	var builder strings.Builder
-	var start_keyword string
 	is_definition := len(ir.body) != 0
-	if is_definition {
-		start_keyword = "define "
-	} else {
-		start_keyword = "declare "
-	}
 
-	builder.WriteString(start_keyword)
+	builder.WriteString("define ")
 
 	if ir.calling_conv != "NOCONV" {
 		builder.WriteString(ir.calling_conv + " ")
@@ -133,14 +125,15 @@ type IRFuncCall struct {
 	calling_conv string
 	return_type  string
 	name         string
-	parameters   []IRAtom
-	table        *SymbolTableEntry // this should point to the same table that was passed into the entry for the IRFuncDef as well
+	parameters   []IRInstructionProtocol
+	table        *SymbolTable // this should point to the same table that was passed into the entry for the IRFuncDef as well
 }
 
-func (ir *IRFuncCall) ToLLVM() string {
+func (ir IRFuncCall) ToLLVM() string {
 	var builder strings.Builder
 	if ir.return_type != "void" {
-		result_name := ir.table.NewRegisterFor(ir.name)
+		function_table_entry, _ := ir.table.GetEntryNamed(ir.name)
+		result_name := function_table_entry.NewRegisterFor(ir.name)
 		builder.WriteString(fmt.Sprintf("%%%s = ", result_name))
 	}
 
@@ -155,23 +148,14 @@ func (ir *IRFuncCall) ToLLVM() string {
 	}
 
 	builder.WriteString(fmt.Sprintf("%s @%s(", ir.return_type, ir.name))
-	ir.parameters[len(ir.parameters)-1].is_last_param = true
-	for _, atom := range ir.parameters {
-		builder.WriteString(atom.ToLLVM())
+	// (might not need?) ir.parameters[len(ir.parameters)-1].is_last_param = true
+	// FIX: this will probably generate invalid IR but I want to see how it geenrates to fix it first
+	for _, inst := range ir.parameters {
+		builder.WriteString(inst.ToLLVM())
 	}
 	builder.WriteString(")")
 
 	return ""
-}
-
-type IRGlobal struct {
-	name   string
-	irtype string
-	value  string
-}
-
-func (ir *IRGlobal) ToLLVM() string {
-	return fmt.Sprintf("@%s = global %s, %s", ir.name, ir.irtype, ir.value)
 }
 
 type IRBlock struct {
@@ -179,7 +163,7 @@ type IRBlock struct {
 	Body []IRInstructionProtocol
 }
 
-func (ir *IRBlock) ToLLVM() string {
+func (ir IRBlock) ToLLVM() string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("%s:\n", ir.Name))
 	for _, construct := range ir.Body {
@@ -195,10 +179,10 @@ type IRAtom struct {
 	value            string
 	instruction_type VarInstructionType
 	is_last_param    bool
-	table            *SymbolTableEntry // corresponding table entry also stores all associated register names in the order they were declared
+	table            *SymbolTable // corresponding table entry also stores all associated register names in the order they were declared
 }
 
-func (ir *IRAtom) ToLLVM() string {
+func (ir IRAtom) ToLLVM() string {
 	var builder strings.Builder
 	switch ir.instruction_type {
 	case INIT:
@@ -206,7 +190,8 @@ func (ir *IRAtom) ToLLVM() string {
 
 	case REF:
 		// NOTE: the logic around this might need to be different
-		result_reg := ir.table.NewRegisterFor(ir.name)
+		variable_table_entry, _ := ir.table.GetEntryNamed(ir.name)
+		result_reg := variable_table_entry.NewRegisterFor(ir.name)
 		builder.WriteString(fmt.Sprintf("%%%s = load %s, %s* %%%s", result_reg, ir.irtype, ir.irtype, ir.name))
 
 	case PARAM:
@@ -218,13 +203,16 @@ func (ir *IRAtom) ToLLVM() string {
 
 	case RET_STMT:
 		if ir.name != "NONAME" {
-			builder.WriteString(fmt.Sprintf("ret %s %%%s", ir.irtype, ir.name))
+			builder.WriteString(fmt.Sprintf("ret %s %%%s", ir.irtype, ir.value))
 		} else {
-			builder.WriteString(fmt.Sprintf("ret void"))
+			builder.WriteString("ret void")
 		}
 
-	case ASSIGN:
+	case STORE:
 		builder.WriteString(fmt.Sprintf("store %s %%%s, %s* %%%s", ir.irtype, ir.value, ir.irtype, ir.name))
+
+	case GLOBAL:
+		builder.WriteString(fmt.Sprintf("@%s = global %s, %s", ir.name, ir.irtype, ir.value))
 
 	}
 	return builder.String()
@@ -236,7 +224,7 @@ type IRFunctionType struct {
 	irtypes []string
 }
 
-func (ir *IRFunctionType) ToLLVM() string {
+func (ir IRFunctionType) ToLLVM() string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("%%%s = type %s (", ir.name, ir.irtype))
 
@@ -257,7 +245,7 @@ type IRStruct struct {
 	packed          bool
 }
 
-func (ir *IRStruct) ToLLVM() string {
+func (ir IRStruct) ToLLVM() string {
 	var builder strings.Builder
 	var lbracket_sym = "{"
 	var rbracket_sym = "}"
@@ -281,16 +269,83 @@ func (ir *IRStruct) ToLLVM() string {
 }
 
 type IRExpression struct {
+	expression_id  string
 	operation_name string
 	irtype         string
 	operand1       string
 	operand2       string
-	table          *SymbolTableEntry
+	table          *SymbolTable
 }
 
-func (ir *IRExpression) ToLLVM() string {
+func (ir IRExpression) ToLLVM() string {
 	var builder strings.Builder
-	result_name := ir.table.NewRegisterFor(fmt.Sprintf("%s %s %s", ir.operand1, ir.operation_name, ir.operand2))
+	expression_table_entry, _ := ir.table.GetEntryNamed(ir.expression_id)
+	result_name := expression_table_entry.NewRegisterFor(fmt.Sprintf("%s %s %s", ir.operand1, ir.operation_name, ir.operand2))
 	builder.WriteString(fmt.Sprintf("%%%s = %s %s %s, %s", result_name, ir.operation_name, ir.irtype, ir.operand1, ir.operand2))
+	return builder.String()
+}
+
+type IRWhile struct {
+	entry     IRBlock
+	condition IRBlock
+	body      IRBlock
+	end       IRBlock
+}
+
+func (ir IRWhile) ToLLVM() string {
+	var builder strings.Builder
+	builder.WriteString(ir.entry.ToLLVM())
+	builder.WriteString(ir.condition.ToLLVM())
+	builder.WriteString(ir.body.ToLLVM())
+	builder.WriteString(ir.end.ToLLVM())
+	return builder.String()
+}
+
+type IRFor struct {
+	entry     IRBlock
+	condition IRBlock
+	body      IRBlock
+	increment IRBlock
+	end       IRBlock
+}
+
+func (ir IRFor) ToLLVM() string {
+	var builder strings.Builder
+	builder.WriteString(ir.entry.ToLLVM())
+	builder.WriteString(ir.condition.ToLLVM())
+	builder.WriteString(ir.increment.ToLLVM())
+	builder.WriteString(ir.end.ToLLVM())
+	return builder.String()
+}
+
+type IRConditional struct {
+	condition_checks []IRBlock
+	condition_bodies []IRBlock
+	else_body        *IRBlock
+}
+
+func (ir IRConditional) ToLLVM() string {
+	var builder strings.Builder
+	for _, checks := range ir.condition_checks {
+		builder.WriteString(checks.ToLLVM())
+	}
+	for _, bodies := range ir.condition_bodies {
+		builder.WriteString(bodies.ToLLVM())
+	}
+
+	if ir.else_body != nil {
+		builder.WriteString(ir.else_body.ToLLVM())
+	}
+	return builder.String()
+}
+
+type IRInclude struct {
+	module_name string
+	contents    string
+}
+
+func (ir IRInclude) ToLLVM() string {
+	var builder strings.Builder
+	builder.WriteString(ir.contents)
 	return builder.String()
 }

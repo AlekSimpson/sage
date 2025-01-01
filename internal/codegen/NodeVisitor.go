@@ -1,53 +1,47 @@
 package sage
 
-type Visit int
+type VisitType int
 
 const (
-	FUNCDEF Visit = iota
+	FUNCDEF VisitType = iota
 	FUNCCALL
 	STRUCT
 	BLOCK // might not need
 	IF
+	FOR
+	WHILE
+	PROGRAMROOT
+	EXPRESSION
 )
 
-type NodeVisitor interface {
-	CurrentlyVisiting() Visit
-	ResultType() string
-	ResultValue() Value
+type NodeVisitor struct {
+	scope_name        string
+	parameter_amount  int
+	current_param     int
+	scope_return_type string
+	visit_type        VisitType
+	result_type       string
+	table             *SymbolTable
+	parent_visitor    *NodeVisitor
 }
 
-type FuncDefVisitor struct {
-	Parameter_amount     int
-	Current_param        int
-	function_return_type string
+func NewRootVisitor(global_table *SymbolTable) *NodeVisitor {
+	return &NodeVisitor{
+		scope_name: "ROOT",
+		visit_type: PROGRAMROOT,
+		table:      global_table,
+	}
 }
 
-func (v *FuncDefVisitor) CurrentlyVisiting() Visit {
-	return FUNCDEF
+func NewVisitor(visit_type VisitType, name string, parent *NodeVisitor) *NodeVisitor {
+	return &NodeVisitor{
+		scope_name:     name,
+		visit_type:     visit_type,
+		table:          NewSymbolTable(),
+		parent_visitor: parent,
+	}
 }
 
-func (v *FuncDefVisitor) ResultType() string {
-	return v.function_return_type
-}
-
-func (v *FuncDefVisitor) ResultValue() Value {
-	return nil
-}
-
-type FuncCallVisitor struct {
-	Parameter_amount     int
-	Current_param        int
-	function_return_type string
-}
-
-func (v *FuncCallVisitor) CurrentlyVisiting() Visit {
-	return FUNCCALL
-}
-
-func (v *FuncCallVisitor) ResultType() string {
-	return v.function_return_type
-}
-
-func (v *FuncCallVisitor) ResultValue() Value {
-	return nil
+func (v *NodeVisitor) FindVariableNamed(name string) (*SymbolTableEntry, bool) {
+	return v.table.GetEntryNamed(name)
 }

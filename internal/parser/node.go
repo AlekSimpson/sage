@@ -12,6 +12,7 @@ const (
 	TRINARY
 	UNARY
 	NUMBER
+	FLOAT
 	STRING
 	IDENTIFIER
 	KEYWORD
@@ -34,6 +35,7 @@ const (
 	VAR_REF
 	COMPILE_TIME_EXECUTE
 	LIST
+	INCLUDE
 )
 
 func (nt NodeType) String() string {
@@ -46,6 +48,8 @@ func (nt NodeType) String() string {
 		return "UNARY"
 	case NUMBER:
 		return "NUMBER"
+	case FLOAT:
+		return "FLOAT"
 	case IDENTIFIER:
 		return "IDENTIFIER"
 	case KEYWORD:
@@ -90,6 +94,8 @@ func (nt NodeType) String() string {
 		return "COMPILE_TIME_EXECUTE"
 	case LIST:
 		return "LIST"
+	case INCLUDE:
+		return "INCLUDE"
 	default:
 		return "Unknown Node Type (Could have forgot to add String() impl for new type)"
 	}

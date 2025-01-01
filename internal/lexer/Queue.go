@@ -17,21 +17,18 @@ type Queueable interface {
 }
 
 type Queue[Q Queueable] struct {
-	array      []Q
-	null_value Q
+	array []Q
 }
 
-func NewEmptyQueue[Q Queueable](nullval Q) *Queue[Q] {
+func NewEmptyQueue[Q Queueable]() *Queue[Q] {
 	return &Queue[Q]{
-		array:      []Q{},
-		null_value: nullval,
+		array: []Q{},
 	}
 }
 
-func NewQueue[Q Queueable](arr []Q, nullvalue Q) *Queue[Q] {
+func NewQueue[Q Queueable](arr []Q) *Queue[Q] {
 	return &Queue[Q]{
-		array:      arr,
-		null_value: nullvalue,
+		array: arr,
 	}
 }
 
@@ -44,18 +41,18 @@ func (q *Queue[Q]) Stack(value Q) {
 	q.array = append([]Q{value}, q.array...)
 }
 
-func (q *Queue[Q]) Pop() Q {
+func (q *Queue[Q]) Pop() *Q {
 	if len(q.array) == 0 {
-		return q.null_value
+		return nil
 	} else if len(q.array) == 1 {
 		retval := q.array[0]
 		q.array = make([]Q, 0)
-		return retval
+		return &retval
 	}
 
 	retval := q.array[0]
 	q.array = q.array[1:]
-	return retval
+	return &retval
 }
 
 func (q *Queue[Q]) empty() bool {

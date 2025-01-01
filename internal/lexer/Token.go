@@ -50,6 +50,7 @@ const (
 	TT_OR
 	TT_FIELD_ACCESSOR // 'struct_name.value'
 	TT_POUND
+	TT_COLON // used for denoting array type length, ex: `ages [int:5] = ...`
 )
 
 type Token struct {
