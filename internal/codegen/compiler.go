@@ -7,31 +7,77 @@ import (
 	"strings"
 )
 
+type CompilationResult struct {
+	module_cat MODULE_CAT
+	error      string
+}
+
+type MODULE_CAT int
+
+// module categories for the IR module construction
+const (
+	MOD_FDEF MODULE_CAT = iota
+	MOD_FDEC
+	MOD_STRUCT
+	MOD_GLOBAL
+	MOD_INCLUDE
+	MOD_COMPILE_TIME
+	MOD_ERR
+	MOD_NONE
+)
+
 type SageCompiler struct {
-	interpreter *SageInterpreter
-	root_module *IRModule    // used to emit IR once done compiling
-	visitor     *NodeVisitor // used to keep track of code semantics in order to emit IR with correct syntax, etc.
+	interpreter   *SageInterpreter
+	root_module   *IRModule // used to emit IR once done compiling
+	current_scope *Symbol
 	// TODO: create Logger object
 }
 
-func BeginCodeCompilation(code_content []byte, filename string) {
-	parser := sage.NewParser(code_content)
+func create_build_settings() map[string]any {
+	return map[string]any{
+		"targetfile":         nil,
+		"executable_name":    nil,
+		"platform":           nil,
+		"architecture":       nil,
+		"bitsize":            nil,
+		"optimization_level": nil,
+		"program_arguments":  nil,
+		"argument_count":     nil,
+	}
+}
+
+func BeginCodeCompilation(filename string) {
+	del := strings.Split(filename, ".")
+	if len(del) != 2 || (del[1] != "g" && del[1] != "sage") {
+		panic("Cannot compile inputted file type")
+	}
+
+	contents, err := os.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+
+	parser := sage.NewParser(filename, contents)
 	parsetree := parser.Parse_program()
 
 	// initialize symbol table structure so we can read and write to it before (technically during) compilation to begin compilation
-	build_settings := DefaultBuildSettings(filename)
-	GLOBAL_SYMBOL_TABLE := NewSymbolTable()
-	build_settings_entry := GLOBAL_SYMBOL_TABLE.NewEntry("build_settings")
-	build_settings.initialize_symbol_table_entry(build_settings_entry)
+	build_settings := create_build_settings()
+	symbol_table := &SymbolTable{}
+	symbol_table.AddSymbol("build_settings", STRUCT, &AtomicValue{STRUCT_TYPE, nil, build_settings}, STRUCT_TYPE)
 
-	// Create IR module from parse tree
-	code_module := NewIRModule(filename, GLOBAL_SYMBOL_TABLE)
-	code_module.GLOBAL_TABLE = GLOBAL_SYMBOL_TABLE
+	global_scope := &Symbol{
+		name:     "GLOBAL",
+		ast_type: PROGRAMROOT,
+		scope:    symbol_table,
+	}
 
-	interpreter := NewInterpreter(code_module.GLOBAL_TABLE)
+	code_module := NewIRModule(filename)
+	interpreter := NewInterpreter(global_scope)
 
-	compiler := SageCompiler{interpreter, code_module, NewRootVisitor(GLOBAL_SYMBOL_TABLE)}
+	compiler := SageCompiler{interpreter, code_module, global_scope}
 	compiler.compile_code(parsetree, code_module)
+
+	fmt.Println(global_scope.ShowTables())
 }
 
 func (c *SageCompiler) compile_code(parsetree sage.ParseNode, ir_module *IRModule) {
@@ -45,35 +91,36 @@ func (c *SageCompiler) compile_code(parsetree sage.ParseNode, ir_module *IRModul
 	program_root_node := parsetree.(*sage.BlockNode)
 	for _, node := range program_root_node.Children {
 		ir, code_category := c.compile_general_node(node)
-		switch code_category {
-		case "fdefs":
+		switch code_category.module_cat {
+		case MOD_FDEF:
 			ir_func := ir.(IRFunc)
 			function_defs = append(function_defs, ir_func)
 
-		case "fdecs":
+		case MOD_FDEC:
 			ir_func := ir.(IRFunc)
 			function_decs = append(function_decs, ir_func)
 
-		case "structs":
+		case MOD_STRUCT:
 			ir_struct := ir.(IRStruct)
 			structs = append(structs, ir_struct)
 
-		case "globals":
+		case MOD_GLOBAL:
 			ir_global := ir.(IRAtom)
 			ir_global.instruction_type = GLOBAL
 			globals = append(globals, ir_global)
 
-		case "includes":
+		case MOD_INCLUDE:
 			// include IR does not require instruction_type being set to GLOBAL
 			// so it is in its own case to keep it seperate
 			globals = append(globals, ir)
 
-		case "compile_time":
+		case MOD_COMPILE_TIME:
 			// fmt.Println("Interpretting run directive...")
 			break
 
 		default:
 			// otherwise an error was thrown
+			fmt.Println("test")
 			fmt.Println(code_category)
 		}
 	}
@@ -84,64 +131,66 @@ func (c *SageCompiler) compile_code(parsetree sage.ParseNode, ir_module *IRModul
 	ir_module.Structs = structs
 }
 
-func (c *SageCompiler) compile_general_node(node sage.ParseNode) (IRInstructionProtocol, string) {
+func (c *SageCompiler) compile_general_node(node sage.ParseNode) (IRInstructionProtocol, *CompilationResult) {
 	switch node.Get_true_nodetype() {
 	case sage.FUNCDEF:
 		ir, err_msg := c.compile_funcdef_node(node.(*sage.BinaryNode))
-		if err_msg != "nothing" {
-			return nil, err_msg
+		if err_msg.module_cat == MOD_ERR {
+			return nil, &CompilationResult{MOD_ERR, err_msg.error}
 		}
 
 		if len(ir.body) == 0 {
 			// if the body is empty then it is a function declaration
-			return ir, "fdecs"
+			return ir, MOD_FDEC
 		}
 
-		return ir, "fdefs"
+		return ir, MOD_FDEF
 	case sage.VAR_DEC:
 		ir, err_msg := c.compile_var_dec_node(node.(*sage.BinaryNode))
-		if err_msg != "nothing" {
-			return nil, err_msg
+		if err_msg == MOD_ERR {
+			return nil, MOD_ERR
 		}
 
-		return ir, "globals"
+		return ir, MOD_GLOBAL
 
 	case sage.STRUCT:
 		ir, err_msg := c.compile_struct_node(node)
-		if err_msg != "nothing" {
-			return nil, err_msg
+		if err_msg == MOD_ERR {
+			return nil, MOD_ERR
 		}
 
-		return ir, "structs"
+		return ir, MOD_STRUCT
 
 	case sage.INCLUDE:
-		ir, err_msg := c.compile_include_node(node.(*sage.UnaryNode))
-		if err_msg != "nothing" {
-			return nil, err_msg
+		ir := c.compile_include_node(node.(*sage.UnaryNode))
+		if ir.module_name == "" {
+			return nil, MOD_ERR
 		}
 
-		return ir, "includes"
+		return ir, MOD_INCLUDE
 
 	case sage.COMPILE_TIME_EXECUTE:
 		// NOTE: shouldn't we also be getting error logs from this as well?
 		c.compile_compile_time_execute_node(node.(*sage.UnaryNode))
-		return nil, "compile_time"
+		return nil, MOD_COMPILE_TIME
 
 	default:
-		return nil, fmt.Sprintf("COMPILATION ERROR: Cannot have %s in top level scope.", node.Get_true_nodetype())
+		// return nil, fmt.Sprintf("COMPILATION ERROR: Cannot have %s in top level scope.", node.Get_true_nodetype())
+		return nil, MOD_ERR
 	}
 }
 
-func (c *SageCompiler) compile_include_node(node *sage.UnaryNode) (IRInclude, string) {
+func (c *SageCompiler) compile_include_node(node *sage.UnaryNode) IRInclude {
 	include_file := node.Get_token().Lexeme
 
 	// get rid of the '"' symbols wrapping the module name
 	include_file = include_file[1 : len(include_file)-1]
 
-	search_path := "/home/alek/Desktop/projects/sage/"
-	content, err := os.ReadFile(search_path + include_file)
+	const SEARCH_PATH = "/home/alek/Desktop/projects/sage/"
+	content, err := os.ReadFile(SEARCH_PATH + include_file)
 	if err != nil {
-		return IRInclude{}, fmt.Sprintf("COMPILATION ERROR: %s", err.Error())
+		// return IRInclude{}, fmt.Sprintf("COMPILATION ERROR: %s", err.Error())
+		return IRInclude{}
 	}
 
 	ir := IRInclude{
@@ -149,66 +198,75 @@ func (c *SageCompiler) compile_include_node(node *sage.UnaryNode) (IRInclude, st
 		contents:    string(content),
 	}
 
-	return ir, "nothing"
+	return ir
 }
 
-func (c *SageCompiler) compile_binary_node(node *sage.BinaryNode, first_entry bool) ([]IRInstructionProtocol, string) {
+func (c *SageCompiler) compile_binary_node(node *sage.BinaryNode) ([]IRInstructionProtocol, MODULE_CAT) {
 	// compiles expression node which for now only deals with numeric values,
 	// but could include terms that have func calls that return numeric values
 
-	op_lexeme := node.Get_token().Lexeme
-	if first_entry {
-		expression_result_type, error := resolve_expression_type(node)
-		if error {
-			// if error is true then resolveGLOBAL_expression_type will store the error message in expression_result_type
-			return nil, expression_result_type
-		}
-
-		// get visitor and symbol table information
-		c.visitor = NewVisitor(EXPRESSION, op_lexeme, c.visitor)
-		c.visitor.result_type = expression_result_type
-	}
-
 	var total_expression_ir []IRInstructionProtocol
+
+	op_lexeme := node.Get_token().Lexeme
+	expression_result_type, error := resolve_node_type(node)
+	if error {
+		return nil, MOD_ERR
+	}
 
 	// evalute both branches of nodes to extract operands and or generate any needed extra IR instructions
 	leftside_ir, operand1, successful := c.visit_operand_branch(node.Left)
 	if !successful {
 		// in cases non-successful cases operand2 stores the error message string
-		return leftside_ir, operand1
+		return nil, MOD_ERR
 	}
 	total_expression_ir = append(total_expression_ir, leftside_ir...)
 
 	rightside_ir, operand2, successful := c.visit_operand_branch(node.Right)
 	if !successful {
 		// in cases non-successful cases operand2 stores the error message string
-		return rightside_ir, operand2
+		return nil, MOD_ERR
 	}
 	total_expression_ir = append(total_expression_ir, rightside_ir...)
 
 	// now generate the most current IR instruction
-	op_name := op_lexeme_to_llvm_op_lexeme(c.visitor, node.Get_token().Lexeme)
+	op_name := op_lexeme_to_llvm_op_lexeme(expression_result_type, op_lexeme)
+
+	// array literals are currently not allowed in expressions so setting length to -1
+	llvm_type := literal_to_llvm_type(expression_result_type, -1)
+
 	ir := &IRExpression{
-		operation_name: op_name,
-		irtype:         c.visitor.result_type,
-		operand1:       operand1,
-		operand2:       operand2,
-		table:          c.visitor.table,
+		operation_name:  op_name,
+		irtype:          llvm_type,
+		operand1:        operand1,
+		operand2:        operand2,
+		result_register: c.current_scope.NewRegister(),
 	}
 
 	total_expression_ir = append(total_expression_ir, ir)
 
-	if first_entry {
-		c.visitor = c.visitor.parent_visitor
-	}
-
-	return total_expression_ir, "nothing"
+	return total_expression_ir, MOD_ERR
 }
 
-func (c *SageCompiler) compile_expression_operand(node sage.ParseNode) ([]IRInstructionProtocol, string) {
+func (c *SageCompiler) visit_operand_branch(branch_node sage.ParseNode) ([]IRInstructionProtocol, string, bool) {
+	branchnode_type := branch_node.Get_true_nodetype()
+	if branchnode_type == sage.NUMBER || branchnode_type == sage.FLOAT {
+		operand := branch_node.Get_token().Lexeme
+		return []IRInstructionProtocol{}, operand, true
+	}
+
+	branch_ir, err_msg := c.compile_expression_operand(branch_node)
+	if err_msg == MOD_ERR {
+		return branch_ir, "", false
+	}
+
+	operand := branch_ir[len(branch_ir)-1].ResultRegister()
+	return branch_ir, operand, true
+}
+
+func (c *SageCompiler) compile_expression_operand(node sage.ParseNode) ([]IRInstructionProtocol, MODULE_CAT) {
 	switch node.Get_true_nodetype() {
 	case sage.BINARY:
-		return c.compile_binary_node(node.(*sage.BinaryNode), false)
+		return c.compile_binary_node(node.(*sage.BinaryNode))
 	case sage.FUNCCALL:
 		call_ir, err_msg := c.compile_func_call_node(node.(*sage.UnaryNode))
 		return []IRInstructionProtocol{call_ir}, err_msg
@@ -217,58 +275,41 @@ func (c *SageCompiler) compile_expression_operand(node sage.ParseNode) ([]IRInst
 		return []IRInstructionProtocol{ref_ir}, err_msg
 	}
 
-	return []IRInstructionProtocol{}, "COMPILATION ERROR: Invalid operand found in expression\n"
-}
-
-func (c *SageCompiler) visit_operand_branch(branch_node sage.ParseNode) (ir []IRInstructionProtocol, operand string, successful bool) {
-	branchnode_type := branch_node.Get_true_nodetype()
-	if branchnode_type == sage.NUMBER || branchnode_type == sage.FLOAT {
-		operand2 := branch_node.Get_token().Lexeme
-		return []IRInstructionProtocol{}, operand2, true
-	}
-
-	branch_ir, err_msg := c.compile_expression_operand(branch_node)
-	if err_msg != "nothing" {
-		return branch_ir, err_msg, false
-	}
-
-	// MARK
-	entry, _ := c.visitor.table.GetEntryNamed(c.visitor.scope_name)
-	operand2 := entry.registers.Pop().Register
-	return branch_ir, operand2, true
+	return []IRInstructionProtocol{}, MOD_ERR
+	// return []IRInstructionProtocol{}, "COMPILATION ERROR: Invalid operand found in expression\n"
 }
 
 // func (c *SageCompiler) compile_unary_node(node *sage.UnaryNode) ([]IRInstructionProtocol, string) {}
 
-func (c *SageCompiler) compile_string_node(node *sage.UnaryNode) (*IRAtom, string) {
-	value := node.Get_token().Lexeme
-	inst_type, last_param := decide_instruction_type_and_last_param(c.visitor)
+func (c *SageCompiler) compile_string_node(node *sage.UnaryNode) (*IRAtom, MODULE_CAT) {
+	// NOTE: node is representing a string literal
 
-	// MARK
-	entry := c.visitor.table.NewEntry(value)
-	if entry == nil {
-		return &IRAtom{}, "COMPILATION ERROR: Unable to find string node entry"
+	node_literal_value := node.Get_token().Lexeme
+	literal_internal_name := CreateInternalName()
+	ir_type := fmt.Sprintf("[ %d x i8 ]", len(node_literal_value))
+
+	c.current_scope.scope.AddSymbol(literal_internal_name, VARIABLE, &AtomicValue{ARRAY_CHAR, node_literal_value, nil}, ARRAY_CHAR)
+	symbol, _ := c.current_scope.scope.LookupSymbol(literal_internal_name)
+
+	last_param := false
+	if c.current_scope.ast_type == FUNCTION {
+		// when generating the IR it is important to know if a param is the last because we need to know if a ',' follows it in the IR or not
+		last_param = c.current_scope.parameter_index == c.current_scope.parameter_amount-1
 	}
 
 	ir := &IRAtom{
-		name: "string_literal",
-		// NOTE: the substring '_<|>_' is purposely verbose so that it doesn't accidentally get
-		// used inside the actual string value itself
-		irtype:           sage_type_to_llvm_type(fmt.Sprintf("array_<|>_char_<|>_%d", len(value))),
-		value:            value,
-		instruction_type: inst_type,
+		name:             literal_internal_name,
+		irtype:           ir_type,
+		value:            node_literal_value,
+		instruction_type: INIT,
 		is_last_param:    last_param,
-		table:            c.visitor.table,
+		result_register:  symbol.NewRegister(),
 	}
 
-	if c.visitor.scope_name == "ROOT" {
-		return ir, "globals"
-	}
-
-	return ir, "nothing"
+	return ir, MOD_NONE
 }
 
-func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructionProtocol, string) {
+func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructionProtocol, MODULE_CAT) {
 	// NOTE: this function assumes the keyword is "return", the future more keyword statements could exist and checks would be needed for those
 	var return_instructions []IRInstructionProtocol
 
@@ -278,7 +319,7 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 		switch return_node.Get_true_nodetype() {
 		case sage.STRING:
 			literal_ir, err_msg := c.compile_string_node(return_node.(*sage.UnaryNode))
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return []IRInstructionProtocol{literal_ir}, err_msg
 			}
 
@@ -286,7 +327,7 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 
 		case sage.VAR_REF:
 			ref_ir, err_msg := c.compile_var_ref_node(return_node.(*sage.UnaryNode))
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return []IRInstructionProtocol{ref_ir}, err_msg
 			}
 
@@ -295,42 +336,52 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 		case sage.NUMBER: // if its a number then it will just compile the same as float would
 		case sage.FLOAT:
 			raw_value := node.Get_child_node().Get_token().Lexeme
+			node_type, failed := resolve_node_type(node)
+			if failed {
+				return return_instructions, MOD_ERR
+			}
 
+			scope_return_type := c.current_scope.sage_datatype
+			if node_type != scope_return_type {
+				return return_instructions, MOD_ERR
+			}
+
+			// using current scope's return type because this is a return statement so we will assume the return type the parent function is returning
 			return_ir := &IRAtom{
-				irtype:           c.visitor.result_type,
+				irtype:           c.current_scope.sage_datatype_to_llvm(),
 				value:            raw_value,
 				instruction_type: RET_STMT,
 			}
 			return_instructions = append(return_instructions, return_ir)
 
-			return return_instructions, ""
+			return return_instructions, MOD_NONE
 
 		case sage.FUNCCALL:
 			call_ir, err_msg := c.compile_func_call_node(return_node.(*sage.UnaryNode))
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return []IRInstructionProtocol{call_ir}, err_msg
 			}
 
 			return_instructions = append(return_instructions, call_ir)
 
 		case sage.BINARY: // expression
-			expression_ir, err_msg := c.compile_binary_node(return_node.(*sage.BinaryNode), true)
-			if err_msg != "nothing" {
+			expression_ir, err_msg := c.compile_binary_node(return_node.(*sage.BinaryNode))
+			if err_msg == MOD_ERR {
 				return expression_ir, err_msg
 			}
 
 			return_instructions = append(return_instructions, expression_ir...)
 		}
 
-		// MARK
+		result_reg := return_instructions[len(return_instructions)-1].ResultRegister()
 		return_ir := &IRAtom{
-			irtype:           c.visitor.result_type,
-			value:            c.visitor.table.registers.Pop().Register,
+			irtype:           c.current_scope.sage_datatype_to_llvm(),
+			value:            result_reg,
 			instruction_type: RET_STMT,
 		}
 		return_instructions = append(return_instructions, return_ir)
 
-		return return_instructions, ""
+		return return_instructions, MOD_NONE
 	}
 
 	// irtype and value arent needed here because if the return has nothing attached then it will always be returning void
@@ -340,85 +391,74 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 
 	return_instructions = append(return_instructions, return_ir)
 
-	return return_instructions, ""
+	return return_instructions, MOD_NONE
 }
 
-func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label string) ([]IRBlock, string) {
+func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label string) ([]IRBlock, MODULE_CAT) {
 	var blocks []IRBlock
 	var block_contents []IRInstructionProtocol
 
 	for _, childnode := range node.Children {
 		switch childnode.Get_true_nodetype() {
 		case sage.KEYWORD:
-			keyword_ir, err_msg := c.compile_keyword_node(childnode.(*sage.UnaryNode))
-			if err_msg != "nothing" {
-				return blocks, err_msg
+			keyword_ir, err := c.compile_keyword_node(childnode.(*sage.UnaryNode))
+			if err == MOD_ERR {
+				return blocks, err
 			}
 
 			block_contents = append(block_contents, keyword_ir...)
 
 		case sage.FUNCDEF:
-			def_ir, err_msg := c.compile_funcdef_node(childnode.(*sage.BinaryNode))
-			if err_msg != "nothing" {
-				return blocks, err_msg
+			def_ir, err := c.compile_funcdef_node(childnode.(*sage.BinaryNode))
+			if err == MOD_ERR {
+				return blocks, err
 			}
 
 			block_contents = append(block_contents, def_ir)
 
 		case sage.FUNCCALL:
-			call_ir, err_msg := c.compile_func_call_node(childnode.(*sage.UnaryNode))
-			if err_msg != "nothing" {
-				return blocks, err_msg
+			call_ir, err := c.compile_func_call_node(childnode.(*sage.UnaryNode))
+			if err == MOD_ERR {
+				return blocks, err
 			}
 
 			block_contents = append(block_contents, call_ir)
 
 		case sage.IF:
-			conditional_ir, err_msg := c.compile_if_node(childnode)
-			if err_msg != "nothing" {
-				return blocks, "nothing"
+			conditional_ir, err := c.compile_if_node(childnode)
+			if err == MOD_ERR {
+				return blocks, err
 			}
 
-			blocks = append(blocks, conditional_ir.condition_checks...)
-			blocks = append(blocks, conditional_ir.condition_bodies...)
-			if conditional_ir.else_body != nil {
-				blocks = append(blocks, *conditional_ir.else_body)
-			}
+			blocks = append(blocks, conditional_ir.all_blocks...)
 
 		case sage.WHILE:
 			while_ir, err_msg := c.compile_while_node(childnode)
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return blocks, err_msg
 			}
 
-			blocks = append(blocks, while_ir.entry)
-			blocks = append(blocks, while_ir.condition)
-			blocks = append(blocks, while_ir.body)
-			blocks = append(blocks, while_ir.end)
+			blocks = append(blocks, while_ir.all_blocks...)
 
 		case sage.FOR:
 			for_ir, err_msg := c.compile_for_node(childnode)
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return blocks, err_msg
 			}
 
-			blocks = append(blocks, for_ir.entry)
-			blocks = append(blocks, for_ir.condition)
-			blocks = append(blocks, for_ir.body)
-			blocks = append(blocks, for_ir.increment)
-			blocks = append(blocks, for_ir.end)
+			blocks = append(blocks, for_ir.all_blocks...)
 
 		case sage.ASSIGN:
-			assign_ir, err_msg := c.compile_assign_node(childnode)
-			if err_msg != "nothing" {
-				return blocks, err_msg
+			assign_ir, err := c.compile_assign_node(childnode)
+			if err == MOD_ERR {
+				return blocks, err
 			}
 
 			block_contents = append(block_contents, assign_ir...)
 
 		case sage.STRUCT:
 			struct_ir, err_msg := c.compile_struct_node(childnode)
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return blocks, err_msg
 			}
 
@@ -426,7 +466,7 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 
 		case sage.VAR_DEC:
 			dec_ir, err_msg := c.compile_var_dec_node(childnode.(*sage.BinaryNode))
-			if err_msg != "nothing" {
+			if err_msg == MOD_ERR {
 				return blocks, err_msg
 			}
 
@@ -436,7 +476,8 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 			c.compile_compile_time_execute_node(childnode.(*sage.UnaryNode))
 
 		default:
-			return blocks, "COMPILATION ERROR: Found statement that does not make sense within context of a block\n"
+			return blocks, MOD_ERR
+			// return blocks, "COMPILATION ERROR: Found statement that does not make sense within context of a block\n"
 		}
 
 		main_block := &IRBlock{
@@ -447,375 +488,430 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 		blocks = append(blocks, *main_block)
 	}
 
-	return blocks, "nothing"
+	return blocks, MOD_ERR
 }
 
-func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode) ([]IRAtom, string) {
+func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode) ([]IRAtom, MODULE_CAT) {
 	var params []IRAtom
+	var binary *sage.BinaryNode
+	var param_name string
+	var sage_type SAGE_DATATYPE
+	var failed bool
+	var output_code TableOutput
+	var param_symbol *Symbol
 	for index, childnode := range node.Children {
-		c.visitor.current_param = index
+		c.current_scope.parameter_index = index
+
+		binary = childnode.(*sage.BinaryNode)
+		param_name = binary.Left.Get_token().Lexeme
+
+		sage_type, failed = resolve_node_type(binary.Right)
+		if failed {
+			return params, MOD_ERR
+		}
+
+		output_code = c.current_scope.scope.AddSymbol(param_name, PARAMETER, nil, sage_type)
+		if output_code == NAME_COLLISION {
+			return params, MOD_ERR
+		}
+
+		param_symbol, _ = c.current_scope.scope.LookupSymbol(param_name)
 
 		// all children inside a funcdef param list will be a BinaryNode
 		param := IRAtom{
-			name:   childnode.(*sage.BinaryNode).Left.Get_token().Lexeme,
-			irtype: sage_type_to_llvm_type(childnode.(*sage.BinaryNode).Right.Get_token().Lexeme),
+			name:   param_name,
+			irtype: param_symbol.sage_datatype_to_llvm(),
 		}
 		params = append(params, param)
 	}
 
-	return params, "nothing"
+	return params, MOD_NONE
 }
 
-func (c *SageCompiler) compile_funcdef_node(node *sage.BinaryNode) (IRFunc, string) {
-	// save the parent visitor so that we can restore it when we are finished visiting the child
-	previous_visitor := c.visitor
-
+func (c *SageCompiler) compile_funcdef_node(node *sage.BinaryNode) (IRFunc, MODULE_CAT) {
 	// all function defs are represented as a binary node in the parse treee
 	function_signature := node.Right.(*sage.TrinaryNode)
 	param_node := function_signature.Right.(*sage.BlockNode)
 	function_name := node.Left.Get_token().Lexeme
 	parameters := function_signature.Left.(*sage.BlockNode)
 	body := function_signature.Right.(*sage.BlockNode)
-	c.visitor = &NodeVisitor{
-		scope_name:       function_name,
-		parameter_amount: len(param_node.Children),
-		current_param:    0,
-		visit_type:       FUNCDEF,
+	function_return_type, failed := resolve_node_type(function_signature.Middle)
+	if failed {
+		return IRFunc{}, MOD_ERR
 	}
-	function_return_type := function_signature.Middle.Get_token().Lexeme
 
-	// FIX: update symbol table
-	// entry := c.visitor.table.NewEntry(function_name)
-	// if entry == nil {
-	// 	return IRFunc{}, fmt.Sprintf("Invalid redefinition of function %s\n", function_name)
-	// }
-	// c.global_table.InsertValue(function_name, c.visitor)
+	output_code := c.current_scope.scope.AddSymbol(function_name, FUNCTION, nil, function_return_type)
+	if output_code == NAME_COLLISION {
+		return IRFunc{}, MOD_ERR
+	}
 
-	function_params, err_msg := c.compile_param_list_node(parameters)
-	if err_msg != "nothing" {
-		return IRFunc{}, err_msg
+	func_symbol, _ := c.current_scope.scope.LookupSymbol(function_name)
+
+	// create function visitor
+	func_symbol.parameter_index = 0
+	func_symbol.parameter_amount = len(param_node.Children)
+
+	// Enter nested function scope
+	previous_scope := c.current_scope
+	c.current_scope = func_symbol
+
+	function_params, err := c.compile_param_list_node(parameters)
+	if err == MOD_ERR {
+		return IRFunc{}, err
 	}
 
 	// the body could be omitted if it is simply a function declaration and not a definition
 	var function_body []IRBlock
 	if body != nil {
-		function_body, err_msg = c.compile_block_node(body, "entry")
-		if err_msg != "nothing" {
-			return IRFunc{}, err_msg
+		function_body, err = c.compile_block_node(body, "entry")
+		if err == MOD_ERR {
+			return IRFunc{}, err
 		}
 	}
+
+	// Leave nested function scope
+	c.current_scope = previous_scope
 
 	// generate ir
 	ir := IRFunc{
 		name:         function_name,
-		return_type:  sage_type_to_llvm_type(function_return_type),
+		return_type:  func_symbol.sage_datatype_to_llvm(),
 		parameters:   function_params,
 		calling_conv: "NOCONV",
 		attribute:    "NOATTRIBUTE",
 		body:         function_body,
 	}
 
-	c.visitor = previous_visitor
-
-	return ir, "nothing"
+	return ir, MOD_NONE
 }
 
-func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) (IRFuncCall, string) {
+func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) (IRFuncCall, MODULE_CAT) {
 	function_name := node.Get_token().Lexeme
-
-	// save the parent visitor so that we can restore it when we are done visitin the child
-	previous_visitor := c.visitor
 
 	// get parameter block node to update visitor
 	parameters_raw := node.Get_child_node() // should return BlockNode
 	parameters := parameters_raw.(*sage.BlockNode)
-	c.visitor = &NodeVisitor{
-		scope_name:       function_name,
-		parameter_amount: len(parameters.Children),
-		current_param:    0,
-		visit_type:       FUNCCALL,
+
+	// lookup function in symbol table
+	symbol, output_code := c.current_scope.scope.LookupSymbol(function_name)
+	if output_code == NAME_UNDEFINED {
+		return IRFuncCall{}, MOD_ERR
 	}
 
 	// get []IRAtom struct list from parameters
 	var ir_parameters []IRInstructionProtocol
 	for _, parameter := range parameters.Children {
 		// there is more freedom on what values can be passed into a function, theoretically any kind of primary or expression could be passed as a parameter
-		param, err_msg := c.compile_primary_node(parameter)
-		if err_msg != "nothing" {
-			return IRFuncCall{}, err_msg
+		param, err := c.compile_primary_node(parameter)
+		if err != MOD_NONE {
+			return IRFuncCall{}, err
 		}
 
 		ir_parameters = append(ir_parameters, param...)
 	}
 
+	// allocate function call result to a register
+	result_reg := symbol.NewRegister()
+
 	// get the function's return type
-	global_table_result := c.global_table.GetEntryNamed(function_name)
+	return_type := symbol.sage_datatype_to_llvm()
 
 	ir := IRFuncCall{
-		tail:         false,
-		calling_conv: "NOCONV",
-		return_type:  sage_type_to_llvm_type(global_table_result.entry_value.ResultType()),
-		name:         function_name,
-		parameters:   ir_parameters,
-		table:        global_table_result,
+		tail:            false,
+		calling_conv:    "NOCONV",
+		return_type:     return_type,
+		name:            function_name,
+		result_register: result_reg,
+		parameters:      ir_parameters,
 	}
 
-	c.visitor = previous_visitor
-
-	return ir, "nothing"
+	return ir, MOD_NONE
 }
 
-func (c *SageCompiler) compile_struct_node(node sage.ParseNode) (IRStruct, string) {
-	return IRStruct{}, ""
+func (c *SageCompiler) compile_struct_node(node sage.ParseNode) (IRStruct, MODULE_CAT) {
+	return IRStruct{}, MOD_ERR
 }
 
-func (c *SageCompiler) compile_if_node(node sage.ParseNode) (IRConditional, string) {
-	return IRConditional{}, ""
+func (c *SageCompiler) compile_if_node(node sage.ParseNode) (IRConditional, MODULE_CAT) {
+	return IRConditional{}, MOD_ERR
 }
 
-func (c *SageCompiler) compile_while_node(node sage.ParseNode) (IRWhile, string) {
-	return IRWhile{}, ""
+func (c *SageCompiler) compile_while_node(node sage.ParseNode) (IRWhile, MODULE_CAT) {
+	return IRWhile{}, MOD_ERR
 }
 
-func (c *SageCompiler) compile_assign_node(node sage.ParseNode) ([]IRInstructionProtocol, string) {
+func (c *SageCompiler) compile_assign_node(node sage.ParseNode) ([]IRInstructionProtocol, MODULE_CAT) {
 	var retval []IRInstructionProtocol
 	if node.Get_nodetype() == sage.BINARY {
+		// read left hand side
 		binary := node.(*sage.BinaryNode)
 		store_ident := binary.Left.Get_token().Lexeme
 
-		rhs_ir, err_msg := c.compile_primary_node(binary.Right)
-		if err_msg != "nothing" {
-			return retval, err_msg
+		// read right hand side
+		rhs_ir, err := c.compile_primary_node(binary.Right)
+		if err != MOD_NONE {
+			return retval, err
 		}
-
 		retval = append(retval, rhs_ir...)
 
-		variable_entry := c.global_table.GetEntryNamed(store_ident)
-		statement_type, error := resolve_expression_type(binary.Right)
+		// find the type of the expression
+		statement_type, error := resolve_node_type(binary.Right)
 		if error {
-			return retval, fmt.Sprintf("COMPILATION ERROR: Could not resolve the type of node %s\n", binary.Right.String())
+			// return retval, fmt.Sprintf("COMPILATION ERROR: Could not resolve the type of node %s\n", binary.Right.String())
+			return retval, MOD_ERR
 		}
-		if statement_type != variable_entry.entry_value.ResultType() {
-			return retval, fmt.Sprintf("COMPILATION ERROR: Type mismatch found, cannot update %s type to %s type.\n", statement_type, variable_entry.entry_value.ResultType())
+
+		// store the value of the right hand side
+		symbol, output_code := c.current_scope.scope.LookupSymbol(store_ident)
+		if output_code == NAME_UNDEFINED {
+			return retval, MOD_ERR
+		}
+
+		// check that we aren't assigning a mismatching type
+		if symbol.sage_datatype != statement_type {
+			return retval, MOD_ERR
 		}
 
 		store_instruction := IRAtom{
 			name:             store_ident,
-			irtype:           statement_type,
+			value:            rhs_ir[len(rhs_ir)-1].ResultRegister(),
+			irtype:           symbol.sage_datatype_to_llvm(),
 			instruction_type: STORE,
-			table:            variable_entry,
 		}
 
 		retval = append(retval, store_instruction)
-		return retval, "nothing"
+		return retval, MOD_ERR
 
 	} else if node.Get_nodetype() == sage.TRINARY {
+		// read left hand side
 		trinary := node.(*sage.TrinaryNode)
-		name_to_assign_to := trinary.Left.Get_token().Lexeme
+		assign_name := trinary.Left.Get_token().Lexeme
 
-		// first evaluate the rhs and create ir for the rhs
-		rhs_instruction, err_msg := c.compile_primary_node(trinary.Right)
-		if err_msg != "nothing" {
-			return retval, err_msg
+		// create IR for right hand side
+		rhs_inst, err := c.compile_primary_node(trinary.Right)
+		if err != MOD_NONE {
+			return retval, err
 		}
 
-		rhs_type, error := resolve_expression_type(trinary.Right)
+		// find the type of the right hand side
+		rhs_type, error := resolve_node_type(trinary.Right)
 		if error {
-			return retval, "COMPILATION ERROR: Was unable to resolve type of rhs expression in assign statement\n"
+			// return retval, "COMPILATION ERROR: Was unable to resolve type of rhs expression in assign statement\n"
+			return retval, MOD_ERR
+		}
+		retval = append(retval, rhs_inst...)
+
+		assignment_type, failed := resolve_node_type(trinary.Middle)
+		if failed {
+			return retval, MOD_ERR
 		}
 
-		retval = append(retval, rhs_instruction...)
-
-		// NOTE: might be a faulty assumption to assume that we should be looking at the global scope here
-		success := c.global_table.NewEntry(name_to_assign_to)
-		if !success {
-			return retval, fmt.Sprintf("COMPILATION ERROR: Invalid redefinition of variable %s\n", name_to_assign_to)
+		if assignment_type != rhs_type {
+			// check that what we are assigning matches the type of the new variable
+			// return retval,
+			// fmt.Sprintf("COMPILATION ERROR: Type mismatch found, cannot assign %s type to %s type.\n", assignment_type, rhs_type)
+			return retval, MOD_ERR
 		}
-		c.global_table.InsertValue(name_to_assign_to, c.visitor)
+
+		// update the scope with the existence of this new variable
+		output_code := c.current_scope.scope.AddSymbol(assign_name, VARIABLE, nil, assignment_type)
+		if output_code == NAME_COLLISION {
+			return retval, MOD_ERR
+		}
+
+		symbol, _ := c.current_scope.scope.LookupSymbol(assign_name)
+		llvm_type := symbol.sage_datatype_to_llvm()
 
 		// then create the ir for the lhs (alloca and store)
-		assignment_type := sage_type_to_llvm_type(trinary.Middle.Get_token().Lexeme)
-		if assignment_type != rhs_type {
-			return retval, fmt.Sprintf("COMPILATION ERROR: Type mismatch found, cannot assign %s type to %s type.\n", assignment_type, rhs_type)
-		}
-
 		stack_allocate := IRAtom{
-			name:             name_to_assign_to,
-			irtype:           assignment_type,
+			name:             assign_name,
+			irtype:           llvm_type,
 			instruction_type: INIT,
-			table:            c.global_table.GetEntryNamed(c.visitor.scope_name),
 		}
 		retval = append(retval, stack_allocate)
 
 		store_instruction := IRAtom{
-			name:             name_to_assign_to,
-			irtype:           assignment_type,
+			name:             assign_name,
+			value:            rhs_inst[len(rhs_inst)-1].ResultRegister(),
+			irtype:           llvm_type,
 			instruction_type: STORE,
 		}
 		retval = append(retval, store_instruction)
 
 		// package all the ir blocks in order into a single list ir block
-		return retval, "nothing"
+		return retval, MOD_NONE
 	}
 
-	return retval, fmt.Sprintf("COMPILATION ERROR: Cannot compile assign node: %s.\n", node)
+	// return retval, fmt.Sprintf("COMPILATION ERROR: Cannot compile assign node: %s.\n", node)
+	return retval, MOD_ERR
 }
 
-func (c *SageCompiler) compile_primary_node(node sage.ParseNode) ([]IRInstructionProtocol, string) {
+func (c *SageCompiler) compile_primary_node(node sage.ParseNode) ([]IRInstructionProtocol, MODULE_CAT) {
 	truetype := node.Get_true_nodetype()
 	retval := []IRInstructionProtocol{}
 	switch truetype {
 	case sage.STRING:
-		ir, str := c.compile_string_node(node.(*sage.UnaryNode))
+		ir, cat := c.compile_string_node(node.(*sage.UnaryNode))
 		retval = append(retval, ir)
-		return retval, str
+		return retval, cat
 
 	case sage.FUNCCALL:
-		ir, str := c.compile_func_call_node(node.(*sage.UnaryNode))
+		ir, cat := c.compile_func_call_node(node.(*sage.UnaryNode))
 		retval = append(retval, ir)
-		return retval, str
+		return retval, cat
 
 	case sage.VAR_REF:
-		ir, str := c.compile_var_ref_node(node.(*sage.UnaryNode))
+		ir, cat := c.compile_var_ref_node(node.(*sage.UnaryNode))
 		retval = append(retval, ir)
-		return retval, str
+		return retval, cat
 
 	case sage.BINARY:
 		// it is an expression
-		ir, str := c.compile_binary_node(node.(*sage.BinaryNode), true)
+		ir, cat := c.compile_binary_node(node.(*sage.BinaryNode))
 		retval = append(retval, ir...)
-		return retval, str
+		return retval, cat
+
 	default:
-		return retval, fmt.Sprintf("COMPILATION ERROR: Could not compile right hand side: %s.\n", node)
+		// return retval, fmt.Sprintf("COMPILATION ERROR: Could not compile right hand side: %s.\n", node)
+		return retval, MOD_ERR
 	}
 }
 
-func (c *SageCompiler) compile_for_node(node sage.ParseNode) (IRFor, string) {
-	return IRFor{}, ""
+func (c *SageCompiler) compile_for_node(node sage.ParseNode) (IRFor, MODULE_CAT) {
+	return IRFor{}, MOD_ERR
 }
 
 // func (c *SageCompiler) compile_range_node(node sage.ParseNode) ([]IRInstructionProtocol, string) {}
 
-func (c *SageCompiler) compile_var_dec_node(node *sage.BinaryNode) (*IRAtom, string) {
-	assignment_type := sage_type_to_llvm_type(node.Right.Get_token().Lexeme)
+func (c *SageCompiler) compile_var_dec_node(node *sage.BinaryNode) (*IRAtom, MODULE_CAT) {
+	sage_type, err := resolve_node_type(node)
+	if err {
+		return nil, MOD_ERR
+	}
+
 	var_name := node.Left.Get_token().Lexeme
+
+	// update symbol table and register tracker with new variable
+	c.current_scope.scope.AddSymbol(var_name, VARIABLE, nil, sage_type)
+	symbol, _ := c.current_scope.scope.LookupSymbol(var_name)
+	assignment_type := symbol.sage_datatype_to_llvm()
 
 	stack_allocate := IRAtom{
 		name:             var_name,
 		irtype:           assignment_type,
 		instruction_type: INIT,
-		table:            c.global_table.GetEntryNamed(c.visitor.scope_name),
 	}
 
-	// update symbol table and register tracker with new variable
-	current_nest := c.global_table.GetEntryNamed(c.visitor.scope_name)
-	current_nest.entry_table.SetEntryNamed(var_name, &AtomicResult{result_type: assignment_type, value: var_name})
-	current_nest.NewRegisterFor(var_name)
-
-	return &stack_allocate, "nothing"
+	return &stack_allocate, MOD_NONE
 }
 
-func (c *SageCompiler) compile_var_ref_node(node *sage.UnaryNode) (*IRAtom, string) {
+func (c *SageCompiler) compile_var_ref_node(node *sage.UnaryNode) (*IRAtom, MODULE_CAT) {
 	var_name := node.Get_token().Lexeme
 
-	// could be inside scoped table, access that table first, should return the global table by default if that is the current scope
-	// table := c.global_table.GetEntryNamed(c.visitor.scope_name)
-	symbol_table_entry := c.visitor.table.entry_table.GetEntryNamed(var_name)
+	symbol, output := c.current_scope.scope.LookupSymbol(var_name)
+	if output == NAME_UNDEFINED {
+		return nil, MOD_ERR
+	}
+
+	reg := symbol.NewRegister()
+
+	ir_type := symbol.sage_datatype_to_llvm()
 
 	load_inst := IRAtom{
 		name:             var_name,
-		irtype:           symbol_table_entry.entry_value.ResultType(),
+		irtype:           ir_type,
 		instruction_type: REF,
-		table:            c.visitor.table,
+		result_register:  reg,
 	}
-	return &load_inst, "nothing"
+	return &load_inst, MOD_NONE
 }
 
 func (c *SageCompiler) compile_compile_time_execute_node(node *sage.UnaryNode) {
 	block_node := node.Get_child_node().(*sage.BlockNode)
 	for _, childnode := range block_node.Children {
 		c.interpreter.interpret(childnode)
-		// NOTE: in the future we may want or need to expand this out but for now all we really need compile time execute to do is update the symbol table
 	}
 }
 
-func sage_type_to_llvm_type(typestr string) string {
-	is_pointer := false
-	typemap := map[string]string{
-		"int":   "i32",
-		"float": "float",
-		"char":  "i8",
-		"void":  "void",
-		"bool":  "i1",
-		"byte":  "i8",
-	}
-	retval := ""
-	if typestr[len(typestr)-1] == '*' {
-		is_pointer = true
-		typestr = typestr[:len(typestr)-1]
-	}
+func resolve_node_type(node sage.ParseNode) (datatype SAGE_DATATYPE, error bool) {
+	switch node.Get_true_nodetype() {
+	case sage.NUMBER:
+		return I32, false
 
-	retval, exists := typemap[typestr]
-	if !exists {
-		// otherwise it must be an array
-		substrings := strings.Split(typestr, "_<|>_")
-		arraytype, exists := typemap[substrings[1]]
-		if !exists || arraytype == "void" {
-			return fmt.Sprintf("COMPILATION ERROR: Found unknown type: %s.\n", substrings[1])
-		}
+	case sage.FLOAT:
+		return F32, false
 
-		retval = fmt.Sprintf("[%s x %s]", substrings[2], arraytype)
-	}
-
-	if is_pointer {
-		retval += "*" // llvm also represents pointer types by appending a star to the end of the type string
-	}
-
-	return retval
-}
-
-func decide_instruction_type_and_last_param(visitor *NodeVisitor) (inst_type VarInstructionType, is_last_param bool) {
-	switch visitor.visit_type {
-	case FUNCCALL:
-		return PARAM, visitor.current_param == visitor.parameter_amount-1
-		// TODO: more VarInstructionTypes supported
-	}
-
-	return -1, false
-}
-
-func resolve_expression_type(node sage.ParseNode) (exp_type string, error bool) {
-	if node.Get_true_nodetype() == sage.NUMBER {
-		return "i32", false
-	} else if node.Get_true_nodetype() == sage.FLOAT {
-		return "float", false
-	} else if node.Get_true_nodetype() == sage.BINARY {
+	case sage.BINARY:
 		binary := node.(*sage.BinaryNode)
-		op1_type, error := resolve_expression_type(binary.Left)
+		op1_type, error := resolve_node_type(binary.Left)
 		if error {
 			return op1_type, true
 		}
 
-		op2_type, error := resolve_expression_type(binary.Right)
+		op2_type, error := resolve_node_type(binary.Right)
 		if error {
 			return op2_type, true
 		}
 
-		if op1_type == "float" || op2_type == "float" {
-			return "float", false
+		if op1_type == F32 || op2_type == F32 {
+			return F32, false
 		}
 
-		return "i32", false
+		return I32, false
 
-	} else {
-		return fmt.Sprintf("COMPILATION ERROR: CANNOT RESOLVE TYPE %s\n", node.Get_token().Lexeme), true
+	case sage.UNARY:
+		unary := node.(*sage.UnaryNode)
+		childnode := unary.Get_child_node()
+		tag := unary.Tag
+
+		if childnode == nil {
+			return STRUCT_TYPE, false
+		}
+
+		inner_type, err := resolve_node_type(childnode)
+		if err {
+			return VOID, true
+		}
+
+		pointer_map := map[SAGE_DATATYPE]SAGE_DATATYPE{
+			INT:  POINTER_I64,
+			BOOL: POINTER_BOOL,
+			I16:  POINTER_I16,
+			I32:  POINTER_I32,
+			I64:  POINTER_I64,
+			F32:  POINTER_F32,
+			F64:  POINTER_F64,
+			CHAR: POINTER_CHAR,
+		}
+
+		array_map := map[SAGE_DATATYPE]SAGE_DATATYPE{
+			INT:  ARRAY_I64,
+			BOOL: ARRAY_BOOL,
+			I16:  ARRAY_I16,
+			I32:  ARRAY_I32,
+			I64:  ARRAY_I64,
+			F32:  ARRAY_F32,
+			F64:  ARRAY_F64,
+			CHAR: ARRAY_CHAR,
+		}
+
+		if tag == "pointer_to_" {
+			return pointer_map[inner_type], false
+		} else {
+			// otherwise assume its an array type, function type will be implemented later
+			return array_map[inner_type], false
+		}
+
+	default:
+		// return fmt.Sprintf("COMPILATION ERROR: CANNOT RESOLVE TYPE %s\n", node.Get_token().Lexeme), true
+		return VOID, true
 	}
 }
 
-func op_lexeme_to_llvm_op_lexeme(visitor *NodeVisitor, op_string string) string {
+func op_lexeme_to_llvm_op_lexeme(result_type SAGE_DATATYPE, op_string string) string {
 	var div_mnemonic string = "sdiv"
 	var mul_mnemonic string = "mul"
-	if visitor.result_type == "float" {
+	if result_type == F32 || result_type == F64 {
 		div_mnemonic = "fdiv"
 		mul_mnemonic = "fmul"
 	}
@@ -828,4 +924,36 @@ func op_lexeme_to_llvm_op_lexeme(visitor *NodeVisitor, op_string string) string 
 	}
 
 	return op_map[op_string]
+}
+
+func literal_to_llvm_type(literal_type SAGE_DATATYPE, length int) string {
+	typemap := map[SAGE_DATATYPE]string{
+		INT:  "i32",
+		BOOL: "i1",
+		I16:  "i16",
+		I32:  "i32",
+		I64:  "i64",
+		F32:  "float32",
+		F64:  "float64",
+		CHAR: "i8",
+		VOID: "void",
+
+		POINTER_I16:  "i16*",
+		POINTER_I32:  "i32*",
+		POINTER_I64:  "i64*",
+		POINTER_F32:  "float32*",
+		POINTER_F64:  "float64*",
+		POINTER_CHAR: "i8*",
+		POINTER_BOOL: "i1*",
+
+		ARRAY_I16:  fmt.Sprintf("[ %d x i16 ]", length),
+		ARRAY_I32:  fmt.Sprintf("[ %d x i32 ]", length),
+		ARRAY_I64:  fmt.Sprintf("[ %d x i64 ]", length),
+		ARRAY_F32:  fmt.Sprintf("[ %d x float32 ]", length),
+		ARRAY_F64:  fmt.Sprintf("[ %d x float64 ]", length),
+		ARRAY_CHAR: fmt.Sprintf("[ %d x i8 ]", length),
+		ARRAY_BOOL: fmt.Sprintf("[ %d x i1 ]", length),
+	}
+
+	return typemap[literal_type]
 }

@@ -57,6 +57,8 @@ type Token struct {
 	Token_type TokenType
 	Lexeme     string
 	Linenum    int
+	Linedepth  int
+	Filename   string
 }
 
 func NewToken(token_type TokenType, lexeme string, linenum int) Token {

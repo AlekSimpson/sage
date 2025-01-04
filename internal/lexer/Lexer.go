@@ -8,15 +8,29 @@ type Lexer struct {
 	buffer       *Queue[byte]
 	tokens       *Queue[Token]
 	linenum      int
+	linedepth    int
 	current_char rune
 	last_token   Token
+	filename     string
 }
 
-func NewLexer(buffer *Queue[byte]) Lexer {
+func (l *Lexer) LexerMakeToken(token_type TokenType, lexeme string) *Token {
+	return &Token{
+		Token_type: token_type,
+		Lexeme:     lexeme,
+		Linenum:    l.linenum,
+		Linedepth:  l.linedepth,
+		Filename:   l.filename,
+	}
+}
+
+func NewLexer(filename string, buffer *Queue[byte]) Lexer {
 	return Lexer{
-		buffer:  buffer,
-		tokens:  NewEmptyQueue[Token](),
-		linenum: 0,
+		buffer:    buffer,
+		tokens:    NewEmptyQueue[Token](),
+		linenum:   0,
+		linedepth: 0,
+		filename:  filename,
 	}
 }
 
@@ -26,14 +40,16 @@ func (l *Lexer) check_for_string() *Token {
 		// add the first '"' character to kick off the loop
 		lexeme += "\""
 		l.current_char = rune(*l.buffer.Pop())
+		l.linedepth++
 
 		for l.current_char != '"' {
 			lexeme += string(l.current_char)
 			l.current_char = rune(*l.buffer.Pop())
+			l.linedepth++
 		}
 
 		lexeme += "\""
-		return &Token{TT_STRING, lexeme, l.linenum}
+		return l.LexerMakeToken(TT_STRING, lexeme)
 	}
 
 	return nil
@@ -67,11 +83,11 @@ func (l *Lexer) lex_for_symbols() *Token {
 	case '-':
 		peekahead := rune(*l.buffer.Pop())
 		if peekahead == '>' {
-			return &Token{TT_FUNC_RETURN_TYPE, "->", l.linenum}
+			return l.LexerMakeToken(TT_FUNC_RETURN_TYPE, "->")
 		} else if peekahead == '-' {
-			return &Token{TT_DECREMENT, "--", l.linenum}
+			return l.LexerMakeToken(TT_DECREMENT, "--")
 		}
-		return &Token{TT_SUB, "-", l.linenum}
+		return l.LexerMakeToken(TT_SUB, "-")
 
 	case '.':
 		first_peek := rune(*l.buffer.Pop())
@@ -80,13 +96,13 @@ func (l *Lexer) lex_for_symbols() *Token {
 		// if the '.' is in between an identifier token and unicode chars then its a field accessor
 		if l.last_token.Token_type == TT_IDENT && (unicode.IsLetter(first_peek) || first_peek == '_') {
 			l.buffer.Stack(byte(first_peek))
-			return &Token{TT_FIELD_ACCESSOR, ".", l.linenum}
+			return l.LexerMakeToken(TT_FIELD_ACCESSOR, ".")
 		}
 
 		if first_peek == '.' {
 			second_peek := rune(*l.buffer.Pop())
 			if second_peek == '.' {
-				return &Token{TT_RANGE, "...", l.linenum}
+				return l.LexerMakeToken(TT_RANGE, "...")
 			}
 			return nil
 		}
@@ -98,56 +114,57 @@ func (l *Lexer) lex_for_symbols() *Token {
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_ASSIGN, "=", l.linenum}
+		return l.LexerMakeToken(TT_ASSIGN, "=")
 
 	case '+':
 		ret := l.followed_by('+', TT_INCREMENT, "++")
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_ADD, "+", l.linenum}
+		return l.LexerMakeToken(TT_ADD, "+")
 
 	case '>':
 		ret := l.followed_by('=', TT_GTE, ">=")
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_GT, ">", l.linenum}
+		return l.LexerMakeToken(TT_GT, ">")
 
 	case '<':
 		ret := l.followed_by('=', TT_LTE, "<=")
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_LT, "<", l.linenum}
+		return l.LexerMakeToken(TT_LT, "<")
 
 	case '&':
 		ret := l.followed_by('&', TT_AND, "&&")
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_BIT_AND, "&", l.linenum}
+		return l.LexerMakeToken(TT_BIT_AND, "&")
 
 	case '|':
 		ret := l.followed_by('|', TT_OR, "||")
 		if ret != nil {
 			return ret
 		}
-		return &Token{TT_BIT_OR, "|", l.linenum}
+		return l.LexerMakeToken(TT_BIT_OR, "|")
 
 	default:
 		tok_type, exists := SYMBOLS[l.current_char]
 		if !exists {
 			return nil
 		}
-		return &Token{tok_type, string(l.current_char), l.linenum}
+		return l.LexerMakeToken(tok_type, string(l.current_char))
 	}
 }
 
 func (l *Lexer) followed_by(expected_char rune, expected_type TokenType, expected_lexeme string) *Token {
 	l.current_char = rune(*l.buffer.Pop())
+	l.linedepth++
 	if l.current_char == expected_char {
-		return &Token{expected_type, expected_lexeme, l.linenum}
+		return l.LexerMakeToken(expected_type, expected_lexeme)
 	}
 	return nil
 }
@@ -168,6 +185,7 @@ func (l *Lexer) lex_for_numbers() *Token {
 
 		lexeme += string(l.current_char)
 		l.current_char = rune(*l.buffer.Pop())
+		l.linedepth++
 	}
 
 	// if the number ends in a '.' then this is a number before the range operator and not actually a float number
@@ -181,7 +199,7 @@ func (l *Lexer) lex_for_numbers() *Token {
 	// Add the last read char back onto to the top of the buffer because it was not matched to the current Token
 	l.buffer.Stack(byte(l.current_char))
 
-	token := &Token{TT_NUM, lexeme, l.linenum}
+	token := l.LexerMakeToken(TT_NUM, lexeme)
 	if is_a_float {
 		token.Token_type = TT_FLOAT
 	}
@@ -216,19 +234,20 @@ func (l *Lexer) lex_for_identifiers() *Token {
 	for unicode.IsLetter(l.current_char) || l.current_char == '_' {
 		lexeme += string(l.current_char)
 		l.current_char = rune(*l.buffer.Pop())
+		l.linedepth++
 	}
 
 	// Add the last read char back onto to the top of the buffer because it was not matched to the current Token
 	l.buffer.Stack(byte(l.current_char))
 
-	token := Token{TT_IDENT, lexeme, l.linenum}
+	token := l.LexerMakeToken(TT_IDENT, lexeme)
 	_, err := KEYWORDS[lexeme]
 	if err {
 		// check if the word is a keyword
 		token.Token_type = TT_KEYWORD
 	}
 
-	return &token
+	return token
 }
 
 func (l *Lexer) Get_token() Token {
@@ -238,19 +257,22 @@ func (l *Lexer) Get_token() Token {
 	}
 
 	if l.buffer.empty() {
-		l.last_token = Token{TT_EOF, "eof", l.linenum + 1}
+		l.last_token = *l.LexerMakeToken(TT_EOF, "eof")
 		return l.last_token
 	}
 
 	l.current_char = rune(*l.buffer.Pop())
+	l.linedepth++
 
 	for l.current_char == ' ' || l.current_char == '\t' {
 		l.current_char = rune(*l.buffer.Pop())
+		l.linedepth++
 	}
 
 	if l.current_char == '\n' {
-		token := Token{TT_NEWLINE, "newline", l.linenum}
+		token := *l.LexerMakeToken(TT_NEWLINE, "newline")
 		l.linenum += 1
+		l.linedepth = 0
 		l.last_token = token
 		return token
 	}
@@ -273,7 +295,7 @@ func (l *Lexer) Get_token() Token {
 		return *token
 	}
 
-	l.last_token = Token{TT_ERROR, "unrecognized symbol", l.linenum + 1}
+	l.last_token = *l.LexerMakeToken(TT_ERROR, "unrecognized symbol")
 	return l.last_token
 }
 

@@ -28,9 +28,9 @@ type Parser struct {
 	errorCheck bool
 }
 
-func NewParser(file_contents []byte) *Parser {
+func NewParser(filename string, file_contents []byte) *Parser {
 	queue := sage.NewQueue(file_contents)
-	lexer := sage.NewLexer(queue)
+	lexer := sage.NewLexer(filename, queue)
 
 	return &Parser{
 		lexer:      lexer,
@@ -483,7 +483,7 @@ func (p *Parser) parse_struct() ParseNode {
 
 	p.consume(sage.TT_RBRACE, "Expected RBRACE in structure definintion\n")
 
-	return struct_contents
+	return NewBranchUnaryNode(struct_contents.Get_token(), STRUCT, struct_contents)
 }
 
 func (p *Parser) parse_function() ParseNode {
@@ -633,10 +633,8 @@ func (p *Parser) parse_type() ParseNode {
 			return nil
 		}
 
-		// new_token := &sage.Token{array_type_token.Token_type, token_lexeme, array_type_token.Linenum}
 		new_token := sage.NewToken(array_type_token.Token_type, token_lexeme, array_type_token.Linenum)
 		return_node = NewBranchUnaryNode(&new_token, TYPE, array_type_node)
-		return_node.addtag("array_of_")
 	} else {
 		type_token := p.current
 		return_node = NewUnaryNode(&type_token, TYPE)
