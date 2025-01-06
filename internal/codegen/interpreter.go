@@ -86,9 +86,7 @@ func (i *SageInterpreter) interpret(node sage.ParseNode) *AtomicValue {
 			return &AtomicValue{F32, node.Get_token().Lexeme, nil}
 
 		default:
-			error := NewSageError("Invalid statement", fmt.Sprintf("Cannot interpret %s node", nodetype.String()), "Node probably isn't supported at this time", "solutions")
-			i.errors = append(i.errors, error)
-			error.RaiseError()
+			fmt.Printf("Cannot interpret node: %s\n", node.String())
 			return nil
 		}
 	}

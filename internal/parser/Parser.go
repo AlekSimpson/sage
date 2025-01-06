@@ -39,7 +39,19 @@ func NewParser(filename string, file_contents []byte) *Parser {
 	}
 }
 
-func (p *Parser) Parse_program() ParseNode {
+func (p *Parser) Parse_program(debug_lexer bool) ParseNode {
+	if debug_lexer {
+		var curr_tok sage.Token
+		i := 0
+		for curr_tok.Token_type != sage.TT_EOF {
+			curr_tok = p.lexer.Get_token()
+			fmt.Printf("[%d] %+v\n", i, curr_tok)
+			i++
+		}
+
+		return nil
+	}
+
 	p.current = p.lexer.Get_token()
 	root := p.parse_libraries()
 	program_root := p.statements()
@@ -153,7 +165,6 @@ func (p *Parser) parse_compile_time_execute() ParseNode {
 	p.consume(sage.TT_POUND, "Expected 'run' statement to begin with '#' symbol\n")
 
 	if p.current.Token_type != sage.TT_IDENT || p.current.Lexeme != "run" {
-		fmt.Println(p.current.Lexeme)
 		p.raise_error("Expected 'run' keyword in compile time execution statement\n")
 		return nil
 	}
@@ -170,13 +181,14 @@ func (p *Parser) parse_value_dec() ParseNode {
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
 	p.advance() // move past identifier
 
-	if !p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT}) {
+	if !p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT, sage.TT_VARARG}) {
 		p.raise_error("Expected type to be associated with identifier in value declaration statement\n")
 		return nil
 	}
 
 	type_identifier_node := p.parse_type()
 	if type_identifier_node == nil {
+		p.raise_error("Found invalid type in value declaration list.")
 		return nil
 	}
 
@@ -455,7 +467,7 @@ func (p *Parser) parse_construct() ParseNode {
 	case sage.TT_LPAREN:
 		// its a function
 		binding_node = p.parse_function()
-		nodetype = FUNCDEF
+		nodetype = binding_node.Get_true_nodetype()
 	default:
 		binding_node = p.parse_type()
 		nodetype = TYPE
@@ -513,9 +525,10 @@ func (p *Parser) parse_function() ParseNode {
 
 	function_signature := sage.NewToken(sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum)
 
+	// if there is no brace and instead if immidiately followed by a NEWLINE then there is no body
 	if p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
-		p.advance() // move past the newline, NOTE: !!!! it might turn out that this advance breaks parsing flow, might need to remove it but I'm just going to leave it for now until it starts causing problems !!!!
-		return NewBinaryNode(&function_signature, FUNCDEF, parameter_list, return_type_node)
+		p.advance() // move past the newline
+		return NewBinaryNode(&function_signature, FUNCDEC, parameter_list, return_type_node)
 	}
 
 	body_node := p.parse_body()
@@ -579,17 +592,16 @@ func (p *Parser) parse_type() ParseNode {
 	// parses for any of the different type structs: primitives, named, function types, array types, pointer types
 
 	var return_node *UnaryNode
+	// NOTE: function type
+	// TODO: change this into a switch case
 	if p.match_types(p.current.Token_type, sage.TT_LPAREN) {
-		// function type
 		function_type := p.parse_function()
 		return_node = NewBranchUnaryNode(function_type.Get_token(), TYPE, function_type)
 		return_node.addtag("function_type_") // add a tag to give further info about what kind of type it is
 
 		return return_node // return now because pointers to function types aren't allowed
 
-	} else if p.match_types(p.current.Token_type, sage.TT_LBRACKET) {
-		// array type
-
+	} else if p.match_types(p.current.Token_type, sage.TT_LBRACKET) { // NOTE: array type
 		// keep track of how many dims this array has
 		lbracket_nest_count := 0
 		token_lexeme := ""
@@ -635,6 +647,13 @@ func (p *Parser) parse_type() ParseNode {
 
 		new_token := sage.NewToken(array_type_token.Token_type, token_lexeme, array_type_token.Linenum)
 		return_node = NewBranchUnaryNode(&new_token, TYPE, array_type_node)
+	} else if p.match_types(p.current.Token_type, sage.TT_VARARG) {
+		p.advance() // advance past the vararg '...' notation
+		type_token := p.current
+		return_node = NewUnaryNode(&type_token, VARARG)
+		return_node.addtag("named_type_")
+		p.advance()
+
 	} else {
 		type_token := p.current
 		return_node = NewUnaryNode(&type_token, TYPE)

@@ -87,6 +87,7 @@ type IRFunc struct {
 	calling_conv string
 	attribute    string
 	body         []IRBlock
+	is_vararg    bool
 }
 
 func (ir IRFunc) ToLLVM() string {
@@ -105,6 +106,9 @@ func (ir IRFunc) ToLLVM() string {
 	ir.parameters[len(ir.parameters)-1].is_last_param = true
 	for _, param := range ir.parameters {
 		builder.WriteString(param.ToLLVM())
+	}
+	if ir.is_vararg {
+		builder.WriteString(", ...")
 	}
 	builder.WriteString(")")
 
@@ -377,20 +381,5 @@ func (ir IRConditional) ToLLVM() string {
 }
 
 func (ir IRConditional) ResultRegister() string {
-	return ""
-}
-
-type IRInclude struct {
-	module_name string
-	contents    string
-}
-
-func (ir IRInclude) ToLLVM() string {
-	var builder strings.Builder
-	builder.WriteString(ir.contents)
-	return builder.String()
-}
-
-func (ir IRInclude) ResultRegister() string {
 	return ""
 }

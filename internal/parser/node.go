@@ -36,6 +36,8 @@ const (
 	COMPILE_TIME_EXECUTE
 	LIST
 	INCLUDE
+	VARARG
+	FUNCDEC
 )
 
 func (nt NodeType) String() string {
@@ -96,6 +98,10 @@ func (nt NodeType) String() string {
 		return "LIST"
 	case INCLUDE:
 		return "INCLUDE"
+	case VARARG:
+		return "VARARG"
+	case FUNCDEC:
+		return "FUNCDEC"
 	default:
 		return "Unknown Node Type (Could have forgot to add String() impl for new type)"
 	}

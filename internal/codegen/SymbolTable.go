@@ -167,7 +167,7 @@ func (t *Symbol) FieldWrite(fieldname string, value any) bool {
 }
 
 func (s *Symbol) sage_datatype_to_llvm() string {
-	return literal_to_llvm_type(s.sage_datatype, s.array_length)
+	return sage_to_llvm_type(s.sage_datatype, s.array_length)
 }
 
 func (s *Symbol) ShowTables() string {

@@ -2,7 +2,7 @@ include "stdio.g"
 
 Car :: struct {
     name          string, 
-    price         int16,
+    price         i16,
     plate_num     string,
     service_years [int32],
     next_car      Car*,
@@ -14,7 +14,7 @@ add :: (x int, y int) -> int {
 
 mult :: (x int, y int) -> int {
     result int
-    for x in (0...50) {
+    for x in 0...50 {
         result++x
         result--4
     }
@@ -25,7 +25,6 @@ honk :: () -> void {
     message string = "honk!\n"
     printf(message)
 }
-
 
 --------------------------------------------------------------------------------
 CFG:
@@ -62,7 +61,7 @@ value_dec_list  -> value_dec , value_dec_list | value_dec , | value_dec
 range           -> expression ... expression | ( expression ... expression )
 return          -> ret expression | ret
 
-binding         -> :: funcdef | :: structdef | :: TYPE
+binding         -> :: funcdef | :: structdef | :: TYPE | :: TYPE = primary
 construct       -> ID binding
 
 funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE
@@ -78,6 +77,9 @@ elif_stmt       -> else if expression body elif_stmt |
 compile-time-run-stmt -> #run body
 
 expression -> recursive descent on lang operators
+
+note: binding to a type means creating a constant value
+note: primary refers to the primary level of expression parsing which i have not written out here because it would just be boiler plate to write
 
 VISION:
 

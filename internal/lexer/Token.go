@@ -51,6 +51,7 @@ const (
 	TT_FIELD_ACCESSOR // 'struct_name.value'
 	TT_POUND
 	TT_COLON // used for denoting array type length, ex: `ages [int:5] = ...`
+	TT_VARARG
 )
 
 type Token struct {
@@ -153,8 +154,10 @@ func (tt TokenType) String() string {
 		return "TT_EXP"
 	case TT_POUND:
 		return "TT_POUND"
+	case TT_VARARG:
+		return "VARARG"
 	default:
-		return "Unkown Token Type"
+		return "Unknown Token Type"
 	}
 }
 

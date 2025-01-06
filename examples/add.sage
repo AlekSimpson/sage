@@ -1,4 +1,4 @@
-include "modules/io"
+include "io"
 
 #run {
     build_settings.executable_name = "output"
@@ -9,6 +9,6 @@ include "modules/io"
 
 
 main :: () -> void {
-    result int = 2 + 2
+    result i32 = 2 + 2
     printf("%d\n", result)
 }

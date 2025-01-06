@@ -102,7 +102,13 @@ func (l *Lexer) lex_for_symbols() *Token {
 		if first_peek == '.' {
 			second_peek := rune(*l.buffer.Pop())
 			if second_peek == '.' {
-				return l.LexerMakeToken(TT_RANGE, "...")
+				// if the last token that was found was a ',' and not a number then this is must be a vararg in a function signature
+				tok_type := TT_RANGE
+				if l.last_token.Token_type == TT_IDENT {
+					tok_type = TT_VARARG
+				}
+
+				return l.LexerMakeToken(tok_type, "...")
 			}
 			return nil
 		}
@@ -174,12 +180,12 @@ func (l *Lexer) lex_for_numbers() *Token {
 		return nil
 	}
 
-	is_a_float := false
 	dot_count := 0
 	lexeme := ""
+	tok_type := TT_NUM
 	for unicode.IsDigit(l.current_char) || (l.current_char == '.' && dot_count == 0) {
 		if l.current_char == '.' {
-			is_a_float = true
+			tok_type = TT_FLOAT
 			dot_count++
 		}
 
@@ -189,20 +195,19 @@ func (l *Lexer) lex_for_numbers() *Token {
 	}
 
 	// if the number ends in a '.' then this is a number before the range operator and not actually a float number
+	// we know this because the loop above handles floating point notation.
 	if lexeme[len(lexeme)-1] == '.' {
-		// in which case we want to set it back to a regular number, remove the last period character and put it back in the char buffer
+		// in which case we want to set it back to a regular number, remove the last period character and put it back in the char buffer.
+		tok_type = TT_NUM
 		lexeme = lexeme[:len(lexeme)-1]
+		// put the '.' back in the buffer because we want to properly part the symbol next
 		l.buffer.Stack(byte('.'))
-		is_a_float = false
 	}
 
-	// Add the last read char back onto to the top of the buffer because it was not matched to the current Token
+	// add the last read char back onto to the top of the buffer because it was not matched to the current Token.
 	l.buffer.Stack(byte(l.current_char))
 
-	token := l.LexerMakeToken(TT_NUM, lexeme)
-	if is_a_float {
-		token.Token_type = TT_FLOAT
-	}
+	token := l.LexerMakeToken(tok_type, lexeme)
 
 	return token
 }
@@ -218,6 +223,12 @@ func (l *Lexer) lex_for_identifiers() *Token {
 		"int":         "INT",
 		"char":        "CHAR",
 		"void":        "VOID",
+		"i16":         "I16",
+		"i32":         "I32",
+		"i64":         "I64",
+		"f32":         "F32",
+		"f64":         "f64",
+		"bool":        "BOOL",
 		"include":     "INCLUDE",
 		"for":         "FOR",
 		"while":       "WHILE",
@@ -231,7 +242,7 @@ func (l *Lexer) lex_for_identifiers() *Token {
 		"struct":      "STRUCT",
 	}
 
-	for unicode.IsLetter(l.current_char) || l.current_char == '_' {
+	for unicode.IsLetter(l.current_char) || unicode.IsDigit(l.current_char) || l.current_char == '_' {
 		lexeme += string(l.current_char)
 		l.current_char = rune(*l.buffer.Pop())
 		l.linedepth++
