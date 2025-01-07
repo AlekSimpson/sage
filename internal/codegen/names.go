@@ -1,9 +1,9 @@
 package sage
 
 import (
-	uid "github.com/rs/xid"
+	xid "github.com/rs/xid"
 )
 
 func CreateInternalName() string {
-	return uid.New().String()
+	return xid.New().String()
 }

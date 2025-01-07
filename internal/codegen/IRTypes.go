@@ -8,6 +8,7 @@ import (
 type IRInstructionProtocol interface {
 	ToLLVM() string
 	ResultRegister() string
+	TypeInfo() (string, VarInstructionType)
 }
 
 type InstructionList interface{}
@@ -21,6 +22,8 @@ const (
 	RET_STMT
 	STORE
 	GLOBAL
+	GETADDR
+	STRLITERAL
 )
 
 // TODO: range statement IR
@@ -45,6 +48,10 @@ func NewIRModule(filename string) *IRModule {
 		Globals:           []IRInstructionProtocol{},
 		Structs:           []IRStruct{},
 	}
+}
+
+func (ir IRModule) TypeInfo() (string, VarInstructionType) {
+	return "", -1
 }
 
 func (ir IRModule) ToLLVM() string {
@@ -94,7 +101,11 @@ func (ir IRFunc) ToLLVM() string {
 	var builder strings.Builder
 	is_definition := len(ir.body) != 0
 
-	builder.WriteString("define ")
+	if is_definition {
+		builder.WriteString("define ")
+	} else {
+		builder.WriteString("declare ")
+	}
 
 	if ir.calling_conv != "NOCONV" {
 		builder.WriteString(ir.calling_conv + " ")
@@ -103,12 +114,19 @@ func (ir IRFunc) ToLLVM() string {
 	builder.WriteString(fmt.Sprintf("%s ", ir.return_type))
 	builder.WriteString(fmt.Sprintf("@%s(", ir.name))
 
-	ir.parameters[len(ir.parameters)-1].is_last_param = true
-	for _, param := range ir.parameters {
-		builder.WriteString(param.ToLLVM())
-	}
-	if ir.is_vararg {
-		builder.WriteString(", ...")
+	if len(ir.parameters) != 0 {
+		if !ir.is_vararg {
+			ir.parameters[len(ir.parameters)-1].is_last_param = true
+			for _, param := range ir.parameters {
+				builder.WriteString(param.ToLLVM())
+			}
+		} else {
+			ir.parameters = ir.parameters[0 : len(ir.parameters)-1]
+			for _, param := range ir.parameters {
+				builder.WriteString(param.ToLLVM())
+			}
+			builder.WriteString("...")
+		}
 	}
 	builder.WriteString(")")
 
@@ -126,6 +144,10 @@ func (ir IRFunc) ToLLVM() string {
 	}
 
 	return builder.String()
+}
+
+func (ir IRFunc) TypeInfo() (string, VarInstructionType) {
+	return ir.return_type, -1
 }
 
 func (ir IRFunc) ResultRegister() string {
@@ -159,17 +181,20 @@ func (ir IRFuncCall) ToLLVM() string {
 
 	builder.WriteString(fmt.Sprintf("%s @%s(", ir.return_type, ir.name))
 	// (might not need?) ir.parameters[len(ir.parameters)-1].is_last_param = true
-	// FIX: this will probably generate invalid IR but I want to see how it geenrates to fix it first
 	for _, inst := range ir.parameters {
 		builder.WriteString(inst.ToLLVM())
 	}
 	builder.WriteString(")")
 
-	return ""
+	return builder.String()
 }
 
 func (ir IRFuncCall) ResultRegister() string {
 	return ir.result_register
+}
+
+func (ir IRFuncCall) TypeInfo() (string, VarInstructionType) {
+	return ir.return_type, -1
 }
 
 type IRBlock struct {
@@ -182,13 +207,17 @@ func (ir IRBlock) ToLLVM() string {
 	builder.WriteString(fmt.Sprintf("%s:\n", ir.Name))
 	for _, construct := range ir.Body {
 		construct_ir := construct.ToLLVM()
-		builder.WriteString("\t" + construct_ir)
+		builder.WriteString("\n\t" + construct_ir)
 	}
 	return builder.String()
 }
 
 func (ir IRBlock) ResultRegister() string {
 	return ""
+}
+
+func (ir IRBlock) TypeInfo() (string, VarInstructionType) {
+	return "", -1
 }
 
 type IRAtom struct {
@@ -207,14 +236,12 @@ func (ir IRAtom) ToLLVM() string {
 		builder.WriteString(fmt.Sprintf("%%%s = alloca %s", ir.name, ir.irtype))
 
 	case REF:
-		// NOTE: the logic around this might need to be different
 		builder.WriteString(fmt.Sprintf("%%%s = load %s, %s* %%%s", ir.result_register, ir.irtype, ir.irtype, ir.name))
 
 	case PARAM:
-		if ir.is_last_param {
-			builder.WriteString(fmt.Sprintf("%s %%%s", ir.irtype, ir.name))
-		} else {
-			builder.WriteString(fmt.Sprintf("%s %%%s, ", ir.irtype, ir.name))
+		builder.WriteString(fmt.Sprintf("%s %%%s", ir.irtype, ir.name))
+		if !ir.is_last_param {
+			builder.WriteString(", ")
 		}
 
 	case RET_STMT:
@@ -227,6 +254,12 @@ func (ir IRAtom) ToLLVM() string {
 	case STORE:
 		builder.WriteString(fmt.Sprintf("store %s %%%s, %s* %%%s", ir.irtype, ir.value, ir.irtype, ir.name))
 
+	case GETADDR:
+		builder.WriteString(fmt.Sprintf("getelementptr (%s, %s* %s, i64 0, i64 0)", ir.irtype, ir.irtype, ir.name))
+
+	case STRLITERAL:
+		builder.WriteString(fmt.Sprintf("%%%s = constant %s c%s", ir.name, ir.irtype, ir.value))
+
 	case GLOBAL:
 		builder.WriteString(fmt.Sprintf("@%s = global %s, %s", ir.name, ir.irtype, ir.value))
 
@@ -238,29 +271,8 @@ func (ir IRAtom) ResultRegister() string {
 	return ir.result_register
 }
 
-type IRFunctionType struct {
-	name    string
-	irtype  string
-	irtypes []string
-}
-
-func (ir IRFunctionType) ToLLVM() string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%%%s = type %s (", ir.name, ir.irtype))
-
-	params := ""
-	for _, irtype := range ir.irtypes {
-		params += fmt.Sprintf("%s, ", irtype)
-	}
-	params = params[:len(params)-2]
-	builder.WriteString(params)
-	builder.WriteString(")")
-
-	return builder.String()
-}
-
-func (ir IRFunctionType) ResultRegister() string {
-	return ""
+func (ir IRAtom) TypeInfo() (string, VarInstructionType) {
+	return ir.irtype, ir.instruction_type
 }
 
 type IRStruct struct {
@@ -292,6 +304,11 @@ func (ir IRStruct) ToLLVM() string {
 	return builder.String()
 }
 
+func (ir IRStruct) TypeInfo() (string, VarInstructionType) {
+	// TODO: not quite sure what created custom struct types look like in terms of ir representation yet
+	return "", -1
+}
+
 func (ir IRStruct) ResultRegister() string {
 	return ""
 }
@@ -315,6 +332,10 @@ func (ir IRExpression) ResultRegister() string {
 	return ir.result_register
 }
 
+func (ir IRExpression) TypeInfo() (string, VarInstructionType) {
+	return ir.irtype, -1
+}
+
 type IRWhile struct {
 	entry      IRBlock
 	condition  IRBlock
@@ -334,6 +355,10 @@ func (ir IRWhile) ToLLVM() string {
 	builder.WriteString(ir.body.ToLLVM())
 	builder.WriteString(ir.end.ToLLVM())
 	return builder.String()
+}
+
+func (ir IRWhile) TypeInfo() (string, VarInstructionType) {
+	return "", -1
 }
 
 type IRFor struct {
@@ -356,6 +381,10 @@ func (ir IRFor) ToLLVM() string {
 
 func (ir IRFor) ResultRegister() string {
 	return ""
+}
+
+func (ir IRFor) TypeInfo() (string, VarInstructionType) {
+	return "", -1
 }
 
 type IRConditional struct {
@@ -382,4 +411,8 @@ func (ir IRConditional) ToLLVM() string {
 
 func (ir IRConditional) ResultRegister() string {
 	return ""
+}
+
+func (ir IRConditional) TypeInfo() (string, VarInstructionType) {
+	return "", -1
 }

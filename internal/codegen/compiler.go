@@ -3,6 +3,7 @@ package sage
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sage/internal/parser"
 	"strings"
 )
@@ -91,7 +92,66 @@ func BeginCodeCompilation(filename string) {
 	compiler := SageCompiler{interpreter, code_module, global_scope}
 	compiler.compile_code(parsetree, false) // using false because this function is meant to only compile sage project source files
 
-	fmt.Println(global_scope.ShowTables())
+	// TODO: create the .ll file and emit the IR from the ir_module
+	//		 might want to create new function for this.
+	compiler.emit_ir()
+}
+
+func (c *SageCompiler) emit_ir() {
+	build_settings, _ := c.current_scope.scope.LookupSymbol("build_settings")
+	raw, exists := build_settings.value.struct_map["executable_name"]
+	var executable_filename string
+	if !exists {
+		executable_filename = "a.out"
+	} else {
+		// if the name does exist then retrieve it and remove the wrapping '"' symbols around the name
+		executable_filename = raw.(string)
+		executable_filename = executable_filename[1 : len(executable_filename)-1]
+	}
+
+	llvm_filename := fmt.Sprintf("%s.ll", executable_filename)
+	object_filename := fmt.Sprintf("%s.o", executable_filename)
+
+	// create the IR file with the IR
+	llvm_ir := c.ir_module.ToLLVM()
+	err := os.WriteFile(llvm_filename, []byte(llvm_ir), 0755)
+	if err != nil {
+		fmt.Println("Could not write to LLVM file.")
+		return
+	}
+
+	const TESTING_IR_GENERATION = true
+	if TESTING_IR_GENERATION {
+		return
+	}
+
+	objcmd := exec.Command("llc", "-relocation-model=pic", "-filetype=obj", llvm_filename, fmt.Sprintf("-o %s", object_filename))
+	_, err = objcmd.Output()
+	if err != nil {
+		fmt.Println("Could not create object file.")
+		return
+	}
+
+	make_executable := exec.Command("gcc", object_filename, fmt.Sprintf("-o %s", executable_filename))
+	_, err = make_executable.Output()
+	if err != nil {
+		fmt.Println("Could not create executable.")
+		return
+	}
+
+	err = os.Remove(object_filename)
+	if err != nil {
+		fmt.Println("Could not delete object file.")
+		return
+	}
+
+	err = os.Remove(llvm_filename)
+	if err != nil {
+		fmt.Println("Could not delete llvm ir file.")
+	}
+
+	// [1] llc -relocation-model=pic -filetype=obj add.ll -o objfile
+	// [2] gcc objfile -o exec
 }
 
 func (c *SageCompiler) compile_code(parsetree sage.ParseNode, is_module_file bool) {
@@ -131,10 +191,6 @@ func (c *SageCompiler) compile_code(parsetree sage.ParseNode, is_module_file boo
 				fmt.Println("COMPILATION ERROR:\nInvalid module file found inside included module.\nPlease ensure that all sage files in the module do not contain any `include` statements.")
 				return
 			}
-			// NOTE: include IR does not require instruction_type being set to GLOBAL
-			//		 so it is in its own case to keep it seperate
-			globals = append(globals, ir)
-			fmt.Println("done.")
 
 		case MOD_COMPILE_TIME:
 			fmt.Println("done.")
@@ -145,13 +201,10 @@ func (c *SageCompiler) compile_code(parsetree sage.ParseNode, is_module_file boo
 		}
 	}
 
-	c.ir_module.FuncDefs = function_defs
-	c.ir_module.FuncDecs = function_decs
-	c.ir_module.Globals = globals
-	c.ir_module.Structs = structs
-
-	// TODO: create the .ll file and emit the IR from the ir_module
-	//		 might want to create new function for this.
+	c.ir_module.FuncDefs = append(c.ir_module.FuncDefs, function_defs...)
+	c.ir_module.FuncDecs = append(c.ir_module.FuncDecs, function_decs...)
+	c.ir_module.Globals = append(c.ir_module.Globals, globals...)
+	c.ir_module.Structs = append(c.ir_module.Structs, structs...)
 }
 
 // TODO: simplify this function. it is very repetative, could make the cases into a single function thats called in each case with different parameters
@@ -299,7 +352,7 @@ func (c *SageCompiler) compile_expression_operand(node sage.ParseNode) ([]IRInst
 		return c.compile_binary_node(node.(*sage.BinaryNode))
 	case sage.FUNCCALL:
 		call_ir, err_msg := c.compile_func_call_node(node.(*sage.UnaryNode))
-		return []IRInstructionProtocol{call_ir}, err_msg
+		return call_ir, err_msg
 	case sage.VAR_REF:
 		ref_ir, err_msg := c.compile_var_ref_node(node.(*sage.UnaryNode))
 		return []IRInstructionProtocol{ref_ir}, err_msg
@@ -330,7 +383,7 @@ func (c *SageCompiler) compile_string_node(node *sage.UnaryNode) (*IRAtom, *Comp
 		name:             literal_internal_name,
 		irtype:           ir_type,
 		value:            node_literal_value,
-		instruction_type: INIT,
+		instruction_type: STRLITERAL,
 		is_last_param:    last_param,
 		result_register:  symbol.NewRegister(),
 	}
@@ -388,10 +441,10 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 		case sage.FUNCCALL:
 			call_ir, result := c.compile_func_call_node(return_node.(*sage.UnaryNode))
 			if result.module_cat == MOD_ERR {
-				return []IRInstructionProtocol{call_ir}, result
+				return []IRInstructionProtocol{}, result
 			}
 
-			return_instructions = append(return_instructions, call_ir)
+			return_instructions = append(return_instructions, call_ir...)
 
 		case sage.BINARY: // expression
 			expression_ir, result := c.compile_binary_node(return_node.(*sage.BinaryNode))
@@ -427,6 +480,7 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label string) ([]IRBlock, *CompilationResult) {
 	var blocks []IRBlock
 	var block_contents []IRInstructionProtocol
+	var main_block IRBlock
 
 	for _, childnode := range node.Children {
 		switch childnode.Get_true_nodetype() {
@@ -452,7 +506,7 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 				return blocks, result
 			}
 
-			block_contents = append(block_contents, call_ir)
+			block_contents = append(block_contents, call_ir...)
 
 		case sage.IF:
 			conditional_ir, result := c.compile_if_node(childnode)
@@ -509,14 +563,13 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 			return blocks, NewResult(MOD_ERR, "COMPILATION ERROR: Found statement that does not make sense within context of a block.")
 		}
 
-		main_block := &IRBlock{
+		main_block = IRBlock{
 			Name: block_label,
 			Body: block_contents,
 		}
-
-		blocks = append(blocks, *main_block)
 	}
 
+	blocks = append(blocks, main_block)
 	return blocks, NewResult(MOD_NONE, "")
 }
 
@@ -531,7 +584,7 @@ func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_varar
 	for index, childnode := range node.Children {
 		c.current_scope.parameter_index = index
 
-		if childnode.Get_nodetype() == sage.VARARG {
+		if childnode.Get_true_nodetype() == sage.VARARG {
 			*found_vararg = true
 		}
 
@@ -552,8 +605,9 @@ func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_varar
 
 		// all children inside a funcdef param list will be a BinaryNode
 		param := IRAtom{
-			name:   param_name,
-			irtype: param_symbol.sage_datatype_to_llvm(),
+			name:             param_name,
+			irtype:           param_symbol.sage_datatype_to_llvm(),
+			instruction_type: PARAM,
 		}
 		params = append(params, param)
 	}
@@ -683,7 +737,8 @@ func (c *SageCompiler) compile_func_def_node(node *sage.BinaryNode) (IRFunc, *Co
 	return ir, NewResult(MOD_NONE, "")
 }
 
-func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) (IRFuncCall, *CompilationResult) {
+func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) ([]IRInstructionProtocol, *CompilationResult) {
+	var retval []IRInstructionProtocol
 	function_name := node.Get_token().Lexeme
 
 	// get parameter block node to update visitor
@@ -693,25 +748,38 @@ func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) (IRFuncCall,
 	// lookup function in symbol table
 	symbol, output_code := c.current_scope.scope.LookupSymbol(function_name)
 	if output_code == NAME_UNDEFINED {
-		return IRFuncCall{}, NewResult(MOD_ERR, fmt.Sprintf("Invalid reference of undefined function: %s.", function_name))
+		return retval, NewResult(MOD_ERR, fmt.Sprintf("Invalid reference of undefined function: %s.", function_name))
 	}
 
 	// get []IRAtom struct list from parameters
 	var ir_parameters []IRInstructionProtocol
 	for _, parameter := range parameters.Children {
 		// there is more freedom on what values can be passed into a function, theoretically any kind of primary or expression could be passed as a parameter
-		param, result := c.compile_primary_node(parameter)
+		instructions, result := c.compile_primary_node(parameter)
 		if result.module_cat != MOD_NONE {
-			return IRFuncCall{}, result
+			return retval, result
 		}
 
-		ir_parameters = append(ir_parameters, param...)
+		retval = append(retval, instructions...)
+
+		resultant_inst := instructions[len(instructions)-1]
+		register := resultant_inst.ResultRegister()
+		irtype, _ := resultant_inst.TypeInfo()
+
+		param_ir := IRAtom{
+			name:             register,
+			irtype:           irtype,
+			instruction_type: PARAM,
+		}
+
+		ir_parameters = append(ir_parameters, param_ir)
 	}
 
 	// allocate function call result to a register
 	result_reg := symbol.NewRegister()
 
 	// get the function's return type
+	// TODO: make it so that we are generating the full function type
 	return_type := symbol.sage_datatype_to_llvm()
 
 	ir := IRFuncCall{
@@ -722,8 +790,9 @@ func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) (IRFuncCall,
 		result_register: result_reg,
 		parameters:      ir_parameters,
 	}
+	retval = append(retval, ir)
 
-	return ir, NewResult(MOD_NONE, "")
+	return retval, NewResult(MOD_NONE, "")
 }
 
 func (c *SageCompiler) compile_struct_node(node sage.ParseNode) (IRStruct, *CompilationResult) {
@@ -854,7 +923,7 @@ func (c *SageCompiler) compile_primary_node(node sage.ParseNode) ([]IRInstructio
 
 	case sage.FUNCCALL:
 		ir, cat := c.compile_func_call_node(node.(*sage.UnaryNode))
-		retval = append(retval, ir)
+		retval = append(retval, ir...)
 		return retval, cat
 
 	case sage.VAR_REF:
@@ -869,7 +938,7 @@ func (c *SageCompiler) compile_primary_node(node sage.ParseNode) ([]IRInstructio
 		return retval, cat
 
 	default:
-		return retval, NewResult(MOD_ERR, fmt.Sprintf("COMPILATION ERROR: Could not compile right hand side: %s.", node))
+		return retval, NewResult(MOD_ERR, fmt.Sprintf("COMPILATION ERROR: Could not compile primary node: %s.", node))
 	}
 }
 

@@ -212,10 +212,15 @@ func (p *Parser) parse_value_dec() ParseNode {
 
 	dec_lexeme := fmt.Sprintf("%s %s", name_identifier_token.Lexeme, type_identifier_token.Lexeme)
 
+	var nodetype NodeType = VAR_DEC
+	if type_identifier_node.Get_true_nodetype() == VARARG {
+		nodetype = VARARG
+	}
+
 	token := sage.NewToken(sage.TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.Linenum)
 	return &BinaryNode{
 		token:    &token,
-		Nodetype: VAR_DEC,
+		Nodetype: nodetype,
 		Left:     name_identifier_node,
 		Right:    type_identifier_node,
 	}
