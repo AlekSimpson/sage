@@ -101,13 +101,26 @@ func (c *SageCompiler) emit_ir() {
 	build_settings, _ := c.current_scope.scope.LookupSymbol("build_settings")
 	raw, exists := build_settings.value.struct_map["executable_name"]
 	var executable_filename string
-	if !exists {
+	if !exists || raw == nil {
 		executable_filename = "a.out"
 	} else {
 		// if the name does exist then retrieve it and remove the wrapping '"' symbols around the name
 		executable_filename = raw.(string)
-		executable_filename = executable_filename[1 : len(executable_filename)-1]
+		executable_filename = remove_wrapping_quotes(executable_filename)
+		// executable_filename = executable_filename[1 : len(executable_filename)-1]
 	}
+
+	platform_selection, _ := build_settings.value.struct_map["platform"].(string)
+	architecture_selection, _ := build_settings.value.struct_map["architecture"].(string)
+	bitsize_selection, _ := build_settings.value.struct_map["bitsize"].(string)
+
+	datalayout, triple, success := set_datalayouts(platform_selection, architecture_selection, bitsize_selection)
+	if !success {
+		fmt.Println("Unable to find valid platform, architecture or bitsize selection.")
+		return
+	}
+	c.ir_module.target_datalayout = datalayout
+	c.ir_module.target_triple = triple
 
 	llvm_filename := fmt.Sprintf("%s.ll", executable_filename)
 	object_filename := fmt.Sprintf("%s.o", executable_filename)
@@ -124,6 +137,9 @@ func (c *SageCompiler) emit_ir() {
 	if TESTING_IR_GENERATION {
 		return
 	}
+
+	// [1] llc -relocation-model=pic -filetype=obj add.ll -o objfile
+	// [2] gcc objfile -o exec
 
 	objcmd := exec.Command("llc", "-relocation-model=pic", "-filetype=obj", llvm_filename, fmt.Sprintf("-o %s", object_filename))
 	_, err = objcmd.Output()
@@ -149,9 +165,6 @@ func (c *SageCompiler) emit_ir() {
 	if err != nil {
 		fmt.Println("Could not delete llvm ir file.")
 	}
-
-	// [1] llc -relocation-model=pic -filetype=obj add.ll -o objfile
-	// [2] gcc objfile -o exec
 }
 
 func (c *SageCompiler) compile_code(parsetree sage.ParseNode, is_module_file bool) {
@@ -263,7 +276,8 @@ func (c *SageCompiler) compile_include_node(node *sage.UnaryNode) *CompilationRe
 	include_file := node.Get_token().Lexeme
 
 	// get rid of the '"' symbols wrapping the module name
-	include_file = include_file[1 : len(include_file)-1]
+	// include_file = include_file[1 : len(include_file)-1]
+	include_file = remove_wrapping_quotes(include_file)
 
 	const SEARCH_PATH = "/home/alek/Desktop/projects/sage/modules/"
 	full_filename := fmt.Sprintf("%s%s%s", SEARCH_PATH, include_file, ".sage")
@@ -366,12 +380,11 @@ func (c *SageCompiler) compile_expression_operand(node sage.ParseNode) ([]IRInst
 func (c *SageCompiler) compile_string_node(node *sage.UnaryNode) (*IRAtom, *CompilationResult) {
 	// NOTE: node is representing a string literal
 
-	node_literal_value := node.Get_token().Lexeme
+	node_literal_value := sage_literal_to_llvm_literal(node.Get_token().Lexeme)
 	literal_internal_name := CreateInternalName()
-	ir_type := fmt.Sprintf("[ %d x i8 ]", len(node_literal_value))
+	ir_type := fmt.Sprintf("[ %d x i8 ]", len(node.Get_token().Lexeme))
 
 	c.current_scope.scope.AddSymbol(literal_internal_name, VARIABLE, &AtomicValue{ARRAY_CHAR, node_literal_value, nil}, ARRAY_CHAR)
-	symbol, _ := c.current_scope.scope.LookupSymbol(literal_internal_name)
 
 	last_param := false
 	if c.current_scope.ast_type == FUNCTION {
@@ -385,7 +398,7 @@ func (c *SageCompiler) compile_string_node(node *sage.UnaryNode) (*IRAtom, *Comp
 		value:            node_literal_value,
 		instruction_type: STRLITERAL,
 		is_last_param:    last_param,
-		result_register:  symbol.NewRegister(),
+		result_register:  literal_internal_name,
 	}
 
 	return ir, NewResult(MOD_NONE, "")
@@ -415,8 +428,7 @@ func (c *SageCompiler) compile_keyword_node(node *sage.UnaryNode) ([]IRInstructi
 
 			return_instructions = append(return_instructions, ref_ir)
 
-		case sage.NUMBER: // if its a number then it will just compile the same as float would
-		case sage.FLOAT:
+		case sage.FLOAT, sage.NUMBER: // if its a number then it will just compile the same as float would
 			raw_value := node.Get_child_node().Get_token().Lexeme
 			node_type, failed := resolve_node_type(node)
 			if failed {
@@ -573,7 +585,7 @@ func (c *SageCompiler) compile_block_node(node *sage.BlockNode, block_label stri
 	return blocks, NewResult(MOD_NONE, "")
 }
 
-func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_vararg *bool) ([]IRAtom, *CompilationResult) {
+func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_vararg *bool, instruction_type VarInstructionType) ([]IRAtom, *CompilationResult) {
 	var params []IRAtom
 	var binary *sage.BinaryNode
 	var param_name string
@@ -581,6 +593,7 @@ func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_varar
 	var failed bool
 	var output_code TableOutput
 	var param_symbol *Symbol
+
 	for index, childnode := range node.Children {
 		c.current_scope.parameter_index = index
 
@@ -601,13 +614,16 @@ func (c *SageCompiler) compile_param_list_node(node *sage.BlockNode, found_varar
 			return params, NewResult(MOD_ERR, fmt.Sprintf("Invalid redefinition of parameter: %s.n", param_name))
 		}
 
+		atom := &AtomicValue{sage_type, param_name, nil}
+		c.current_scope.value.result_value = append(c.current_scope.value.result_value.([]*AtomicValue), atom)
+
 		param_symbol, _ = c.current_scope.scope.LookupSymbol(param_name)
 
 		// all children inside a funcdef param list will be a BinaryNode
 		param := IRAtom{
 			name:             param_name,
 			irtype:           param_symbol.sage_datatype_to_llvm(),
-			instruction_type: PARAM,
+			instruction_type: instruction_type,
 		}
 		params = append(params, param)
 	}
@@ -635,6 +651,7 @@ func (c *SageCompiler) compile_func_dec_node(node *sage.BinaryNode) (IRFunc, *Co
 
 	// initialize the function symbol scope
 	func_symbol.scope = &SymbolTable{}
+	func_symbol.value = &AtomicValue{-1, []*AtomicValue{}, nil}
 
 	// create function visitor
 	func_symbol.parameter_index = 0
@@ -648,7 +665,7 @@ func (c *SageCompiler) compile_func_dec_node(node *sage.BinaryNode) (IRFunc, *Co
 	found_vararg := new(bool)
 	*found_vararg = false
 
-	function_params, result := c.compile_param_list_node(parameters, found_vararg)
+	function_params, result := c.compile_param_list_node(parameters, found_vararg, PARAM_TYPE)
 	if result.module_cat == MOD_ERR {
 		return IRFunc{}, result
 	}
@@ -690,6 +707,7 @@ func (c *SageCompiler) compile_func_def_node(node *sage.BinaryNode) (IRFunc, *Co
 
 	// initialize the function symbol scope
 	func_symbol.scope = &SymbolTable{}
+	func_symbol.value = &AtomicValue{-1, []*AtomicValue{}, nil}
 
 	// create function visitor
 	func_symbol.parameter_index = 0
@@ -705,7 +723,7 @@ func (c *SageCompiler) compile_func_def_node(node *sage.BinaryNode) (IRFunc, *Co
 	found_vararg := new(bool)
 	*found_vararg = false
 
-	function_params, result := c.compile_param_list_node(parameters, found_vararg)
+	function_params, result := c.compile_param_list_node(parameters, found_vararg, PARAM)
 	if result.module_cat == MOD_ERR {
 		return IRFunc{}, result
 	}
@@ -720,13 +738,23 @@ func (c *SageCompiler) compile_func_def_node(node *sage.BinaryNode) (IRFunc, *Co
 		}
 	}
 
+	ret_type := func_symbol.sage_datatype_to_llvm()
+	if ret_type == "void" {
+		implicit_return := IRAtom{
+			irtype:           "void",
+			instruction_type: RET_STMT,
+		}
+
+		function_body[0].Body = append(function_body[0].Body, implicit_return)
+	}
+
 	// Leave nested function scope
 	c.current_scope = previous_scope
 
 	// generate ir
 	ir := IRFunc{
 		name:         function_name,
-		return_type:  func_symbol.sage_datatype_to_llvm(),
+		return_type:  ret_type,
 		parameters:   function_params,
 		calling_conv: "NOCONV",
 		attribute:    "NOATTRIBUTE",
@@ -753,7 +781,11 @@ func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) ([]IRInstruc
 
 	// get []IRAtom struct list from parameters
 	var ir_parameters []IRInstructionProtocol
-	for _, parameter := range parameters.Children {
+	function_signature_parameters := symbol.value.result_value.([]*AtomicValue)
+	var signature_ir_type string
+	var param_types_builder strings.Builder
+	param_types_builder.WriteString("(")
+	for index, parameter := range parameters.Children {
 		// there is more freedom on what values can be passed into a function, theoretically any kind of primary or expression could be passed as a parameter
 		instructions, result := c.compile_primary_node(parameter)
 		if result.module_cat != MOD_NONE {
@@ -766,14 +798,39 @@ func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) ([]IRInstruc
 		register := resultant_inst.ResultRegister()
 		irtype, _ := resultant_inst.TypeInfo()
 
+		datatype := function_signature_parameters[index].datatype
+		signature_ir_type = sage_to_llvm_type(datatype, -1)
+
+		last_param := index == len(parameters.Children)-1
+		param_types_builder.WriteString(signature_ir_type)
+		if !last_param {
+			param_types_builder.WriteString(", ")
+		}
+
+		deref_type, _ := irtype_dereferenced_type(irtype)
+		var final_irtype string
+		var insttype VarInstructionType = PARAM
+
+		if signature_ir_type == irtype {
+			final_irtype = irtype
+		} else if signature_ir_type == deref_type {
+			final_irtype = deref_type
+			register = fmt.Sprintf("getelementptr (%s, %s* %%%s, i32 0, i32 0)", irtype, irtype, register)
+			insttype = PARAM_INLINE
+		} else {
+			return retval, NewResult(MOD_ERR, fmt.Sprintf("Mismatching types found in function %s call parameter.", function_name))
+		}
+
 		param_ir := IRAtom{
 			name:             register,
-			irtype:           irtype,
-			instruction_type: PARAM,
+			irtype:           final_irtype,
+			instruction_type: insttype,
+			is_last_param:    last_param,
 		}
 
 		ir_parameters = append(ir_parameters, param_ir)
 	}
+	param_types_builder.WriteString(")")
 
 	// allocate function call result to a register
 	result_reg := symbol.NewRegister()
@@ -786,6 +843,7 @@ func (c *SageCompiler) compile_func_call_node(node *sage.UnaryNode) ([]IRInstruc
 		tail:            false,
 		calling_conv:    "NOCONV",
 		return_type:     return_type,
+		parameter_types: param_types_builder.String(),
 		name:            function_name,
 		result_register: result_reg,
 		parameters:      ir_parameters,
@@ -1156,4 +1214,79 @@ func str_literal_to_sagetype(str string) (retval SAGE_DATATYPE, exists bool) {
 
 	datatype, exists := typemap[str]
 	return datatype, exists
+}
+
+func irtype_dereferenced_type(irtype string) (string, bool) {
+	// handle pointer type derefence first
+	if irtype[len(irtype)-1] == '*' {
+		delimited := strings.Split(irtype, "")
+
+		inner_irtype := delimited[0]
+		return inner_irtype, true
+
+	} else if strings.Contains(irtype, "x") && strings.Contains(irtype, "[") && strings.Contains(irtype, "]") {
+		delimited := strings.Split(irtype, " ") // generated llvm ir array types will always have spaces in between the tokens
+
+		inner_irtype := delimited[3]
+		return fmt.Sprintf("%s*", inner_irtype), true
+	}
+
+	// otherwise the type cannot produce a dereferenced type
+	return "", false
+}
+
+func set_datalayouts(platform string, architecture string, bitsize string) (datalayout string, triple string, success bool) {
+	datalayout_map := map[string]string{
+		"LINUX:X86:64":   "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+		"LINUX:X86:32":   "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128",
+		"DARWIN:X86:64":  "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+		"DARWIN:ARM:64":  "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+		"WINDOWS:X64:64": "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128",
+		"WINDOWS:X86:32": "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32",
+	}
+
+	input := fmt.Sprintf("%s:%s:%s", remove_wrapping_quotes(platform), remove_wrapping_quotes(architecture), bitsize)
+	datalayout, exists := datalayout_map[input]
+	if !exists {
+		return "", "", false
+	}
+
+	platform_triple_map := map[string]string{
+		"LINUX:X86:64":   "x86_64-pc-linux-gnu",
+		"LINUX:X86:32":   "i686-pc-linux-gnu",
+		"DARWIN:X86:64":  "x86_64-apple-darwin",
+		"DARWIN:ARM:64":  "arm64-apple-darwin",
+		"WINDOWS:X64:64": "x86_64-pc-windows-msvc",
+		"WINDOWS:X86:32": "i686-pc-windows-msvc",
+	}
+
+	triple, exists = platform_triple_map[input]
+	if !exists {
+		return "", "", false
+	}
+
+	return datalayout, triple, true
+}
+
+func remove_wrapping_quotes(input_string string) string {
+	return input_string[1 : len(input_string)-1]
+}
+
+func sage_literal_to_llvm_literal(sage_literal string) string {
+	sage_substrings := []string{`\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`, `\\`, `\'`, `\"`, `\?`, `\0`}
+	llvm_substrings := []string{`\07`, `\08`, `\0C`, `\0A`, `\0D`, `\09`, `\0B`, `\5C`, `\27`, `\22`, `\3F`, `\00`}
+
+	var result string
+	for i := range 12 {
+		if !strings.Contains(sage_literal, sage_substrings[i]) {
+			continue
+		}
+
+		result = strings.ReplaceAll(sage_literal, sage_substrings[i], llvm_substrings[i])
+	}
+
+	result = result[0 : len(result)-1]
+	result += `\00"`
+
+	return result
 }

@@ -24,6 +24,8 @@ const (
 	GLOBAL
 	GETADDR
 	STRLITERAL
+	PARAM_INLINE
+	PARAM_TYPE
 )
 
 // TODO: range statement IR
@@ -158,6 +160,7 @@ type IRFuncCall struct {
 	tail            bool
 	calling_conv    string
 	return_type     string
+	parameter_types string
 	name            string
 	result_register string
 	parameters      []IRInstructionProtocol
@@ -179,7 +182,7 @@ func (ir IRFuncCall) ToLLVM() string {
 		builder.WriteString(fmt.Sprintf("%s ", ir.calling_conv))
 	}
 
-	builder.WriteString(fmt.Sprintf("%s @%s(", ir.return_type, ir.name))
+	builder.WriteString(fmt.Sprintf("%s %s @%s(", ir.return_type, ir.parameter_types, ir.name))
 	// (might not need?) ir.parameters[len(ir.parameters)-1].is_last_param = true
 	for _, inst := range ir.parameters {
 		builder.WriteString(inst.ToLLVM())
@@ -204,7 +207,7 @@ type IRBlock struct {
 
 func (ir IRBlock) ToLLVM() string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("%s:\n", ir.Name))
+	builder.WriteString(fmt.Sprintf("%s:", ir.Name))
 	for _, construct := range ir.Body {
 		construct_ir := construct.ToLLVM()
 		builder.WriteString("\n\t" + construct_ir)
@@ -244,8 +247,20 @@ func (ir IRAtom) ToLLVM() string {
 			builder.WriteString(", ")
 		}
 
+	case PARAM_INLINE:
+		builder.WriteString(fmt.Sprintf("%s %s", ir.irtype, ir.name))
+		if !ir.is_last_param {
+			builder.WriteString(", ")
+		}
+
+	case PARAM_TYPE:
+		builder.WriteString(ir.irtype)
+		if !ir.is_last_param {
+			builder.WriteString(", ")
+		}
+
 	case RET_STMT:
-		if ir.name != "NONAME" {
+		if ir.irtype != "void" {
 			builder.WriteString(fmt.Sprintf("ret %s %%%s", ir.irtype, ir.value))
 		} else {
 			builder.WriteString("ret void")
@@ -258,7 +273,7 @@ func (ir IRAtom) ToLLVM() string {
 		builder.WriteString(fmt.Sprintf("getelementptr (%s, %s* %s, i64 0, i64 0)", ir.irtype, ir.irtype, ir.name))
 
 	case STRLITERAL:
-		builder.WriteString(fmt.Sprintf("%%%s = constant %s c%s", ir.name, ir.irtype, ir.value))
+		builder.WriteString(fmt.Sprintf("@%s = constant %s c%s", ir.name, ir.irtype, ir.value))
 
 	case GLOBAL:
 		builder.WriteString(fmt.Sprintf("@%s = global %s, %s", ir.name, ir.irtype, ir.value))

@@ -166,6 +166,15 @@ func (t *Symbol) FieldWrite(fieldname string, value any) bool {
 	return true
 }
 
+func (t *Symbol) FieldRead(fieldname string) any {
+	value, exists := t.value.struct_map[fieldname]
+	if !exists {
+		return nil
+	}
+
+	return value
+}
+
 func (s *Symbol) sage_datatype_to_llvm() string {
 	return sage_to_llvm_type(s.sage_datatype, s.array_length)
 }

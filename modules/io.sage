@@ -1,2 +1,2 @@
-printf :: (input char*, args ...char) -> i32
+printf :: (input char*, args ...i32) -> i32
 
