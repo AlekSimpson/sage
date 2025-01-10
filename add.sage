@@ -1,3 +1,5 @@
+include "io"
+
 #run {
     build_settings.executable_name = "output"
     build_settings.platform = "LINUX"
@@ -7,6 +9,6 @@
 
 
 main :: () -> void {
-    result int = 2 + 2
+    result i32 = 2 + 2
     printf("%d\n", result)
 }
