@@ -11,4 +11,5 @@ include "io"
 main :: () -> void {
     result i32 = 2 + 2
     printf("%d\n", result)
+    printf("Hello world\n")
 }

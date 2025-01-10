@@ -93,14 +93,13 @@ func (ir IRModule) ToLLVM() string {
 }
 
 type IRFunc struct {
-	name                string
-	return_type         string
-	parameters          []IRAtom
-	parameter_signature string
-	calling_conv        string
-	attribute           string
-	body                []IRBlock
-	is_vararg           bool
+	name         string
+	return_type  string
+	parameters   []IRAtom
+	calling_conv string
+	attribute    string
+	body         []IRBlock
+	is_vararg    bool
 }
 
 func (ir IRFunc) ToLLVM() string {
@@ -251,12 +250,6 @@ func (ir IRAtom) ToLLVM() string {
 		builder.WriteString(fmt.Sprintf("%s = load %s, %s* %s", ir.result_register, ir.irtype, ir.irtype, ir.name))
 
 	case IT_PARAM:
-		builder.WriteString(fmt.Sprintf("%s %s", ir.irtype, ir.name))
-		if !ir.is_last_param {
-			builder.WriteString(", ")
-		}
-
-	case IT_PARAM_INLINE:
 		builder.WriteString(fmt.Sprintf("%s %s", ir.irtype, ir.name))
 		if !ir.is_last_param {
 			builder.WriteString(", ")
