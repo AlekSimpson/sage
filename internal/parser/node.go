@@ -2,7 +2,7 @@ package sage
 
 import (
 	"fmt"
-	"sage/internal/lexer"
+	t "sage/internal/tokens"
 )
 
 type NodeType int
@@ -110,7 +110,7 @@ func (nt NodeType) String() string {
 type ParseNode interface {
 	String() string
 	Showtree(depth string)
-	Get_token() *sage.Token
+	Get_token() *t.Token
 	Get_nodetype() NodeType // identifies the host structure type (Unary vs Block vs List vs Binary vs Trinary)
 	Get_child_node() ParseNode
 	Get_true_nodetype() NodeType // identifies the set nodetype
@@ -119,13 +119,13 @@ type ParseNode interface {
 //// BEGIN BLOCK NODE
 
 type BlockNode struct {
-	token    *sage.Token
+	token    *t.Token
 	Nodetype NodeType
 	Children []ParseNode
 }
 
 func ModuleRootNode() *BlockNode {
-	rootTok := &sage.Token{
+	rootTok := &t.Token{
 		Lexeme:  "",
 		Linenum: 0,
 	}
@@ -136,7 +136,7 @@ func ModuleRootNode() *BlockNode {
 	}
 }
 
-func NewBlockNode(tok *sage.Token, c []ParseNode) *BlockNode {
+func NewBlockNode(tok *t.Token, c []ParseNode) *BlockNode {
 	return &BlockNode{
 		token:    tok,
 		Children: c,
@@ -158,7 +158,7 @@ func (n *BlockNode) Get_nodetype() NodeType {
 	return BLOCK
 }
 
-func (n *BlockNode) Get_token() *sage.Token {
+func (n *BlockNode) Get_token() *t.Token {
 	return n.token
 }
 
@@ -177,13 +177,13 @@ func (n *BlockNode) Showtree(depth string) {
 //// BEGIN BINARY NODE
 
 type BinaryNode struct {
-	token    *sage.Token
+	token    *t.Token
 	Nodetype NodeType
 	Left     ParseNode
 	Right    ParseNode
 }
 
-func NewBinaryNode(t *sage.Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
+func NewBinaryNode(t *t.Token, nt NodeType, l ParseNode, r ParseNode) *BinaryNode {
 	return &BinaryNode{
 		token:    t,
 		Nodetype: nt,
@@ -204,7 +204,7 @@ func (n *BinaryNode) Get_nodetype() NodeType {
 	return BINARY
 }
 
-func (n *BinaryNode) Get_token() *sage.Token {
+func (n *BinaryNode) Get_token() *t.Token {
 	return n.token
 }
 
@@ -226,14 +226,14 @@ func (n *BinaryNode) Showtree(depth string) {
 //// BEGIN TRINARY NODE
 
 type TrinaryNode struct {
-	token    *sage.Token
+	token    *t.Token
 	Nodetype NodeType
 	Left     ParseNode
 	Middle   ParseNode
 	Right    ParseNode
 }
 
-func NewTrinaryNode(t *sage.Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
+func NewTrinaryNode(t *t.Token, nodetype NodeType, left ParseNode, middle ParseNode, right ParseNode) *TrinaryNode {
 	return &TrinaryNode{
 		token:    t,
 		Nodetype: nodetype,
@@ -255,7 +255,7 @@ func (n *TrinaryNode) Get_nodetype() NodeType {
 	return TRINARY
 }
 
-func (n *TrinaryNode) Get_token() *sage.Token {
+func (n *TrinaryNode) Get_token() *t.Token {
 	return n.token
 }
 
@@ -280,7 +280,7 @@ func (n *TrinaryNode) Showtree(depth string) {
 //// BEGIN UNARY NODE
 
 type UnaryNode struct {
-	token    *sage.Token
+	token    *t.Token
 	Nodetype NodeType
 	node     ParseNode
 	Tag      string // author's message indicating extra meta information about node
@@ -306,7 +306,7 @@ func (n *UnaryNode) String() string {
 	return fmt.Sprintf("UNARY NODE (%s: %s)", n.Nodetype, n.token.Lexeme)
 }
 
-func (n *UnaryNode) Get_token() *sage.Token {
+func (n *UnaryNode) Get_token() *t.Token {
 	return n.token
 }
 
@@ -322,7 +322,7 @@ func (n *UnaryNode) addtag(message string) {
 	n.Tag = message
 }
 
-func NewUnaryNode(tok *sage.Token, nodetype NodeType) *UnaryNode {
+func NewUnaryNode(tok *t.Token, nodetype NodeType) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
 		Nodetype: nodetype,
@@ -330,7 +330,7 @@ func NewUnaryNode(tok *sage.Token, nodetype NodeType) *UnaryNode {
 	}
 }
 
-func NewBranchUnaryNode(tok *sage.Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
+func NewBranchUnaryNode(tok *t.Token, nodetype NodeType, branch_node ParseNode) *UnaryNode {
 	return &UnaryNode{
 		token:    tok,
 		Nodetype: nodetype,
@@ -342,13 +342,13 @@ func NewBranchUnaryNode(tok *sage.Token, nodetype NodeType, branch_node ParseNod
 //// BEGIN LISTNODE
 
 type ListNode struct {
-	token    *sage.Token
+	token    *t.Token
 	Nodetype NodeType
 	Lexemes  []string
 	node     ParseNode
 }
 
-func NewListNode(token *sage.Token, nodetype NodeType, lexemes []string) *ListNode {
+func NewListNode(token *t.Token, nodetype NodeType, lexemes []string) *ListNode {
 	return &ListNode{
 		token:    token,
 		Nodetype: nodetype,
@@ -388,7 +388,7 @@ func (n *ListNode) Get_full_lexeme() string {
 	return full_lexeme
 }
 
-func (n *ListNode) Get_token() *sage.Token {
+func (n *ListNode) Get_token() *t.Token {
 	return n.token
 }
 

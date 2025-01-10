@@ -1,19 +1,9 @@
 package sage
 
-type RegisterPair struct {
-	Register         string
-	Associated_value string
-}
-
-func NewRegisterPair(register string, value string) RegisterPair {
-	return RegisterPair{
-		Register:         register,
-		Associated_value: value,
-	}
-}
+import tokens "sage/internal/tokens"
 
 type Queueable interface {
-	string | int | byte | Token | RegisterPair
+	string | int | byte | tokens.Token
 }
 
 type Queue[Q Queueable] struct {
@@ -32,7 +22,7 @@ func NewQueue[Q Queueable](arr []Q) *Queue[Q] {
 	}
 }
 
-func (q *Queue[Q]) push(value Q) {
+func (q *Queue[Q]) Push(value Q) {
 	q.array = append(q.array, value)
 }
 
@@ -55,6 +45,6 @@ func (q *Queue[Q]) Pop() *Q {
 	return &retval
 }
 
-func (q *Queue[Q]) empty() bool {
+func (q *Queue[Q]) Empty() bool {
 	return len(q.array) == 0
 }

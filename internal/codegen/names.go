@@ -4,6 +4,10 @@ import (
 	xid "github.com/rs/xid"
 )
 
-func CreateInternalName() string {
-	return xid.New().String()
+func CreateInternalLocalName() string {
+	return "%" + xid.New().String()
+}
+
+func CreateInternalGlobalName() string {
+	return "@" + xid.New().String()
 }

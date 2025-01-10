@@ -3,6 +3,8 @@ package sage
 import (
 	"fmt"
 	sage "sage/internal/lexer"
+	q "sage/internal/queues"
+	t "sage/internal/tokens"
 )
 
 // EXPRESSION
@@ -22,14 +24,14 @@ import (
 
 type Parser struct {
 	lexer      sage.Lexer
-	current    sage.Token
+	current    t.Token
 	node_cache ParseNode
-	errors     []*sage.Token
+	errors     []*t.Token
 	errorCheck bool
 }
 
 func NewParser(filename string, file_contents []byte) *Parser {
-	queue := sage.NewQueue(file_contents)
+	queue := q.NewQueue(file_contents)
 	lexer := sage.NewLexer(filename, queue)
 
 	return &Parser{
@@ -41,9 +43,9 @@ func NewParser(filename string, file_contents []byte) *Parser {
 
 func (p *Parser) Parse_program(debug_lexer bool) ParseNode {
 	if debug_lexer {
-		var curr_tok sage.Token
+		var curr_tok t.Token
 		i := 0
-		for curr_tok.Token_type != sage.TT_EOF {
+		for curr_tok.Token_type != t.TT_EOF {
 			curr_tok = p.lexer.Get_token()
 			fmt.Printf("[%d] %+v\n", i, curr_tok)
 			i++
@@ -72,9 +74,9 @@ func (p *Parser) Parse_program(debug_lexer bool) ParseNode {
 }
 
 func (p *Parser) library_statement() ParseNode {
-	p.consume(sage.TT_KEYWORD, "Expected include keyword in include statement.\n")
+	p.consume(t.TT_KEYWORD, "Expected include keyword in include statement.\n")
 
-	if p.current.Token_type != sage.TT_STRING {
+	if p.current.Token_type != t.TT_STRING {
 		p.raise_error("Expected string literal in include statement.\n")
 		return nil
 	}
@@ -82,7 +84,7 @@ func (p *Parser) library_statement() ParseNode {
 	node := NewUnaryNode(&string_token, INCLUDE)
 
 	p.advance()
-	p.consume(sage.TT_NEWLINE, "Must have include statements on individual lines.\n")
+	p.consume(t.TT_NEWLINE, "Must have include statements on individual lines.\n")
 
 	return node
 }
@@ -91,11 +93,11 @@ func (p *Parser) parse_libraries() *BlockNode {
 	list_node := ModuleRootNode()
 
 	for len(p.errors) == 0 {
-		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+		for p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 			p.advance()
 		}
 
-		if !p.match_types(p.current.Token_type, sage.TT_KEYWORD) {
+		if !p.match_types(p.current.Token_type, t.TT_KEYWORD) {
 			break
 		}
 
@@ -111,10 +113,10 @@ func (p *Parser) statements() *BlockNode {
 
 	for len(p.errors) == 0 {
 		// consume all newlines until we reach actul code
-		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+		for p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 			p.advance()
 		}
-		if p.match_types(p.current.Token_type, sage.TT_EOF) {
+		if p.match_types(p.current.Token_type, t.TT_EOF) {
 			break
 		}
 
@@ -127,17 +129,17 @@ func (p *Parser) statements() *BlockNode {
 
 func (p *Parser) parse_statement() ParseNode {
 	switch p.current.Token_type {
-	case sage.TT_IDENT:
+	case t.TT_IDENT:
 		next_token := p.peek()
-		if p.match_types(next_token.Token_type, sage.TT_BINDING) {
+		if p.match_types(next_token.Token_type, t.TT_BINDING) {
 			// construct
 			return p.parse_construct()
-		} else if p.matches_any(next_token.Token_type, []sage.TokenType{
-			sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT,
+		} else if p.matches_any(next_token.Token_type, []t.TokenType{
+			t.TT_KEYWORD, t.TT_LBRACKET, t.TT_IDENT,
 		}) {
 			// value declaration
 			return p.parse_value_dec()
-		} else if p.matches_any(next_token.Token_type, []sage.TokenType{sage.TT_ASSIGN, sage.TT_FIELD_ACCESSOR}) {
+		} else if p.matches_any(next_token.Token_type, []t.TokenType{t.TT_ASSIGN, t.TT_FIELD_ACCESSOR}) {
 			// value assignment
 			retval := p.parse_assign()
 			if retval == nil {
@@ -146,14 +148,14 @@ func (p *Parser) parse_statement() ParseNode {
 			}
 
 			return retval
-		} else if p.match_types(next_token.Token_type, sage.TT_LPAREN) {
+		} else if p.match_types(next_token.Token_type, t.TT_LPAREN) {
 			return p.parse_function_call()
 		}
 
-	case sage.TT_KEYWORD:
+	case t.TT_KEYWORD:
 		// a keyword statement is found
 		return p.parse_keyword_statement()
-	case sage.TT_POUND:
+	case t.TT_POUND:
 		return p.parse_compile_time_execute()
 	}
 
@@ -162,15 +164,15 @@ func (p *Parser) parse_statement() ParseNode {
 }
 
 func (p *Parser) parse_compile_time_execute() ParseNode {
-	p.consume(sage.TT_POUND, "Expected 'run' statement to begin with '#' symbol\n")
+	p.consume(t.TT_POUND, "Expected 'run' statement to begin with '#' symbol\n")
 
-	if p.current.Token_type != sage.TT_IDENT || p.current.Lexeme != "run" {
+	if p.current.Token_type != t.TT_IDENT || p.current.Lexeme != "run" {
 		p.raise_error("Expected 'run' keyword in compile time execution statement\n")
 		return nil
 	}
 	p.advance()
 
-	run_token := sage.NewToken(sage.TT_COMPILER_CREATED, "#run { ... }", p.current.Linenum)
+	run_token := t.NewToken(t.TT_COMPILER_CREATED, "#run { ... }", p.current.Linenum)
 	run_body := p.parse_body()
 
 	return NewBranchUnaryNode(&run_token, COMPILE_TIME_EXECUTE, run_body)
@@ -181,7 +183,7 @@ func (p *Parser) parse_value_dec() ParseNode {
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
 	p.advance() // move past identifier
 
-	if !p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_KEYWORD, sage.TT_LBRACKET, sage.TT_IDENT, sage.TT_VARARG}) {
+	if !p.matches_any(p.current.Token_type, []t.TokenType{t.TT_KEYWORD, t.TT_LBRACKET, t.TT_IDENT, t.TT_VARARG}) {
 		p.raise_error("Expected type to be associated with identifier in value declaration statement\n")
 		return nil
 	}
@@ -194,13 +196,13 @@ func (p *Parser) parse_value_dec() ParseNode {
 
 	type_identifier_token := type_identifier_node.Get_token()
 
-	if p.match_types(p.current.Token_type, sage.TT_ASSIGN) {
+	if p.match_types(p.current.Token_type, t.TT_ASSIGN) {
 		p.advance() // move past the "=" symbol
 		rhs := p.expression()
 
 		new_lexeme := fmt.Sprintf("%s %s = %s", name_identifier_token.Lexeme, type_identifier_token.Lexeme, rhs)
 
-		dec_token := sage.NewToken(sage.TT_ASSIGN, new_lexeme, name_identifier_token.Linenum)
+		dec_token := t.NewToken(t.TT_ASSIGN, new_lexeme, name_identifier_token.Linenum)
 		return NewTrinaryNode(
 			&dec_token,
 			ASSIGN,
@@ -217,7 +219,7 @@ func (p *Parser) parse_value_dec() ParseNode {
 		nodetype = VARARG
 	}
 
-	token := sage.NewToken(sage.TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.Linenum)
+	token := t.NewToken(t.TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.Linenum)
 	return &BinaryNode{
 		token:    &token,
 		Nodetype: nodetype,
@@ -228,21 +230,21 @@ func (p *Parser) parse_value_dec() ParseNode {
 
 func (p *Parser) parse_value_dec_list() ParseNode {
 	// first we check if the parameter list is empty, if it is an empty list then the first token in the list should be the ending ')' character
-	if p.match_types(p.current.Token_type, sage.TT_RPAREN) {
+	if p.match_types(p.current.Token_type, t.TT_RPAREN) {
 		return &BlockNode{
-			token:    &sage.Token{Token_type: sage.TT_COMPILER_CREATED, Lexeme: "Empty Parameter List", Linenum: p.current.Linenum},
+			token:    &t.Token{Token_type: t.TT_COMPILER_CREATED, Lexeme: "Empty Parameter List", Linenum: p.current.Linenum},
 			Nodetype: PARAM_LIST,
 			Children: []ParseNode{},
 		}
 	}
 
 	// newlines before a value dec list are allowed
-	for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+	for p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 		p.advance()
 	}
 
 	// otherwise we expected the list to be populated with var dec entries beginning with an identifier
-	if !p.match_types(p.current.Token_type, sage.TT_IDENT) {
+	if !p.match_types(p.current.Token_type, t.TT_IDENT) {
 		p.raise_error("Expecting value dec to begin with identifier\n")
 		return nil
 	}
@@ -250,9 +252,9 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 	list_node := &BlockNode{}
 	list_node.Nodetype = PARAM_LIST
 	var list_token_lexeme string
-	list_token := sage.Token{Token_type: sage.TT_COMPILER_CREATED, Lexeme: "", Linenum: p.current.Linenum}
+	list_token := t.Token{Token_type: t.TT_COMPILER_CREATED, Lexeme: "", Linenum: p.current.Linenum}
 
-	for p.match_types(p.current.Token_type, sage.TT_IDENT) {
+	for p.match_types(p.current.Token_type, t.TT_IDENT) {
 		value_dec := p.parse_value_dec()
 		if value_dec.Get_nodetype() == TRINARY {
 			// NOTE: Maybe this could be a compiler warning and we just omit the assigned value
@@ -260,18 +262,18 @@ func (p *Parser) parse_value_dec_list() ParseNode {
 			return nil
 		}
 
-		if p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_RBRACE, sage.TT_RPAREN}) {
+		if p.matches_any(p.current.Token_type, []t.TokenType{t.TT_RBRACE, t.TT_RPAREN}) {
 			list_token.Lexeme += value_dec.Get_token().Lexeme
 			list_node.Children = append(list_node.Children, value_dec)
 			break
 		}
 
-		p.consume(sage.TT_COMMA, "Expected comma symbol after value declaration value declaration list\n")
+		p.consume(t.TT_COMMA, "Expected comma symbol after value declaration value declaration list\n")
 		list_token_lexeme += fmt.Sprintf("%s, ", value_dec.Get_token().Lexeme)
 		list_node.Children = append(list_node.Children, value_dec)
 
 		// value declarations are allowed to be seperated by newline(s)
-		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+		for p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 			p.advance()
 		}
 	}
@@ -288,7 +290,7 @@ func (p *Parser) parse_assign() ParseNode {
 
 	// this code section is here to handle field accessor cases and function call cases
 	lookahead := p.peek()
-	is_field_access := p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR)
+	is_field_access := p.match_types(lookahead.Token_type, t.TT_FIELD_ACCESSOR)
 	if is_field_access {
 		// we could be assigning something new to a struct field
 		name_node = p.parse_struct_field_access()
@@ -301,18 +303,18 @@ func (p *Parser) parse_assign() ParseNode {
 	}
 
 	// it could be that we are referencing the field in some expression,
-	if is_field_access && p.current.Token_type != sage.TT_ASSIGN {
+	if is_field_access && p.current.Token_type != t.TT_ASSIGN {
 		p.set_node_cache(name_node) // save parsed node for further expression parsing
 		return nil                  // return nil to signify that we actually are parsing a different kind of statement
 	}
 	/////
 
-	p.consume(sage.TT_ASSIGN, "Expected '=' symbol in assign statement\n")
+	p.consume(t.TT_ASSIGN, "Expected '=' symbol in assign statement\n")
 
 	value_node := p.expression()
 
 	token_lexeme := fmt.Sprintf("%s = %s", name_token.Lexeme, value_node.Get_token().Lexeme)
-	token := sage.NewToken(sage.TT_ASSIGN, token_lexeme, name_token.Linenum)
+	token := t.NewToken(t.TT_ASSIGN, token_lexeme, name_token.Linenum)
 	return NewBinaryNode(&token, ASSIGN, name_node, value_node)
 }
 
@@ -321,14 +323,14 @@ func (p *Parser) parse_keyword_statement() ParseNode {
 	case "ret":
 		return_token := p.current
 		lookahead := p.peek()
-		if p.match_types(lookahead.Token_type, sage.TT_NEWLINE) {
+		if p.match_types(lookahead.Token_type, t.TT_NEWLINE) {
 			p.advance() // advance past return token
 			return NewUnaryNode(&return_token, KEYWORD)
 		}
 
 		p.advance() // advance past return token
 		expression := p.expression()
-		new_token := sage.NewToken(sage.TT_KEYWORD, fmt.Sprintf("ret %s", expression), return_token.Linenum)
+		new_token := t.NewToken(t.TT_KEYWORD, fmt.Sprintf("ret %s", expression), return_token.Linenum)
 
 		return NewBranchUnaryNode(&new_token, KEYWORD, expression)
 
@@ -351,7 +353,7 @@ func (p *Parser) parse_if_statement() ParseNode {
 
 	condition_expression := p.expression()
 	condition_body := p.parse_body()
-	prime_node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "if ... { ... }", condition_expression.Get_token().Linenum)
+	prime_node_token := t.NewToken(t.TT_COMPILER_CREATED, "if ... { ... }", condition_expression.Get_token().Linenum)
 	primary_if := NewBinaryNode(&prime_node_token, IF_BRANCH, condition_expression, condition_body)
 
 	elif_statements = append(elif_statements, primary_if)
@@ -371,13 +373,13 @@ func (p *Parser) parse_if_statement() ParseNode {
 			condition_exp := p.expression()
 			condition_bod := p.parse_body()
 			// TODO: more detailed token lexeme
-			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else if ... { ... }", condition_exp.Get_token().Linenum)
+			node_token := t.NewToken(t.TT_COMPILER_CREATED, "else if ... { ... }", condition_exp.Get_token().Linenum)
 			next_elif_statement := NewBinaryNode(&node_token, IF_BRANCH, condition_exp, condition_bod)
 			elif_statements = append(elif_statements, next_elif_statement)
-		} else if p.match_types(p.current.Token_type, sage.TT_LBRACE) {
+		} else if p.match_types(p.current.Token_type, t.TT_LBRACE) {
 
 			else_body := p.parse_body()
-			node_token := sage.NewToken(sage.TT_COMPILER_CREATED, "else { ... }", else_body.Get_token().Linenum)
+			node_token := t.NewToken(t.TT_COMPILER_CREATED, "else { ... }", else_body.Get_token().Linenum)
 			new_node := NewBranchUnaryNode(&node_token, ELSE_BRANCH, else_body)
 			elif_statements = append(elif_statements, new_node)
 			break
@@ -389,13 +391,13 @@ func (p *Parser) parse_if_statement() ParseNode {
 }
 
 func (p *Parser) parse_while_statement() ParseNode {
-	p.consume(sage.TT_KEYWORD, "Expected 'while' keyword in while statement\n")
+	p.consume(t.TT_KEYWORD, "Expected 'while' keyword in while statement\n")
 
 	condition_node := p.expression()
 
 	body_node := p.parse_body()
 
-	token := sage.NewToken(sage.TT_COMPILER_CREATED, "while <condition> {...}", condition_node.Get_token().Linenum)
+	token := t.NewToken(t.TT_COMPILER_CREATED, "while <condition> {...}", condition_node.Get_token().Linenum)
 	return NewBinaryNode(
 		&token,
 		WHILE,
@@ -405,9 +407,9 @@ func (p *Parser) parse_while_statement() ParseNode {
 }
 
 func (p *Parser) parse_for_statement() ParseNode {
-	p.consume(sage.TT_KEYWORD, "Expected 'for' keyword in for statement\n")
+	p.consume(t.TT_KEYWORD, "Expected 'for' keyword in for statement\n")
 
-	if !p.match_types(p.current.Token_type, sage.TT_IDENT) {
+	if !p.match_types(p.current.Token_type, t.TT_IDENT) {
 		p.raise_error("For statement expects iterator name\n")
 		return nil
 	}
@@ -426,8 +428,8 @@ func (p *Parser) parse_for_statement() ParseNode {
 
 	body_node := p.parse_body()
 
-	for_token := sage.NewToken(
-		sage.TT_COMPILER_CREATED,
+	for_token := t.NewToken(
+		t.TT_COMPILER_CREATED,
 		fmt.Sprintf("for %s in %s {...}", iterator_variable_token.Lexeme, range_node.Get_token().Lexeme),
 		iterator_variable_token.Linenum,
 	)
@@ -437,12 +439,12 @@ func (p *Parser) parse_for_statement() ParseNode {
 func (p *Parser) parse_range() ParseNode {
 	lhs := p.expression()
 
-	p.consume(sage.TT_RANGE, "Expected '...' operator in range statement\n")
+	p.consume(t.TT_RANGE, "Expected '...' operator in range statement\n")
 
 	rhs := p.expression()
 
-	range_token := sage.NewToken(
-		sage.TT_COMPILER_CREATED,
+	range_token := t.NewToken(
+		t.TT_COMPILER_CREATED,
 		fmt.Sprintf("%s...%s", lhs.Get_token().Lexeme, rhs.Get_token().Lexeme),
 		lhs.Get_token().Linenum,
 	)
@@ -451,7 +453,7 @@ func (p *Parser) parse_range() ParseNode {
 }
 
 func (p *Parser) parse_construct() ParseNode {
-	if !p.match_types(p.current.Token_type, sage.TT_IDENT) {
+	if !p.match_types(p.current.Token_type, t.TT_IDENT) {
 		p.raise_error("Expected identifier name at the beginning of struct statement\n")
 		return nil
 	}
@@ -460,16 +462,16 @@ func (p *Parser) parse_construct() ParseNode {
 	name_identifier_node := NewUnaryNode(&name_identifier_token, IDENTIFIER)
 	p.advance() // move identifier
 
-	p.consume(sage.TT_BINDING, "Expected '::' symbol in binding statement\n")
+	p.consume(t.TT_BINDING, "Expected '::' symbol in binding statement\n")
 
 	var binding_node ParseNode
 	var nodetype NodeType
 	switch p.current.Token_type {
-	case sage.TT_KEYWORD:
+	case t.TT_KEYWORD:
 		// check if lexeme is 'struct'
 		binding_node = p.parse_struct()
 		nodetype = STRUCT
-	case sage.TT_LPAREN:
+	case t.TT_LPAREN:
 		// its a function
 		binding_node = p.parse_function()
 		nodetype = binding_node.Get_true_nodetype()
@@ -483,7 +485,7 @@ func (p *Parser) parse_construct() ParseNode {
 	}
 
 	token_lexeme := fmt.Sprintf("%s :: %s", name_identifier_token.Lexeme, binding_node.Get_token().Lexeme)
-	construct_token := sage.NewToken(sage.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum)
+	construct_token := t.NewToken(t.TT_COMPILER_CREATED, token_lexeme, name_identifier_token.Linenum)
 	return NewBinaryNode(&construct_token, nodetype, name_identifier_node, binding_node)
 }
 
@@ -494,17 +496,17 @@ func (p *Parser) parse_struct() ParseNode {
 	}
 	p.advance() // advance past the struct keyword
 
-	p.consume(sage.TT_LBRACE, "Expected LBRACE in structure definition\n")
+	p.consume(t.TT_LBRACE, "Expected LBRACE in structure definition\n")
 
 	struct_contents := p.parse_value_dec_list()
 
-	p.consume(sage.TT_RBRACE, "Expected RBRACE in structure definintion\n")
+	p.consume(t.TT_RBRACE, "Expected RBRACE in structure definintion\n")
 
 	return NewBranchUnaryNode(struct_contents.Get_token(), STRUCT, struct_contents)
 }
 
 func (p *Parser) parse_function() ParseNode {
-	p.consume(sage.TT_LPAREN, "Expected LPAREN in function definition\n")
+	p.consume(t.TT_LPAREN, "Expected LPAREN in function definition\n")
 
 	signature_lexeme := "("
 	parameter_list := p.parse_value_dec_list()
@@ -514,11 +516,11 @@ func (p *Parser) parse_function() ParseNode {
 
 	signature_lexeme += parameter_list.Get_token().Lexeme
 
-	p.consume(sage.TT_RPAREN, "Expected RPAREN in function definition\n")
-	p.consume(sage.TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition\n")
+	p.consume(t.TT_RPAREN, "Expected RPAREN in function definition\n")
+	p.consume(t.TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition\n")
 	signature_lexeme += ") -> "
 
-	if !p.match_types(p.current.Token_type, sage.TT_KEYWORD) {
+	if !p.match_types(p.current.Token_type, t.TT_KEYWORD) {
 		p.raise_error("Function must have a return type\n")
 		return nil
 	}
@@ -528,10 +530,10 @@ func (p *Parser) parse_function() ParseNode {
 	signature_lexeme += return_type_token.Lexeme
 	p.advance() // move past type keyword
 
-	function_signature := sage.NewToken(sage.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum)
+	function_signature := t.NewToken(t.TT_COMPILER_CREATED, signature_lexeme, parameter_list.Get_token().Linenum)
 
 	// if there is no brace and instead if immidiately followed by a NEWLINE then there is no body
-	if p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+	if p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 		p.advance() // move past the newline
 		return NewBinaryNode(&function_signature, FUNCDEC, parameter_list, return_type_node)
 	}
@@ -546,40 +548,40 @@ func (p *Parser) parse_function_call() ParseNode {
 	p.advance() // move past func name identifier
 
 	// next token should be a '('
-	p.consume(sage.TT_LPAREN, "Expected function call to include opening '(' bracket\n")
+	p.consume(t.TT_LPAREN, "Expected function call to include opening '(' bracket\n")
 
 	var params []ParseNode
 	for {
 		param := p.parse_primary()
 		params = append(params, param)
 
-		if !p.match_types(p.current.Token_type, sage.TT_COMMA) {
+		if !p.match_types(p.current.Token_type, t.TT_COMMA) {
 			break
 		}
 		p.advance()
 	}
 
-	p.consume(sage.TT_RPAREN, "Expected function call to include closing ')' bracket\n")
+	p.consume(t.TT_RPAREN, "Expected function call to include closing ')' bracket\n")
 
 	// create block node to hold params in
-	params_token := sage.NewToken(sage.TT_COMPILER_CREATED, "", -1)
+	params_token := t.NewToken(t.TT_COMPILER_CREATED, "", -1)
 	params_node := NewBlockNode(&params_token, params)
 
 	return NewBranchUnaryNode(&function_name_token, FUNCCALL, params_node)
 }
 
 func (p *Parser) parse_body() ParseNode {
-	p.consume(sage.TT_LBRACE, "Expected LBRACE in body definition statement\n")
+	p.consume(t.TT_LBRACE, "Expected LBRACE in body definition statement\n")
 
-	body_token := sage.NewToken(sage.TT_COMPILER_CREATED, "{ ... }", p.current.Linenum)
+	body_token := t.NewToken(t.TT_COMPILER_CREATED, "{ ... }", p.current.Linenum)
 	body_node := &BlockNode{token: &body_token}
 
 	for {
 		// consume all newlines until we reach actual code
-		for p.match_types(p.current.Token_type, sage.TT_NEWLINE) {
+		for p.match_types(p.current.Token_type, t.TT_NEWLINE) {
 			p.advance()
 		}
-		if p.match_types(p.current.Token_type, sage.TT_RBRACE) {
+		if p.match_types(p.current.Token_type, t.TT_RBRACE) {
 			break
 		}
 
@@ -587,7 +589,7 @@ func (p *Parser) parse_body() ParseNode {
 		body_node.Children = append(body_node.Children, next_statement)
 	}
 
-	p.consume(sage.TT_RBRACE, "Expected RBRACE in body definition statement\n")
+	p.consume(t.TT_RBRACE, "Expected RBRACE in body definition statement\n")
 
 	body_node.Nodetype = BLOCK
 	return body_node
@@ -599,24 +601,24 @@ func (p *Parser) parse_type() ParseNode {
 	var return_node *UnaryNode
 	// NOTE: function type
 	// TODO: change this into a switch case
-	if p.match_types(p.current.Token_type, sage.TT_LPAREN) {
+	if p.match_types(p.current.Token_type, t.TT_LPAREN) {
 		function_type := p.parse_function()
 		return_node = NewBranchUnaryNode(function_type.Get_token(), TYPE, function_type)
 		return_node.addtag("function_type_") // add a tag to give further info about what kind of type it is
 
 		return return_node // return now because pointers to function types aren't allowed
 
-	} else if p.match_types(p.current.Token_type, sage.TT_LBRACKET) { // NOTE: array type
+	} else if p.match_types(p.current.Token_type, t.TT_LBRACKET) { // NOTE: array type
 		// keep track of how many dims this array has
 		lbracket_nest_count := 0
 		token_lexeme := ""
-		for p.match_types(p.current.Token_type, sage.TT_LBRACKET) {
+		for p.match_types(p.current.Token_type, t.TT_LBRACKET) {
 			p.advance() // move past lbracket
 			lbracket_nest_count++
 			token_lexeme += "["
 		}
 
-		if !p.matches_any(p.current.Token_type, []sage.TokenType{sage.TT_KEYWORD, sage.TT_IDENT}) {
+		if !p.matches_any(p.current.Token_type, []t.TokenType{t.TT_KEYWORD, t.TT_IDENT}) {
 			p.raise_error("Expected valid type identifier in array type\n")
 			return nil
 		}
@@ -626,10 +628,10 @@ func (p *Parser) parse_type() ParseNode {
 		token_lexeme += array_type_token.Lexeme
 		p.advance() // advance past the identifier
 
-		if p.match_types(p.current.Token_type, sage.TT_COLON) {
+		if p.match_types(p.current.Token_type, t.TT_COLON) {
 			p.advance() // advance past the colon
 
-			if !p.match_types(p.current.Token_type, sage.TT_NUM) {
+			if !p.match_types(p.current.Token_type, t.TT_NUM) {
 				p.raise_error("Expected a number to define the length of the array in array type declaration\n")
 				return nil
 			}
@@ -639,7 +641,7 @@ func (p *Parser) parse_type() ParseNode {
 		}
 
 		// match the corresponding rbrackets after the type keyword
-		for p.match_types(p.current.Token_type, sage.TT_RBRACKET) {
+		for p.match_types(p.current.Token_type, t.TT_RBRACKET) {
 			p.advance()
 			lbracket_nest_count--
 			token_lexeme += "]"
@@ -650,9 +652,9 @@ func (p *Parser) parse_type() ParseNode {
 			return nil
 		}
 
-		new_token := sage.NewToken(array_type_token.Token_type, token_lexeme, array_type_token.Linenum)
+		new_token := t.NewToken(array_type_token.Token_type, token_lexeme, array_type_token.Linenum)
 		return_node = NewBranchUnaryNode(&new_token, TYPE, array_type_node)
-	} else if p.match_types(p.current.Token_type, sage.TT_VARARG) {
+	} else if p.match_types(p.current.Token_type, t.TT_VARARG) {
 		p.advance() // advance past the vararg '...' notation
 		type_token := p.current
 		return_node = NewUnaryNode(&type_token, VARARG)
@@ -670,7 +672,7 @@ func (p *Parser) parse_type() ParseNode {
 		p.advance() // advance past the star
 		retnode_token := return_node.Get_token()
 		// new_token := &sage.Token{retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum}
-		new_token := sage.NewToken(retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum)
+		new_token := t.NewToken(retnode_token.Token_type, fmt.Sprintf("%s*", retnode_token.Lexeme), retnode_token.Linenum)
 		new_return_node := NewBranchUnaryNode(&new_token, TYPE, return_node)
 		new_return_node.addtag("pointer_to_")
 		return new_return_node
@@ -687,12 +689,12 @@ func (p *Parser) expression() ParseNode {
 		first_primary := p.node_cache
 		p.clear_node_cache()
 
-		return p.parse_operator(first_primary, sage.TT_EQUALITY)
+		return p.parse_operator(first_primary, t.TT_EQUALITY)
 	}
-	return p.parse_operator(p.parse_primary(), sage.TT_EQUALITY)
+	return p.parse_operator(p.parse_primary(), t.TT_EQUALITY)
 }
 
-func (p *Parser) parse_operator(left ParseNode, min_precedence sage.TokenType) ParseNode {
+func (p *Parser) parse_operator(left ParseNode, min_precedence t.TokenType) ParseNode {
 	current := p.current
 	for is_operator(current.Token_type) && current.Token_type >= min_precedence {
 		op := current
@@ -704,7 +706,7 @@ func (p *Parser) parse_operator(left ParseNode, min_precedence sage.TokenType) P
 			(p.op_is_right_associative(current.Lexeme) && current.Token_type == op.Token_type) {
 
 			inc := decide_precedence_inc(current.Token_type, op.Token_type)
-			right = p.parse_operator(right, sage.TokenType(int(op.Token_type)+inc))
+			right = p.parse_operator(right, t.TokenType(int(op.Token_type)+inc))
 
 			current = p.current
 		}
@@ -716,24 +718,24 @@ func (p *Parser) parse_operator(left ParseNode, min_precedence sage.TokenType) P
 
 func (p *Parser) parse_primary() ParseNode {
 	switch p.current.Token_type {
-	case sage.TT_NUM:
+	case t.TT_NUM:
 		token := p.current
 		ret := NewUnaryNode(&token, NUMBER)
 		p.advance()
 		return ret
 
-	case sage.TT_FLOAT:
+	case t.TT_FLOAT:
 		token := p.current
 		ret := NewUnaryNode(&token, FLOAT)
 		p.advance()
 		return ret
 
-	case sage.TT_IDENT:
+	case t.TT_IDENT:
 		token := p.current
 		lookahead := p.peek()
-		if p.match_types(lookahead.Token_type, sage.TT_FIELD_ACCESSOR) {
+		if p.match_types(lookahead.Token_type, t.TT_FIELD_ACCESSOR) {
 			return p.parse_struct_field_access()
-		} else if p.match_types(lookahead.Token_type, sage.TT_LPAREN) {
+		} else if p.match_types(lookahead.Token_type, t.TT_LPAREN) {
 			return p.parse_function_call()
 		}
 
@@ -741,13 +743,13 @@ func (p *Parser) parse_primary() ParseNode {
 		p.advance()
 		return ret
 
-	case sage.TT_LPAREN:
-		p.consume(sage.TT_LPAREN, "Expected opening '('")
+	case t.TT_LPAREN:
+		p.consume(t.TT_LPAREN, "Expected opening '('")
 		expr := p.expression()
-		p.consume(sage.TT_RPAREN, "Expected closing ')'")
+		p.consume(t.TT_RPAREN, "Expected closing ')'")
 		return expr
 
-	case sage.TT_STRING:
+	case t.TT_STRING:
 		token := p.current
 		ret := NewUnaryNode(&token, STRING)
 		p.advance()
@@ -764,9 +766,9 @@ func (p *Parser) parse_struct_field_access() ParseNode {
 	identifier_lexemes = append(identifier_lexemes, p.current.Lexeme)
 	p.advance()
 
-	for p.match_types(p.current.Token_type, sage.TT_FIELD_ACCESSOR) {
+	for p.match_types(p.current.Token_type, t.TT_FIELD_ACCESSOR) {
 		p.advance()
-		if !p.match_types(p.current.Token_type, sage.TT_IDENT) {
+		if !p.match_types(p.current.Token_type, t.TT_IDENT) {
 			p.raise_error("Expected identifier in struct field accessor statement\n")
 			return nil
 		}
@@ -775,16 +777,16 @@ func (p *Parser) parse_struct_field_access() ParseNode {
 		p.advance()
 	}
 
-	token := sage.NewToken(sage.TT_COMPILER_CREATED, identifier_lexemes[0], -1)
+	token := t.NewToken(t.TT_COMPILER_CREATED, identifier_lexemes[0], -1)
 	return NewListNode(&token, LIST, identifier_lexemes)
 }
 
-func is_operator(tokentype sage.TokenType) bool {
+func is_operator(tokentype t.TokenType) bool {
 	// NOTE: 3 is the highest operator precedence enum value, everything after 3 is other token types
 	return tokentype <= 3
 }
 
-func decide_precedence_inc(curr_op_type sage.TokenType, op_type sage.TokenType) int {
+func decide_precedence_inc(curr_op_type t.TokenType, op_type t.TokenType) int {
 	if curr_op_type > op_type {
 		return 1
 	}
@@ -793,17 +795,17 @@ func decide_precedence_inc(curr_op_type sage.TokenType, op_type sage.TokenType) 
 
 //// PARSER UTILITIES ////
 
-func (p *Parser) raise_error(message string) sage.Token {
-	error := sage.NewErrorToken(message, p.current.Linenum)
+func (p *Parser) raise_error(message string) t.Token {
+	error := t.NewErrorToken(message, p.current.Linenum)
 	p.errors = append(p.errors, &error)
 	return error
 }
 
-func (p *Parser) match_types(type_a sage.TokenType, type_b sage.TokenType) bool {
+func (p *Parser) match_types(type_a t.TokenType, type_b t.TokenType) bool {
 	return type_a == type_b
 }
 
-func (p *Parser) matches_any(type_a sage.TokenType, possible_types []sage.TokenType) bool {
+func (p *Parser) matches_any(type_a t.TokenType, possible_types []t.TokenType) bool {
 	for _, type_i := range possible_types {
 		if p.match_types(type_a, type_i) {
 			return true
@@ -814,7 +816,7 @@ func (p *Parser) matches_any(type_a sage.TokenType, possible_types []sage.TokenT
 
 // if the current token is token_type then advance otherwise throw an error
 // used to expected certain tokens in the input
-func (p *Parser) consume(token_type sage.TokenType, message string) sage.Token {
+func (p *Parser) consume(token_type t.TokenType, message string) t.Token {
 	if p.current_token_type_is(token_type) {
 		p.advance()
 		return p.current
@@ -828,14 +830,14 @@ func (p *Parser) advance() {
 	p.current = p.lexer.Get_token()
 }
 
-func (p *Parser) peek() sage.Token {
+func (p *Parser) peek() t.Token {
 	retval := p.lexer.Get_token()
 	p.lexer.Unget_token()
 	return retval
 }
 
 // checks the current token against the type parameter
-func (p *Parser) current_token_type_is(token_type sage.TokenType) bool {
+func (p *Parser) current_token_type_is(token_type t.TokenType) bool {
 	if p.is_ending_token() {
 		return false
 	}
@@ -844,7 +846,7 @@ func (p *Parser) current_token_type_is(token_type sage.TokenType) bool {
 }
 
 func (p *Parser) is_ending_token() bool {
-	return p.current.Token_type == sage.TT_EOF
+	return p.current.Token_type == t.TT_EOF
 }
 
 func (p *Parser) op_is_left_associative(op_literal string) bool {

@@ -63,6 +63,7 @@ const (
 	POINTER_BOOL
 
 	STRUCT_TYPE
+	VARARG
 )
 
 func (t SAGE_DATATYPE) String() string {
@@ -106,15 +107,16 @@ type AtomicValue struct {
 }
 
 type Symbol struct {
-	name             string
-	ast_type         AST_TYPE
-	registers        string
-	value            *AtomicValue
-	sage_datatype    SAGE_DATATYPE
-	scope            *SymbolTable
-	parameter_amount int
-	parameter_index  int
-	array_length     int
+	name                string
+	ast_type            AST_TYPE
+	registers           string
+	value               *AtomicValue
+	sage_datatype       SAGE_DATATYPE
+	scope               *SymbolTable
+	parameter_signature string
+	parameter_amount    int
+	parameter_index     int
+	array_length        int
 }
 
 type SymbolTable map[string]*Symbol
@@ -133,7 +135,7 @@ func (t *SymbolTable) AddSymbol(name string, ast AST_TYPE, value *AtomicValue, d
 		return NAME_COLLISION
 	}
 
-	(*t)[name] = &Symbol{name, ast, "", value, datatype, nil, 0, 0, 0}
+	(*t)[name] = &Symbol{name, ast, "", value, datatype, nil, "", 0, 0, 0}
 	return SUCCESS
 }
 
@@ -147,7 +149,7 @@ func (t *SymbolTable) LookupSymbol(name string) (*Symbol, TableOutput) {
 }
 
 func (t *Symbol) NewRegister() string {
-	reg_name := CreateInternalName()
+	reg_name := CreateInternalLocalName()
 	return reg_name
 }
 
