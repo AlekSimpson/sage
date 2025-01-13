@@ -1,1 +1,0 @@
-zig build && mv ./zig-out/bin/sage ./sage && sudo rm -r ./zig-out/
