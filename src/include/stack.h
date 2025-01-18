@@ -1,30 +1,51 @@
 #ifndef STACK
 #define STACK
 
-#include "token.h"
-#include <stdbool.h>
+#include <vector>
 
-typedef union {
-    Token token;
-    int integer;
-    char character;
-} StackElement;
+template<typename T>
+class stack {
+private:
+    vector<T> vec;
 
-typedef struct {
-    StackElement element;
-    bool success;
-} StackResult;
-
-typedef struct {
-    StackElement* elements;
-    int capacity;
-    int count;
-} Stack;
-
-StackResult pop(Stack* stack);
-void push(Stack* stack, StackElement element);
-bool empty(Stack* stack);
-Stack* init_new_stack(int initial_count);
-void deinit_stack(Stack* stack);
+public:
+    // Push element onto stack
+    void push(const T& x) {
+        vec.push_back(x);
+    }
+    
+    // Pop element from stack
+    void pop() {
+        if (!vec.empty()) {
+            vec.pop_back();
+        }
+    }
+    
+    // Get top element
+    T& top() {
+        if (!vec.empty()) {
+            return vec.back();
+        }
+        throw runtime_error("Stack is empty");
+    }
+    
+    // Const version of top
+    const T& top() const {
+        if (!vec.empty()) {
+            return vec.back();
+        }
+        throw runtime_error("Stack is empty");
+    }
+    
+    // Check if stack is empty
+    bool empty() const {
+        return vec.empty();
+    }
+    
+    // Get size of stack
+    size_t size() const {
+        return vec.size();
+    }
+};
 
 #endif

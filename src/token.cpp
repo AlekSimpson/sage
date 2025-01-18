@@ -1,129 +1,198 @@
-#include <stdio.h>
-#include <string.h>
+#include <string>
+#include <cstdlib>
+#include <cstdio>
 #include "include/token.h"
 
-int token_precedence(Token* token) {
-    switch (token->type) {
-        case TT_EQUALITY: return 0;
-        case TT_LT: return 1;
-        case TT_GT: return 1;
-        case TT_GTE: return 2;
-        case TT_LTE: return 2;
-        case TT_ADD: return 3;
-        case TT_SUB: return 3;
-        case TT_MUL: return 4;
-        case TT_DIV: return 4;
-        case TT_EXP: return 5;
-        default: return -1;
-    }
+Token::Token(TokenType type, string lexeme, int linenum) {
+    this->lexeme = lexeme;
+    this->type = type;
+    this->linenum = linenum;
 }
 
-const char* token_name(Token* token) {
-    string str;
-    switch (token->type) {
-        case TT_EQUALITY: 
+Token::Token(string err_message, int linenum) {
+    this->token_type = TT_ERROR; 
+    this->linenum = linenum;
+}
+
+~Token::Token() {
+    delete this;
+}
+
+operator Token::string() {
+    switch (this->token_type) {
+        case TT_EQUALITY:
             return "TT_EQUALITY";
+            break;
         case TT_LT:
             return "TT_LT";
+            break;
         case TT_GT:
             return "TT_GT";
+            break;
         case TT_GTE:
             return "TT_GTE";
+            break;
         case TT_LTE:
             return "TT_LTE";
+            break;
         case TT_ADD:
             return "TT_ADD";
+            break;
         case TT_SUB:
             return "TT_SUB";
+            break;
         case TT_MUL:
             return "TT_MUL";
+            break;
         case TT_DIV:
             return "TT_DIV";
+            break;
         case TT_EXP:
             return "TT_EXP";
+            break;
         case TT_NUM:
             return "TT_NUM";
+            break;
         case TT_IDENT:
             return "TT_IDENT";
+            break;
         case TT_FLOAT:
             return "TT_FLOAT";
+            break;
         case TT_KEYWORD:
             return "TT_KEYWORD";
+            break;
         case TT_NEWLINE:
             return "TT_NEWLINE";
+            break;
         case TT_ASSIGN:
             return "TT_ASSIGN";
+            break;
         case TT_LPAREN:
             return "TT_LPAREN";
+            break;
         case TT_RPAREN:
             return "TT_RPAREN";
+            break;
         case TT_LBRACE:
             return "TT_LBRACE";
+            break;
         case TT_RBRACE:
             return "TT_RBRACE";
+            break;
         case TT_LBRACKET:
             return "TT_LBRACKET";
+            break;
         case TT_RBRACKET:
             return "TT_RBRACKET";
+            break;
         case TT_COMMA:
             return "TT_COMMA";
+            break;
         case TT_FUNC_RETURN_TYPE:
             return "TT_FUNC_RETURN_TYPE";
+            break;
         case TT_INCLUDE:
             return "TT_INCLUDE";
+            break;
         case TT_STRING:
             return "TT_STRING";
+            break;
         case TT_EOF:
             return "TT_EOF";
+            break;
         case TT_SPACE:
             return "TT_SPACE";
+            break;
         case TT_STAR:
             return "TT_STAR";
+            break;
         case TT_ERROR:
             return "TT_ERROR";
+            break;
         case TT_BINDING:
             return "TT_BINDING";
+            break;
         case TT_RANGE:
             return "TT_RANGE";
+            break;
         case TT_COMPILER_CREATED:
             return "TT_COMPILER_CREATED";
+            break;
         case TT_BIT_AND:
             return "TT_BIT_AND";
+            break;
         case TT_BIT_OR:
             return "TT_BIT_OR";
+            break;
         case TT_DECREMENT:
             return "TT_DECREMENT";
+            break;
         case TT_INCREMENT:
             return "TT_INCREMENT";
+            break;
         case TT_AND:
             return "TT_AND";
+            break;
         case TT_OR:
             return "TT_OR";
+            break;
         case TT_FIELD_ACCESSOR:
             return "TT_FIELD_ACCESSOR";
+            break;
         case TT_POUND:
             return "TT_POUND";
+            break;
         case TT_COLON:
             return "TT_COLON";
+            break;
         case TT_VARARG:
             return "TT_VARARG";
+            break;
         default:
-            return "TT_UNRECOGNIZED";
-    }
-} 
-
-// buffer needs to have its size calculcated ahead of time
-void token_show(char* buffer, Token* token) {
-    sprintf(buffer, "Token{%s, %s, %d}", token_name(token), token->filename, token->linenum);
+            return "TT_VARARG";
+            break;
+    };
 }
 
-void token_print(Token* token) {
-    int tok_name_len = strlen(token_name(token));
-    int filename_len = strlen(token->filename);
-    int buf_len = 11 + tok_name_len + filename_len;
-    char buffer[buf_len];
+void Token::print() {
+    printf(this->string());
+}
 
-    token_show(buffer, token);
-
-    printf("%s\n", buffer);
+int Token::get_operator_precedence() {
+    switch (this->token_type) {
+        case TT_EQUALITY:
+            return 0;
+            break;
+        case TT_LT:
+            return 1;
+            break;
+        case TT_GT:
+            return 1;
+            break;
+        case TT_GTE:
+            return 2;
+            break;
+        case TT_LTE:
+            return 2;
+            break;
+        case TT_ADD:
+            return 3;
+            break;
+        case TT_SUB:
+            return 3;
+            break;
+        case TT_MUL:
+            return 4;
+            break;
+        case TT_DIV:
+            return 4;
+            break;
+        case TT_EXP:
+            return 5;
+            break;
+        default:
+            return -1;
+            break;
+    }
 }

@@ -1,7 +1,7 @@
 #ifndef TOKEN
 #define TOKEN
 
-#include "string.h"
+#include <string>
 
 typedef enum {
     TT_EQUALITY,
@@ -50,12 +50,20 @@ typedef enum {
     TT_VARARG,
 } TokenType;
 
-typedef struct {
-    const char* lexeme;
-    const char* filename;
+class Token {
+public:
+    string lexeme;
+    string filename;
     TokenType type;
     int linenum;
     int linedepth;
-} Token;
+
+    Token(TokenType type, string lexeme, int linenum);
+    Token(string err_message, int linenum);
+    ~Token();
+    operator string();
+    void print();
+    int get_operator_precedence();
+}
 
 #endif
