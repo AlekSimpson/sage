@@ -1,42 +1,41 @@
-#include <vector>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
-#include <memory>
 #include <cctype>
 #include <unordered_map>
-#include "include/lexer.h"
-#include "include/token.h"
+#include <fstream>
+#include "../include/lexer.h"
+#include "../include/token.h"
 
-Lexer::Lexer(string filename, stack<char> buffer) {
-    filename = filename;
+using namespace std;
+
+Lexer::Lexer(string fname) {
+    filename = fname;
     linenum = 0;
     linedepth = 0;
-    char_buffer = buffer;
-    tokens = new stack<char>(); // WARNING: needs a delete in the destructor
+    current_token = new Token();
+    char_buffer.open(fname);
+    last_token = Token();
+    peeked_tokens = stack<Token>();
 }
 
-void Lexer::update_last_token() {
-    Token* copy = new Token;
-    *copy = *current_token;
-
-    // we are only keeping track of the last token
-    // so we first pop the old last token
-    tokens.pop();
-    // then opdate it with the new one
-    tokens.push(copy);
+Lexer::~Lexer() {
+    delete current_token;
+    if (char_buffer.is_open()) {
+        char_buffer.close();
+    }
 }
 
 Token* Lexer::check_for_string() {
     string lexeme;
     if (current_char == '"') {
         lexeme += '"';
-        current_char = char_buffer.pop();
+        char_buffer.get(current_char);
         linedepth++;
 
         while (current_char != '"') {
             lexeme += current_char;
-            current_char = char_buffer.pop();
+            char_buffer.get(current_char);
             linedepth++;
         }
 
@@ -51,11 +50,11 @@ Token* Lexer::handle_symbol_case(
     char default_char, TokenType default_type, 
     TokenType target_type, string target_symbol
 ) {
-	Token* ret = followed_by('+', t.TT_INCREMENT, "++");
-	if (ret != nil) {
+	Token* ret = followed_by(default_char, target_type, target_symbol);
+	if (ret != nullptr) {
 		return ret;
 	}
-	return lexer_make_token(t.TT_ADD, "+");
+	return lexer_make_token(default_type, string(1, default_char));
 }
 
 Token* Lexer::lex_for_symbols() {
@@ -65,23 +64,27 @@ Token* Lexer::lex_for_symbols() {
     }
 
     unordered_map<char, TokenType> SYMBOLS = {
-        {'(', t.TT_LPAREN},
-        {')', t.TT_RPAREN},
-        {'*', t.TT_MUL},
-        {'/', t.TT_DIV},
-        {',', t.TT_COMMA},
-        {'[', t.TT_LBRACKET},
-        {']', t.TT_RBRACKET},
-        {'{', t.TT_LBRACE},
-        {'}', t.TT_RBRACE},
-        {'#', t.TT_POUND},
+        {'(', TT_LPAREN},
+        {')', TT_RPAREN},
+        {'*', TT_MUL},
+        {'/', TT_DIV},
+        {',', TT_COMMA},
+        {'[', TT_LBRACKET},
+        {']', TT_RBRACKET},
+        {'{', TT_LBRACE},
+        {'}', TT_RBRACE},
+        {'#', TT_POUND},
     }; 
 
+    char peekahead;
+    char first_peek;
+    Token last_token;
     switch (current_char) {
         case ':':
             return followed_by(':', TT_BINDING, "::");
+
         case '-':
-            char peekahead = char_buffer.pop();
+            char_buffer.get(peekahead);
             if (peekahead == '>') {
                 return lexer_make_token(TT_FUNC_RETURN_TYPE, "->");
             }else if (peekahead == '-') {
@@ -89,19 +92,20 @@ Token* Lexer::lex_for_symbols() {
             }
 
             return lexer_make_token(TT_SUB, "-");
+
         case '.':
-            char first_peek = char_buffer.pop();
+            char_buffer.get(first_peek);
             current_char = first_peek;
 
             // if the '.' is in between an identifier token and unicode chars then its a field accessor
-            Token& last_token = tokens.top();
             if (last_token.token_type == TT_IDENT && (isalpha(current_char) || current_char == '_')) {
-                char_buffer.push(first_peek);
+                char_buffer.putback(first_peek);
                 return lexer_make_token(TT_FIELD_ACCESSOR, ".");
             }
 
             if (first_peek == '.') {
-                char second_peek = char_buffer.pop();
+                char second_peek;
+                char_buffer.get(second_peek);
                 if (second_peek == '.') {
                     TokenType tok_type = TT_RANGE;
                     if (last_token.token_type == TT_IDENT) {
@@ -110,35 +114,158 @@ Token* Lexer::lex_for_symbols() {
 
                     return lexer_make_token(tok_type, "...");
                 }
-
-                return nullptr;
             }
 
             return nullptr;
 
-            j
+        case '=':
+            return handle_symbol_case('=', TT_ASSIGN, TT_EQUALITY, "==");
+
+        case '+':
+            return handle_symbol_case('+', TT_ADD, TT_INCREMENT, "++");
+
+        case '>':
+            return handle_symbol_case('>', TT_GT, TT_GTE, ">=");
+
+        case '<':
+            return handle_symbol_case('<', TT_LT, TT_LTE, "<=");
+
+        case '&':
+            return handle_symbol_case('&', TT_AND, TT_BIT_AND, "&&");
+
+        case '|':
+            return handle_symbol_case('|', TT_OR, TT_BIT_OR, "||");
+
+        default:
+            if (SYMBOLS.find(current_char) == SYMBOLS.end()) {
+                return nullptr;
+            }
+
+            return lexer_make_token(SYMBOLS[current_char], string(1, current_char));
     }
+}
+
+Token* Lexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
+    char_buffer.get(current_char);
+    linedepth++;
+    if (current_char == expected_char) {
+        return lexer_make_token(expected_type, expected_lexeme);
+    }
+
+    return nullptr;
+}
+
+Token* Lexer::lexer_make_token(TokenType type, string lexeme) {
+    current_token->lexeme = lexeme;
+    current_token->token_type = type;
+    current_token->filename = this->filename;
+    current_token->linenum = this->linenum;
+    current_token->linedepth = this->linedepth;
+    return current_token;
+}
+
+Token* Lexer::lex_for_numbers() {
+    if (!isdigit(current_char)) {
+        return nullptr;
+    }
+
+    int dot_count = 0;
+    string lexeme = "";
+    TokenType tok_type;
+    while (isdigit(current_char) || (current_char == '.' && dot_count == 0)) {
+        if (current_char == '.') {
+            tok_type = TT_FLOAT;
+            dot_count++;
+        }
+
+        lexeme += string(1, current_char);
+        char_buffer.get(current_char);
+        linedepth++;
+    }
+
+    // if the number ends in a '.' then this is a number before the range operator and not actually a float number
+    // we know this because the loop above handles floating point notation.
+    if (lexeme.length() != 0 && lexeme[lexeme.length()-1] == '.') {
+        tok_type = TT_NUM;
+        lexeme.pop_back();
+        char_buffer.putback('.');
+    }
+
+    char_buffer.putback(current_char);
+    return lexer_make_token(tok_type, lexeme);
+}
+
+Token* Lexer::lex_for_identifiers() {
+    if (!isalpha(current_char) && current_char != '_') {
+        return nullptr;
+    }
+
+    string lexeme = "";
+
+    unordered_map<string, int> KEYWORDS = {
+        {"int", 0},
+        {"char", 1},
+        {"void", 2},
+        {"i16", 3},
+        {"i32", 4},
+        {"i64", 5},
+        {"f32", 6},
+        {"f64", 7},
+        {"bool", 8},
+        {"include", 9},
+        {"for", 10},
+        {"while", 11},
+        {"in", 12},
+        {"if", 13},
+        {"else", 14},
+        {"break", 15},
+        {"continue", 16},
+        {"fallthrough", 17}, // like the break keyword but for nested loops, if used inside a nested loop it will break out of all loops
+        {"ret", 18},
+        {"struct", 19},
+        {"using", 20},
+        {"execute", 21},
+    };
+
+    while (isalpha(current_char) || isdigit(current_char) || current_char == '_') {
+        lexeme += string(1, current_char);
+        char_buffer.get(current_char);
+        linedepth++;
+    }
+
+    char_buffer.putback(current_char);
+
+    lexer_make_token(TT_IDENT, lexeme);
+    if (KEYWORDS.find(lexeme) == KEYWORDS.end()) {
+        current_token->token_type = TT_KEYWORD;
+    }
+
+    return current_token;
 }
 
 Token* Lexer::get_token() {
     Token* tok;
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
-    if (!(tokens.size() > 1)) {
-        return tokens.pop();
+    if (!peeked_tokens.empty()) {
+        Token tok = peeked_tokens.top();
+        peeked_tokens.pop();
+
+        current_token->fill_with(tok);
+        return current_token;
     }
 
-    if (char_buffer.empty()) {
+    if (char_buffer.eof()) {
         tok = lexer_make_token(TT_EOF, "eof");
-        update_last_token();
+        last_token = *tok;
         return tok;
     }
 
-    current_char = char_buffer.pop();
+    char_buffer.get(current_char);
     linedepth++;
 
     if (current_char == ' ' || current_char == '\t') {
-        current_char = char_buffer.pop();
+        char_buffer.get(current_char);
         linedepth++;
     }
 
@@ -146,33 +273,33 @@ Token* Lexer::get_token() {
         tok = lexer_make_token(TT_NEWLINE, "\n");
         linenum++;
         linedepth = 0;
-        update_last_token();
+        last_token = *tok;
         return tok;
     }
 
     tok = lex_for_symbols();
     if (tok != nullptr) {
-        update_last_token();
+        last_token = *tok;
         return tok;
     }
 
     tok = lex_for_identifiers();
     if (tok != nullptr) {
-        update_last_token();
+        last_token = *tok;
         return tok;
     }
 
     tok = lex_for_numbers();
     if (tok != nullptr) {
-        update_last_token();
+        last_token = *tok;
         return tok;
     }
 
     tok = lexer_make_token(TT_ERROR, "unrecognized symbol");
-    update_last_token();
+    last_token = *tok;
     return tok;
 }
 
-void Lexer::unget_token(Token* tok) {
-    tokens.push(tok)
+void Lexer::unget_token() {
+    peeked_tokens.push(last_token);
 }

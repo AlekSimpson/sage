@@ -2,6 +2,7 @@
 #define TOKEN
 
 #include <string>
+using namespace std;
 
 typedef enum {
     TT_EQUALITY,
@@ -54,16 +55,18 @@ class Token {
 public:
     string lexeme;
     string filename;
-    TokenType type;
+    TokenType token_type;
     int linenum;
     int linedepth;
 
     Token(TokenType type, string lexeme, int linenum);
     Token(string err_message, int linenum);
-    ~Token();
-    operator string();
+    Token();
+    // ~Token();
+    void fill_with(Token copy_token);
+    string to_string();
     void print();
     int get_operator_precedence();
-}
+};
 
 #endif

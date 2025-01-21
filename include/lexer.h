@@ -3,14 +3,16 @@
 
 #include <vector>
 #include <string>
+#include <fstream>
+#include <stack>
 #include "token.h"
-#include "stack.h"
+using namespace std;
 
 class Lexer {
 public:
-  /*Token last_token; // NOTE: Probably could just make this a function that returns the first element in the tokens buffer, but not sure yet*/
-  stack<Token> tokens;
-  stack<char> char_buffer;
+  Token last_token;
+  stack<Token> peeked_tokens;
+  ifstream char_buffer;
   Token* current_token;
 
   string filename;
@@ -18,10 +20,10 @@ public:
   int linedepth;
   char current_char;
 
-  Lexer(string filename, vector<char> buffer);
+  Lexer(string filename);
   ~Lexer();
   Token* get_token();
-  void unget_token(Token* tok);
+  void unget_token();
 
 private:
   Token* lexer_make_token(TokenType type, string lexeme);
@@ -34,6 +36,6 @@ private:
   Token* followed_by(char, TokenType, string);
   Token* lex_for_numbers();
   Token* lex_for_identifiers();
-}
+};
 
 #endif

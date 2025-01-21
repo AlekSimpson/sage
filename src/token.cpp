@@ -1,25 +1,38 @@
 #include <string>
 #include <cstdlib>
 #include <cstdio>
-#include "include/token.h"
+#include "../include/token.h"
 
-Token::Token(TokenType type, string lexeme, int linenum) {
-    this->lexeme = lexeme;
-    this->type = type;
-    this->linenum = linenum;
+Token::Token(TokenType type, std::string lexeme, int linenum) {
+    lexeme = lexeme;
+    type = type;
+    linenum = linenum;
 }
 
-Token::Token(string err_message, int linenum) {
-    this->token_type = TT_ERROR; 
-    this->linenum = linenum;
+Token::Token(std::string err_message, int linenum) {
+    token_type = TT_ERROR; 
+    lexeme = err_message;
+    linenum = linenum;
 }
 
-~Token::Token() {
-    delete this;
+Token::Token() {
+    lexeme = "";
+    filename = "";
+    token_type = TT_EOF;
+    linenum = -1;
+    linedepth = -1;
 }
 
-operator Token::string() {
-    switch (this->token_type) {
+void Token::fill_with(Token copy_token) {
+    lexeme = copy_token.lexeme;
+    filename = copy_token.filename;
+    token_type = copy_token.token_type;
+    linenum = copy_token.linenum;
+    linedepth = copy_token.linedepth;
+}
+
+string Token::to_string() {
+    switch (token_type) {
         case TT_EQUALITY:
             return "TT_EQUALITY";
             break;
@@ -156,11 +169,11 @@ operator Token::string() {
 }
 
 void Token::print() {
-    printf(this->string());
+    printf("Token{%s, %s, %d}", this->to_string().c_str(), lexeme.c_str(), linenum);
 }
 
 int Token::get_operator_precedence() {
-    switch (this->token_type) {
+    switch (token_type) {
         case TT_EQUALITY:
             return 0;
             break;

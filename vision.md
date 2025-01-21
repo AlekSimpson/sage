@@ -79,6 +79,8 @@ compile-time-run-stmt -> #run body
 
 expression -> recursive descent on lang operators
 
+note: binding to a type means creating a constant value note: primary refers to the primary level of expression parsing which i have not written out here because it would just be boiler plate to write`
+
 VISION:
 
 1. *seemless and useful* LLM integration
@@ -88,6 +90,22 @@ VISION:
 5. The build system is built into the compiler
 6. Arbitrary Compile Time Code Execution
 7. Functions as first class citizens
+
+- eventually i want to add macros
+- also want to add function pattern matching definition types like in haskell, 
+	ex: 
+	and 1 1 = 1 
+	and 0 1 = 0 
+	and 1 0 = 0 
+	and 0 0 = 0 
+	and _ _ = 0
+- ternary expressions
+- Automated AST Manipulation / Refactoring
+- the ':=' operator
+- infix array initialization, ex: ages [int:5] = [50, 20, 1, 17, 80]
+- 'fallthrough' keyword
+- keyword 'using' before function parameters means that the scope of that value is injected into the scope of the function, (this probably could also be consisted with library imports)
+
 
 target datalayouts for the most common platforms:
 Linux x86_64:
