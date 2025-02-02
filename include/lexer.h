@@ -21,6 +21,7 @@ public:
   char current_char;
 
   Lexer(string filename);
+  Lexer();
   ~Lexer();
   Token* get_token();
   void unget_token();

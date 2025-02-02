@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <boost/algorithm/string.hpp>
-#include "../include/lexer.h"
+// #include "../include/lexer.h"
+#include "../include/parser.h"
 using namespace std;
 
 int main(int argc, char** argv) {
@@ -26,12 +27,23 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    Lexer lex = Lexer(target_file);
-    Token* tok;
-    for (int i = 0; i < 2; ++i) {
-        tok = lex.get_token();
-    }
+    // Lexer lex = Lexer(target_file);
+    // Token* tok;
+    // for (int i = 0; i < 2; ++i) {
+    //     tok = lex.get_token();
+    // }
 
-    tok->print();
+    // tok->print();
+
+    Parser parser = Parser(target_file);
+    AbstractParseNode* parsetree = parser.parse_program(true);
+
+    parsetree->showtree("");
+
+    // FIX: Returning the parse nodes from the parse functions inside the parser is not a good design. We should come up with some alternative spot to store these generated nodes
+
+    delete parsetree;
+    delete parser.lexer;
+
     return 0;
 }

@@ -71,32 +71,31 @@ string nodetype_to_string(ParseNodeType nodetype) {
 
 // SECTION: BlockParseNode definitions
 BlockParseNode::BlockParseNode() {
-    children = nullptr;
-    children_amount = 0;
+    children = vector<AbstractParseNode*>();
 }
 
-BlockParseNode::BlockParseNode(Token token, ParseNodeType host, ParseNodeType represents) {
+BlockParseNode::BlockParseNode(Token token, ParseNodeType represents) {
     this->token = token;
-    host_nodetype = host;
+    host_nodetype = PN_BLOCK;
     rep_nodetype = represents;
-    children = nullptr;
-    children_amount = 0;
+    children = vector<AbstractParseNode*>();
 }
 
-BlockParseNode::BlockParseNode(Token token, AbstractParseNode** children, int children_amount) {
+BlockParseNode::BlockParseNode(Token token, ParseNodeType represents, vector<AbstractParseNode*> children) {
     this->token = token;
+    host_nodetype = PN_BLOCK;
+    rep_nodetype = represents;
     children = children;
-    children_amount = children_amount;
 }
 
 BlockParseNode::~BlockParseNode() {
-    if (children != nullptr) {
-        for (int i = 0; i < children_amount; ++i) {
-            if (children[i] == nullptr)
+    if (!children.empty()) {
+        for (int i = 0; i < (int)children.size(); ++i) {
+            if (children.at(i) == nullptr)
                 continue;
-            delete children[i];
+            delete children.at(i);
+            children.insert(children.begin() + i, nullptr);
         }
-        delete[] children;
     }
 }
 
@@ -106,9 +105,10 @@ string BlockParseNode::to_string() {
 
 void BlockParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
+    printf("%d\n", (int)children.size());
 
-    for (int i = 0; i < children_amount; ++i) {
-        children[i]->showtree(depth + "\t");
+    for (int i = 0; i < (int)children.size(); ++i) {
+        children.at(i)->showtree(depth + "\t");
     }
 }
 
@@ -121,11 +121,19 @@ TokenType BlockParseNode::get_token_type() {
 }
 
 AbstractParseNode* BlockParseNode::get_child_node() {
-    if (children_amount == 0) {
+    if (children.size() == 0) {
         return nullptr;
     }
 
     return children[0];
+}
+
+ParseNodeType BlockParseNode::get_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType BlockParseNode::get_host_nodetype() {
+    return host_nodetype;
 }
 
 // SECTION: BinaryParseNode definitions
@@ -181,6 +189,14 @@ TokenType BinaryParseNode::get_token_type() {
 
 AbstractParseNode* BinaryParseNode::get_child_node() {
     return left;
+}
+
+ParseNodeType BinaryParseNode::get_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType BinaryParseNode::get_host_nodetype() {
+    return host_nodetype;
 }
 
 // SECTION: TrinaryParseNode definitions
@@ -248,6 +264,14 @@ AbstractParseNode* TrinaryParseNode::get_child_node() {
     return left;
 }
 
+ParseNodeType TrinaryParseNode::get_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType TrinaryParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
+
 // SECTION: UnaryParseNode definitions
 
 UnaryParseNode::UnaryParseNode() {
@@ -268,12 +292,18 @@ UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents, AbstractPa
     this->branch = branch;
 }
 
+UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents, vector<string> lexemes) {
+    this->token = token;
+    host_nodetype = PN_UNARY;
+    rep_nodetype = represents;
+    this->lexemes = lexemes;
+}
+
 UnaryParseNode::~UnaryParseNode() {
     if (branch != nullptr) {
         delete branch;
     }
 }
-
 
 string UnaryParseNode::get_full_lexeme() {
     if (lexemes.size() == 0) {
@@ -282,7 +312,7 @@ string UnaryParseNode::get_full_lexeme() {
 
     string full_lex;
 
-    for (int i = 0; i < lexemes.size(); ++i) {
+    for (int i = 0; i < (int)lexemes.size(); ++i) {
         full_lex += lexemes[i];
         full_lex += ".";
     }
@@ -326,5 +356,14 @@ TokenType UnaryParseNode::get_token_type() {
 AbstractParseNode* UnaryParseNode::get_child_node() {
     return branch;
 }
+
+ParseNodeType UnaryParseNode::get_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType UnaryParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
+
 
 
