@@ -22,18 +22,20 @@ Parser::Parser(string filename) {
 }
 
 AbstractParseNode* Parser::parse_program(bool debug_lexer) {
+    current_token = lexer->get_token();
+
     if (debug_lexer) {
         Token* walk_token = current_token;
         int counter = 0;
-        while (walk_token->token_type != TT_EOF) {
-            current_token = lexer->get_token();
+        while (walk_token != nullptr && walk_token->token_type != TT_EOF) {
             printf("[%d] %s\n", counter, walk_token->to_string().c_str());
+            current_token = lexer->get_token();
+            counter++;
         }
 
         return nullptr;
     }
 
-    current_token = lexer->get_token();
     BlockParseNode* root = parse_libraries();
     BlockParseNode* program_root = parse_statements();
 
@@ -82,12 +84,15 @@ BlockParseNode* Parser::parse_libraries() {
         while (match_types(current_token->token_type, TT_NEWLINE)) {
             advance();
         }
-
         if (!match_types(current_token->token_type, TT_KEYWORD)) {
             break;
         }
 
         auto next_include = library_statement();
+        if (next_include == nullptr) {
+            break; // don't want to add nullptr to children list if an error is found
+        }
+
         list_node->children.push_back(next_include);
     }
 
@@ -105,7 +110,12 @@ BlockParseNode* Parser::parse_statements() {
         if (match_types(current_token->token_type, TT_EOF)) {
             break;
         }
+
         auto next_statement = parse_statement();
+        if (next_statement) {
+            break; // don't want to add nullptr to children list if an error is found
+        }
+
         list_node->children.push_back(next_statement);
     }
 

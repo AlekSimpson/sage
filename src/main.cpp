@@ -37,10 +37,11 @@ int main(int argc, char** argv) {
 
     Parser parser = Parser(target_file);
     AbstractParseNode* parsetree = parser.parse_program(true);
+    if (parsetree == nullptr) {
+        return 1;
+    }
 
     parsetree->showtree("");
-
-    // FIX: Returning the parse nodes from the parse functions inside the parser is not a good design. We should come up with some alternative spot to store these generated nodes
 
     delete parsetree;
     delete parser.lexer;

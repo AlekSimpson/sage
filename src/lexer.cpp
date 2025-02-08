@@ -78,7 +78,6 @@ Token* Lexer::lex_for_symbols() {
 
     char peekahead;
     char first_peek;
-    Token last_token;
     switch (current_char) {
         case ':':
             return followed_by(':', TT_BINDING, "::");
@@ -98,7 +97,8 @@ Token* Lexer::lex_for_symbols() {
             current_char = first_peek;
 
             // if the '.' is in between an identifier token and unicode chars then its a field accessor
-            if (last_token.token_type == TT_IDENT && (isalpha(current_char) || current_char == '_')) {
+            // NOTE: isalpha(current_char) returns non zero value if the character is a letter
+            if (last_token.token_type == TT_IDENT && (isalpha(current_char) != 0 || current_char == '_')) {
                 char_buffer.putback(first_peek);
                 return lexer_make_token(TT_FIELD_ACCESSOR, ".");
             }
@@ -171,7 +171,7 @@ Token* Lexer::lex_for_numbers() {
 
     int dot_count = 0;
     string lexeme = "";
-    TokenType tok_type;
+    TokenType tok_type = TT_NUM;
     while (isdigit(current_char) || (current_char == '.' && dot_count == 0)) {
         if (current_char == '.') {
             tok_type = TT_FLOAT;
@@ -236,7 +236,7 @@ Token* Lexer::lex_for_identifiers() {
     char_buffer.putback(current_char);
 
     lexer_make_token(TT_IDENT, lexeme);
-    if (KEYWORDS.find(lexeme) == KEYWORDS.end()) {
+    if (KEYWORDS.find(lexeme) != KEYWORDS.end()) {
         current_token->token_type = TT_KEYWORD;
     }
 
@@ -264,7 +264,7 @@ Token* Lexer::get_token() {
     char_buffer.get(current_char);
     linedepth++;
 
-    if (current_char == ' ' || current_char == '\t') {
+    while (current_char == ' ' || current_char == '\t') {
         char_buffer.get(current_char);
         linedepth++;
     }
