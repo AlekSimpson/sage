@@ -14,6 +14,7 @@ public:
   Token* current_token;
   AbstractParseNode* node_cache;
   vector<Token> errors;
+  string filename;
 
   Parser(string filename);
 
@@ -46,10 +47,10 @@ private:
   UnaryParseNode* parse_struct_field_access();
 
   // util methods
-  Token raise_error(string message);
+  void raise_error(string message);
   bool match_types(TokenType type_a, TokenType type_b);
   bool matches_any(TokenType type_a, TokenType* possible_types, int type_amount);
-  Token consume(TokenType expected_type, string message);
+  void consume(TokenType expected_type, string message);
   void advance();
   Token peek();
   bool current_token_type_is(TokenType token_type);

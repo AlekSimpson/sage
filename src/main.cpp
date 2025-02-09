@@ -27,17 +27,10 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    // Lexer lex = Lexer(target_file);
-    // Token* tok;
-    // for (int i = 0; i < 2; ++i) {
-    //     tok = lex.get_token();
-    // }
-
-    // tok->print();
-
     Parser parser = Parser(target_file);
-    AbstractParseNode* parsetree = parser.parse_program(true);
+    AbstractParseNode* parsetree = parser.parse_program(false);
     if (parsetree == nullptr) {
+        printf("parsetree root is null. parsing failed.\n");
         return 1;
     }
 

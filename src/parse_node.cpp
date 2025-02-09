@@ -90,12 +90,12 @@ BlockParseNode::BlockParseNode(Token token, ParseNodeType represents, vector<Abs
 
 BlockParseNode::~BlockParseNode() {
     if (!children.empty()) {
-        for (int i = 0; i < (int)children.size(); ++i) {
-            if (children.at(i) == nullptr)
+        for (auto child : children) {
+            if (child == nullptr)
                 continue;
-            delete children.at(i);
-            children.insert(children.begin() + i, nullptr);
+            delete child;
         }
+        children.clear(); // clear to get rid of dangling pointers
     }
 }
 
@@ -105,7 +105,6 @@ string BlockParseNode::to_string() {
 
 void BlockParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
-    printf("%d\n", (int)children.size());
 
     for (int i = 0; i < (int)children.size(); ++i) {
         children.at(i)->showtree(depth + "\t");
@@ -297,6 +296,7 @@ UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents, vector<str
     host_nodetype = PN_UNARY;
     rep_nodetype = represents;
     this->lexemes = lexemes;
+    branch = nullptr;
 }
 
 UnaryParseNode::~UnaryParseNode() {

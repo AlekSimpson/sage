@@ -16,6 +16,7 @@ bool is_operator(TokenType tokentype);
 Parser::Parser(string filename) {
     lexer = new Lexer(filename);
 
+    this->filename = filename;
     current_token = nullptr;
     node_cache = nullptr;
     errors = vector<Token>();
@@ -44,10 +45,11 @@ AbstractParseNode* Parser::parse_program(bool debug_lexer) {
 
     // clear program_root's children to avoid unused duplicate pointers
     program_root->children.clear();
+    delete program_root;
     
     if (errors.size() != 0) {
         for (Token err : errors) {
-            printf("%s\n", err.to_string().c_str());
+            printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
         }
         for (auto child : root->children) {
             delete child;
@@ -103,7 +105,6 @@ BlockParseNode* Parser::parse_statements() {
     BlockParseNode* list_node = new BlockParseNode();
 
     while (errors.empty()) {
-        printf("iterating\n");
         while (match_types(current_token->token_type, TT_NEWLINE)) {
             advance();
         }
@@ -112,7 +113,7 @@ BlockParseNode* Parser::parse_statements() {
         }
 
         auto next_statement = parse_statement();
-        if (next_statement) {
+        if (next_statement == nullptr) {
             break; // don't want to add nullptr to children list if an error is found
         }
 
@@ -130,6 +131,7 @@ AbstractParseNode* Parser::parse_statement() {
     switch (current_token->token_type) {
         case TT_IDENT:
             next_token = peek();
+
             if (match_types(next_token.token_type, TT_BINDING)) {
                 return parse_construct();
             }else if (matches_any(next_token.token_type, value_dec_slice, 3)) {
@@ -164,8 +166,8 @@ AbstractParseNode* Parser::parse_statement() {
 AbstractParseNode* Parser::parse_run_directive() {
     consume(TT_POUND, "Expected 'run' directive to begin with '#' symbol");
 
-    if (current_token->token_type != TT_IDENT || current_token->lexeme == "run") {
-        raise_error("Expected 'run' keyword in compile time execution statement.\n");
+    if (current_token->token_type != TT_IDENT || current_token->lexeme != "run") {
+        raise_error("Expected 'run' keyword in run directive statement.\n");
         return nullptr;
     }
     advance();
@@ -273,11 +275,14 @@ AbstractParseNode* Parser::parse_assign() {
     Token lookahead = peek();
     bool is_field_access = match_types(lookahead.token_type, TT_FIELD_ACCESSOR);
     if (is_field_access) {
-        auto name_node = parse_struct_field_access();
+        delete name_node;
+        name_node = nullptr;
+
+        name_node = parse_struct_field_access();
         name_token.lexeme = name_node->get_full_lexeme();
     }else {
-		// parse_struct_field_access leaves the current token cursor on the next token already
-		// so if it is a field access then calling this p.advance() would be unnecessary
+	// parse_struct_field_access leaves the current token cursor on the next token already
+	// so if it is a field access then calling this p.advance() would be unnecessary
         advance(); // advance past the current identifier
     }
 
@@ -431,7 +436,7 @@ AbstractParseNode* Parser::parse_range() {
 
 AbstractParseNode* Parser::parse_construct() {
     if (!match_types(current_token->token_type, TT_IDENT)) {
-        raise_error("Expected identifier name at the beginning of struct statement.\n");
+        raise_error("Expected identifier name at the beginning of construct statement.\n");
         return nullptr;
     }
 
@@ -439,6 +444,7 @@ AbstractParseNode* Parser::parse_construct() {
     name_identifier_token.fill_with(*current_token);
     auto name_identifier_node = new UnaryParseNode(name_identifier_token, PN_IDENTIFIER);
     advance(); // move identifier
+    advance(); // move past the '::' symbol (we know its here because we peeked for it in parse_staetment()
     
     AbstractParseNode* binding_node;
     ParseNodeType nodetype;
@@ -532,10 +538,11 @@ AbstractParseNode* Parser::parse_function_call() {
     
     consume(TT_LPAREN, "Expected function call to include opening '(' bracket\n");
 
-    vector<AbstractParseNode*> params = vector<AbstractParseNode*>();
+    Token params_token = Token(TT_COMPILER_CREATED, "", -1);
+    auto params_node = new BlockParseNode(params_token, PN_BLOCK);
     while (true) {
         auto param = parse_primary();
-        params.push_back(param);
+        params_node->children.push_back(param);
 
         if (!match_types(current_token->token_type, TT_COMMA)) {
             break;
@@ -545,9 +552,6 @@ AbstractParseNode* Parser::parse_function_call() {
     }
 
     consume(TT_RPAREN, "Expected function call to include closing ')' bracket.\n");
-
-    Token params_token = Token(TT_COMPILER_CREATED, "", -1);
-    auto params_node = new BlockParseNode(params_token, PN_BLOCK, params);
 
     return new UnaryParseNode(function_name_token, PN_FUNCCALL, params_node);
 }
@@ -568,6 +572,10 @@ AbstractParseNode* Parser::parse_body() {
         }
 
         auto next_statement = parse_statement();
+        if (next_statement == nullptr) {
+            break;
+        }
+
         body_node->children.push_back(next_statement);
     }
 
@@ -659,8 +667,8 @@ AbstractParseNode* Parser::parse_type() {
 
 AbstractParseNode* Parser::parse_expression() {
     // if the node cache isn't empty then that means we were previously parsing,
-	//	  an identifier that looked like another statement but actually was an expression,
-	//	  so instead of parsing for a primary we simply use the primary that was already found first.
+    //	  an identifier that looked like another statement but actually was an expression,
+    //	  so instead of parsing for a primary we simply use the primary that was already found first.
     if (node_cache != nullptr) {
         auto first_primary = node_cache;
         node_cache = nullptr;
@@ -737,6 +745,7 @@ AbstractParseNode* Parser::parse_primary() {
             return ret;
         
         default:
+            printf("current tok : %s\n", current_token->lexeme.c_str());
             raise_error("Unrecognized statement; could not find valid primary.\n");
             return nullptr;
     }
@@ -774,10 +783,10 @@ int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) {
 }
 
 // parser utility methods
-Token Parser::raise_error(string message) {
+void Parser::raise_error(string message) {
     Token error_token = Token(message, current_token->linenum);
+    error_token.filename = filename;
     errors.push_back(error_token);
-    return error_token;
 }
 
 bool Parser::match_types(TokenType type_a, TokenType type_b) {
@@ -796,14 +805,13 @@ bool Parser::matches_any(TokenType type_a, TokenType* possible_types, int type_a
 
 // if the current token is token_type then advance otherwise throw an error
 // used to expected certain tokens in the input
-Token Parser::consume(TokenType tokentype, string message) {
+void Parser::consume(TokenType tokentype, string message) {
     if (current_token_type_is(tokentype)) {
         advance();
-        return *current_token;
+        return;
     }
 
-    Token error = Token(message, current_token->linenum);
-    return error;
+    raise_error(message);
 }
 
 void Parser::advance() {
@@ -811,9 +819,20 @@ void Parser::advance() {
 }
 
 Token Parser::peek() {
+    // need to save the current token so that it doesn't get lost when its replaced by lexer->get_token()
+    Token current_stash = Token();
+    current_stash.fill_with(*current_token);
+
     auto retval = lexer->get_token();
+
+    Token peeked_token = Token();
+    peeked_token.fill_with(*retval);
+
+    // once done peeking the next token we can reinstate the current token
+    current_token->fill_with(current_stash);
+
     lexer->unget_token();
-    return *retval;
+    return peeked_token;
 }
 
 bool Parser::current_token_type_is(TokenType tokentype) {
