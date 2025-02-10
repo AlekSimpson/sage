@@ -41,3 +41,16 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
+// #include <boost/uuid/uuid.hpp>
+// #include <boost/uuid/uuid_generators.hpp>
+// #include <boost/uuid/uuid_io.hpp>
+
+// Create a random UUID generator
+// boost::uuids::random_generator generator;
+
+// Generate a UUID
+// boost::uuids::uuid uuid = generator();
+
+
+
