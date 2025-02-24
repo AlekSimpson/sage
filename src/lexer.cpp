@@ -9,7 +9,7 @@
 
 using namespace std;
 
-Lexer::Lexer(string fname) {
+SageLexer::SageLexer(string fname) {
     filename = fname;
     linenum = 0;
     linedepth = 0;
@@ -19,14 +19,14 @@ Lexer::Lexer(string fname) {
     peeked_tokens = stack<Token>();
 }
 
-Lexer::~Lexer() {
+SageLexer::~SageLexer() {
     delete current_token;
     if (char_buffer.is_open()) {
         char_buffer.close();
     }
 }
 
-Token* Lexer::check_for_string() {
+Token* SageLexer::check_for_string() {
     string lexeme;
     if (current_char == '"') {
         lexeme += '"';
@@ -46,7 +46,7 @@ Token* Lexer::check_for_string() {
     return nullptr;
 }
 
-Token* Lexer::handle_symbol_case(
+Token* SageLexer::handle_symbol_case(
     char default_char, TokenType default_type, 
     TokenType target_type, string target_symbol
 ) {
@@ -57,7 +57,7 @@ Token* Lexer::handle_symbol_case(
 	return lexer_make_token(default_type, string(1, default_char));
 }
 
-Token* Lexer::lex_for_symbols() {
+Token* SageLexer::lex_for_symbols() {
     Token* return_val = check_for_string();
     if (return_val != nullptr) {
         return return_val;
@@ -145,7 +145,7 @@ Token* Lexer::lex_for_symbols() {
     }
 }
 
-Token* Lexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
+Token* SageLexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
     char_buffer.get(current_char);
     linedepth++;
     if (current_char == expected_char) {
@@ -155,7 +155,7 @@ Token* Lexer::followed_by(char expected_char, TokenType expected_type, string ex
     return nullptr;
 }
 
-Token* Lexer::lexer_make_token(TokenType type, string lexeme) {
+Token* SageLexer::lexer_make_token(TokenType type, string lexeme) {
     current_token->lexeme = lexeme;
     current_token->token_type = type;
     current_token->filename = this->filename;
@@ -164,7 +164,7 @@ Token* Lexer::lexer_make_token(TokenType type, string lexeme) {
     return current_token;
 }
 
-Token* Lexer::lex_for_numbers() {
+Token* SageLexer::lex_for_numbers() {
     if (!isdigit(current_char)) {
         return nullptr;
     }
@@ -195,7 +195,7 @@ Token* Lexer::lex_for_numbers() {
     return lexer_make_token(tok_type, lexeme);
 }
 
-Token* Lexer::lex_for_identifiers() {
+Token* SageLexer::lex_for_identifiers() {
     if (!isalpha(current_char) && current_char != '_') {
         return nullptr;
     }
@@ -243,7 +243,7 @@ Token* Lexer::lex_for_identifiers() {
     return current_token;
 }
 
-Token* Lexer::get_token() {
+Token* SageLexer::get_token() {
     Token* tok;
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
@@ -300,6 +300,6 @@ Token* Lexer::get_token() {
     return tok;
 }
 
-void Lexer::unget_token() {
+void SageLexer::unget_token() {
     peeked_tokens.push(last_token);
 }

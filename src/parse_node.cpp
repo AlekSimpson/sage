@@ -1,5 +1,6 @@
 #include <string>
 #include "../include/parse_node.h"
+
 using namespace std;
 
 string nodetype_to_string(ParseNodeType nodetype) {

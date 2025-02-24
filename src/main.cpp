@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <cstdlib>
+#include <string>
 #include <boost/algorithm/string.hpp>
-// #include "../include/lexer.h"
+
+#include "../include/codegen.h"
+#include "../include/parse_node.h"
 #include "../include/parser.h"
-using namespace std;
 
 int main(int argc, char** argv) {
     if (argc <= 1) {
@@ -14,7 +16,7 @@ int main(int argc, char** argv) {
     string target_file = string(argv[1]);
 
     // validate that file is valid
-    if (target_file.find('.') == std::string::npos) {
+    if (target_file.find('.') == string::npos) {
         printf("cannot target files that have no file extension.\n");
         exit(1);
     }
@@ -27,7 +29,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    Parser parser = Parser(target_file);
+    SageParser parser = SageParser(target_file);
     AbstractParseNode* parsetree = parser.parse_program(false);
     if (parsetree == nullptr) {
         printf("parsetree root is null. parsing failed.\n");
@@ -35,6 +37,7 @@ int main(int argc, char** argv) {
     }
 
     parsetree->showtree("");
+
 
     delete parsetree;
     delete parser.lexer;

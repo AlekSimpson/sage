@@ -1,5 +1,4 @@
-#ifndef PARSER
-#define PARSER
+#pragma once
 
 #include "lexer.h"
 #include "parse_node.h"
@@ -8,15 +7,15 @@
 #include <vector>
 #include <string>
 
-class Parser {
+class SageParser {
 public:
-  Lexer* lexer;
+  SageLexer* lexer;
   Token* current_token;
   AbstractParseNode* node_cache;
   vector<Token> errors;
   string filename;
 
-  Parser(string filename);
+  SageParser(string filename);
 
   AbstractParseNode* parse_program(bool debug_lexer);
 
@@ -58,5 +57,3 @@ private:
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef PARSE_NODE
-#define PARSE_NODE
+#pragma once
 
 #include <string>
 #include <vector>
@@ -142,5 +141,3 @@ public:
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef TOKEN
-#define TOKEN
+#pragma once
 
 #include <string>
 using namespace std;
@@ -67,5 +66,3 @@ public:
     void print();
     int get_operator_precedence();
 };
-
-#endif

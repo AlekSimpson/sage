@@ -1,12 +1,12 @@
 CXX      := g++
-# CXXFLAGS := -pedantic-errors -Wall -Wextra -Werror
-CXXFLAGS := -pedantic-errors -Wall -Wextra -g
-LDFLAGS  := -L/usr/lib -L/usr/local/lib -lstdc++ -lm -lboost_system
+# CXXFLAGS := -pedantic-errors -Wall -Wextra -g
+CXXFLAGS := -g
+LDFLAGS  := -L/usr/lib -L/usr/local/lib -L/usr/lib/llvm-14/lib $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-14 -ltinfo
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin
 TARGET   := sage
-INCLUDE  := -Iinclude/ -I/usr/local/include
+INCLUDE  := -Iinclude/ -I/usr/lib/llvm-14/include
 SRC      :=                      \
    $(wildcard src/*.cpp)         \
 
