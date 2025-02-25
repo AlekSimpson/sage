@@ -9,7 +9,7 @@
 
 using namespace std;
 
-Lexer::Lexer(string fname) {
+SageLexer::SageLexer(string fname) {
     filename = fname;
     linenum = 0;
     linedepth = 0;
@@ -19,14 +19,14 @@ Lexer::Lexer(string fname) {
     peeked_tokens = stack<Token>();
 }
 
-Lexer::~Lexer() {
+SageLexer::~SageLexer() {
     delete current_token;
     if (char_buffer.is_open()) {
         char_buffer.close();
     }
 }
 
-Token* Lexer::check_for_string() {
+Token* SageLexer::check_for_string() {
     string lexeme;
     if (current_char == '"') {
         lexeme += '"';
@@ -46,7 +46,7 @@ Token* Lexer::check_for_string() {
     return nullptr;
 }
 
-Token* Lexer::handle_symbol_case(
+Token* SageLexer::handle_symbol_case(
     char default_char, TokenType default_type, 
     TokenType target_type, string target_symbol
 ) {
@@ -57,7 +57,7 @@ Token* Lexer::handle_symbol_case(
 	return lexer_make_token(default_type, string(1, default_char));
 }
 
-Token* Lexer::lex_for_symbols() {
+Token* SageLexer::lex_for_symbols() {
     Token* return_val = check_for_string();
     if (return_val != nullptr) {
         return return_val;
@@ -78,7 +78,6 @@ Token* Lexer::lex_for_symbols() {
 
     char peekahead;
     char first_peek;
-    Token last_token;
     switch (current_char) {
         case ':':
             return followed_by(':', TT_BINDING, "::");
@@ -98,7 +97,8 @@ Token* Lexer::lex_for_symbols() {
             current_char = first_peek;
 
             // if the '.' is in between an identifier token and unicode chars then its a field accessor
-            if (last_token.token_type == TT_IDENT && (isalpha(current_char) || current_char == '_')) {
+            // NOTE: isalpha(current_char) returns non zero value if the character is a letter
+            if (last_token.token_type == TT_IDENT && (isalpha(current_char) != 0 || current_char == '_')) {
                 char_buffer.putback(first_peek);
                 return lexer_make_token(TT_FIELD_ACCESSOR, ".");
             }
@@ -145,7 +145,7 @@ Token* Lexer::lex_for_symbols() {
     }
 }
 
-Token* Lexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
+Token* SageLexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
     char_buffer.get(current_char);
     linedepth++;
     if (current_char == expected_char) {
@@ -155,7 +155,7 @@ Token* Lexer::followed_by(char expected_char, TokenType expected_type, string ex
     return nullptr;
 }
 
-Token* Lexer::lexer_make_token(TokenType type, string lexeme) {
+Token* SageLexer::lexer_make_token(TokenType type, string lexeme) {
     current_token->lexeme = lexeme;
     current_token->token_type = type;
     current_token->filename = this->filename;
@@ -164,14 +164,14 @@ Token* Lexer::lexer_make_token(TokenType type, string lexeme) {
     return current_token;
 }
 
-Token* Lexer::lex_for_numbers() {
+Token* SageLexer::lex_for_numbers() {
     if (!isdigit(current_char)) {
         return nullptr;
     }
 
     int dot_count = 0;
     string lexeme = "";
-    TokenType tok_type;
+    TokenType tok_type = TT_NUM;
     while (isdigit(current_char) || (current_char == '.' && dot_count == 0)) {
         if (current_char == '.') {
             tok_type = TT_FLOAT;
@@ -195,7 +195,7 @@ Token* Lexer::lex_for_numbers() {
     return lexer_make_token(tok_type, lexeme);
 }
 
-Token* Lexer::lex_for_identifiers() {
+Token* SageLexer::lex_for_identifiers() {
     if (!isalpha(current_char) && current_char != '_') {
         return nullptr;
     }
@@ -236,14 +236,14 @@ Token* Lexer::lex_for_identifiers() {
     char_buffer.putback(current_char);
 
     lexer_make_token(TT_IDENT, lexeme);
-    if (KEYWORDS.find(lexeme) == KEYWORDS.end()) {
+    if (KEYWORDS.find(lexeme) != KEYWORDS.end()) {
         current_token->token_type = TT_KEYWORD;
     }
 
     return current_token;
 }
 
-Token* Lexer::get_token() {
+Token* SageLexer::get_token() {
     Token* tok;
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
@@ -264,7 +264,7 @@ Token* Lexer::get_token() {
     char_buffer.get(current_char);
     linedepth++;
 
-    if (current_char == ' ' || current_char == '\t') {
+    while (current_char == ' ' || current_char == '\t') {
         char_buffer.get(current_char);
         linedepth++;
     }
@@ -300,6 +300,6 @@ Token* Lexer::get_token() {
     return tok;
 }
 
-void Lexer::unget_token() {
+void SageLexer::unget_token() {
     peeked_tokens.push(last_token);
 }

@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <cstdlib>
+#include <string>
 #include <boost/algorithm/string.hpp>
-#include "../include/lexer.h"
-using namespace std;
+
+#include "../include/codegen.h"
+#include "../include/parse_node.h"
+#include "../include/parser.h"
 
 int main(int argc, char** argv) {
     if (argc <= 1) {
@@ -13,7 +16,7 @@ int main(int argc, char** argv) {
     string target_file = string(argv[1]);
 
     // validate that file is valid
-    if (target_file.find('.') == std::string::npos) {
+    if (target_file.find('.') == string::npos) {
         printf("cannot target files that have no file extension.\n");
         exit(1);
     }
@@ -26,12 +29,31 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    Lexer lex = Lexer(target_file);
-    Token* tok;
-    for (int i = 0; i < 2; ++i) {
-        tok = lex.get_token();
+    SageParser parser = SageParser(target_file);
+    AbstractParseNode* parsetree = parser.parse_program(false);
+    if (parsetree == nullptr) {
+        printf("parsetree root is null. parsing failed.\n");
+        return 1;
     }
 
-    tok->print();
+    parsetree->showtree("");
+
+
+    delete parsetree;
+    delete parser.lexer;
+
     return 0;
 }
+
+// #include <boost/uuid/uuid.hpp>
+// #include <boost/uuid/uuid_generators.hpp>
+// #include <boost/uuid/uuid_io.hpp>
+
+// Create a random UUID generator
+// boost::uuids::random_generator generator;
+
+// Generate a UUID
+// boost::uuids::uuid uuid = generator();
+
+
+

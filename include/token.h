@@ -1,5 +1,4 @@
-#ifndef TOKEN
-#define TOKEN
+#pragma once
 
 #include <string>
 using namespace std;
@@ -15,7 +14,6 @@ typedef enum {
     TT_MUL,
     TT_DIV,
     TT_EXP,
-    
     TT_NUM,
     TT_IDENT,
     TT_FLOAT,
@@ -68,5 +66,3 @@ public:
     void print();
     int get_operator_precedence();
 };
-
-#endif

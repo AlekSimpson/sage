@@ -8,8 +8,9 @@ ifeq ($(UNAME_S), Darwin)  # macOS
     LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-19
     INCLUDE  := -Iinclude/ -I/opt/homebrew/include
 else  # Assume Linux
+    LLVM_PATH := /usr/lib/llvm-14/lib
     CXX      := g++
-    LDFLAGS  := -L/usr/lib -L/usr/local/lib -lstdc++ -lm -lboost_system
+    LDFLAGS  := -L/usr/lib -L/usr/local/lib -L$(LLVM_PATH) $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-14 -ltinfo
     INCLUDE  := -Iinclude/ -I/usr/local/include
 endif
 
@@ -20,6 +21,8 @@ OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin
 TARGET   := sage
 SRC      := $(wildcard src/*.cpp)
+SRC      :=                      \
+   $(wildcard src/*.cpp)         \
 OBJECTS  := $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 DEPENDENCIES := $(OBJECTS:.o=.d)
 

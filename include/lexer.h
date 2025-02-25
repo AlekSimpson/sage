@@ -1,5 +1,4 @@
-#ifndef LEXER
-#define LEXER
+#pragma once
 
 #include <vector>
 #include <string>
@@ -8,7 +7,7 @@
 #include "token.h"
 using namespace std;
 
-class Lexer {
+class SageLexer {
 public:
   Token last_token;
   stack<Token> peeked_tokens;
@@ -20,8 +19,9 @@ public:
   int linedepth;
   char current_char;
 
-  Lexer(string filename);
-  ~Lexer();
+  SageLexer(string filename);
+  SageLexer();
+  ~SageLexer();
   Token* get_token();
   void unget_token();
 
@@ -37,5 +37,3 @@ private:
   Token* lex_for_numbers();
   Token* lex_for_identifiers();
 };
-
-#endif

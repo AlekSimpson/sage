@@ -1,5 +1,4 @@
-#ifndef PARSE_NODE
-#define PARSE_NODE
+#pragma once
 
 #include <string>
 #include <vector>
@@ -49,6 +48,8 @@ public:
   virtual Token get_token() = 0;
   virtual TokenType get_token_type() = 0;
   virtual AbstractParseNode* get_child_node() = 0;
+  virtual ParseNodeType get_nodetype() = 0;
+  virtual ParseNodeType get_host_nodetype() = 0;
 };
 
 class BlockParseNode : public AbstractParseNode {
@@ -57,12 +58,11 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
 
-  AbstractParseNode** children;
-  int children_amount;
+  vector<AbstractParseNode*> children;
 
   BlockParseNode();
-  BlockParseNode(Token token, ParseNodeType host, ParseNodeType represents);
-  BlockParseNode(Token token, AbstractParseNode** children, int children_amount);
+  BlockParseNode(Token token, ParseNodeType represents);
+  BlockParseNode(Token token, ParseNodeType represents, vector<AbstractParseNode*> children);
   ~BlockParseNode();
 
   string to_string() override;
@@ -70,6 +70,8 @@ public:
   Token get_token() override;
   TokenType get_token_type() override;
   AbstractParseNode* get_child_node() override;
+  ParseNodeType get_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -89,6 +91,8 @@ public:
   Token get_token() override;
   TokenType get_token_type() override;
   AbstractParseNode* get_child_node() override;
+  ParseNodeType get_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -109,6 +113,8 @@ public:
   Token get_token() override;
   TokenType get_token_type() override;
   AbstractParseNode* get_child_node() override;
+  ParseNodeType get_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -123,6 +129,7 @@ public:
   UnaryParseNode();
   UnaryParseNode(Token token, ParseNodeType represents);
   UnaryParseNode(Token token, ParseNodeType represents, AbstractParseNode* branch);
+  UnaryParseNode(Token token, ParseNodeType represents, vector<string> lexemes);
   ~UnaryParseNode();
 
   string get_full_lexeme();
@@ -131,6 +138,6 @@ public:
   Token get_token() override;
   TokenType get_token_type() override;
   AbstractParseNode* get_child_node() override;
+  ParseNodeType get_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
-
-#endif

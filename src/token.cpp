@@ -4,31 +4,31 @@
 #include "../include/token.h"
 
 Token::Token(TokenType type, std::string lexeme, int linenum) {
-    lexeme = lexeme;
-    type = type;
-    linenum = linenum;
+    this->lexeme = lexeme;
+    this->token_type = type;
+    this->linenum = linenum;
 }
 
 Token::Token(std::string err_message, int linenum) {
-    token_type = TT_ERROR; 
-    lexeme = err_message;
-    linenum = linenum;
+    this->token_type = TT_ERROR; 
+    this->lexeme = err_message;
+    this->linenum = linenum;
 }
 
 Token::Token() {
-    lexeme = "";
-    filename = "";
-    token_type = TT_EOF;
-    linenum = -1;
-    linedepth = -1;
+    this->lexeme = "";
+    this->filename = "";
+    this->token_type = TT_EOF;
+    this->linenum = -1;
+    this->linedepth = -1;
 }
 
 void Token::fill_with(Token copy_token) {
-    lexeme = copy_token.lexeme;
-    filename = copy_token.filename;
-    token_type = copy_token.token_type;
-    linenum = copy_token.linenum;
-    linedepth = copy_token.linedepth;
+    this->lexeme = copy_token.lexeme;
+    this->filename = copy_token.filename;
+    this->token_type = copy_token.token_type;
+    this->linenum = copy_token.linenum;
+    this->linedepth = copy_token.linedepth;
 }
 
 string Token::to_string() {
