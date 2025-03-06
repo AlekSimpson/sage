@@ -5,8 +5,9 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S), Darwin)  # macOS
     LLVM_PATH := /opt/homebrew/opt/llvm@19/lib/
     CXX      := clang++
+    CXXFLAGS := /opt/homebrew/Cellar/llvm/19.1.7_1/include -std=c++17 -stdlib=libc++   -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
     LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-19
-    INCLUDE  := -Iinclude/ -I/opt/homebrew/include
+    INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(CXXFLAGS)
 else  # Assume Linux
     LLVM_PATH := /usr/lib/llvm-14/lib
     CXX      := g++
@@ -15,14 +16,12 @@ else  # Assume Linux
 endif
 
 # Common flags
-CXXFLAGS := -std=c++23
+CXXFLAGS := -std=c++17
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin
 TARGET   := sage
 SRC      := $(wildcard src/*.cpp)
-SRC      :=                      \
-   $(wildcard src/*.cpp)         \
 OBJECTS  := $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 DEPENDENCIES := $(OBJECTS:.o=.d)
 
@@ -44,6 +43,11 @@ $(APP_DIR)/$(TARGET): $(OBJECTS)
 build:
 	@mkdir -p $(APP_DIR)
 	@mkdir -p $(OBJ_DIR)
+
+# Memory debugging target with Address and Leak sanitizers
+memdebug: CXXFLAGS += -fsanitize=address,leak -fno-omit-frame-pointer
+memdebug: LDFLAGS += -fsanitize=address,leak
+memdebug: all
 
 debug: CXXFLAGS += -DDEBUG -g
 debug: all
