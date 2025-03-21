@@ -16,6 +16,7 @@ public:
   string filename;
 
   SageParser(string filename);
+  ~SageParser();
 
   AbstractParseNode* parse_program(bool debug_lexer);
 

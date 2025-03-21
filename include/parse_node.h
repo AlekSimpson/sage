@@ -15,8 +15,7 @@ typedef enum {
   PN_IDENTIFIER,
   PN_KEYWORD,
   PN_BLOCK,
-  PN_CODE_BLOCK,
-  PN_PARAM_LIST,
+  PN_PARAM_LIST,//
   PN_FUNCDEF,
   PN_FUNCCALL,
   PN_TYPE,
@@ -50,6 +49,7 @@ public:
   virtual AbstractParseNode* get_child_node() = 0;
   virtual ParseNodeType get_nodetype() = 0;
   virtual ParseNodeType get_host_nodetype() = 0;
+  virtual void visit(SageCodeGenVisitor&) = 0;
 };
 
 class BlockParseNode : public AbstractParseNode {
@@ -72,6 +72,7 @@ public:
   AbstractParseNode* get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  void visit(SageCodeGenVisitor&) override;
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -93,6 +94,7 @@ public:
   AbstractParseNode* get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  void visit(SageCodeGenVisitor&) override;
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -115,6 +117,7 @@ public:
   AbstractParseNode* get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  void visit(SageCodeGenVisitor&) override;
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -140,4 +143,5 @@ public:
   AbstractParseNode* get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  void visit(SageCodeGenVisitor&) override;
 };

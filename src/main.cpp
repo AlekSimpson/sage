@@ -38,9 +38,10 @@ int main(int argc, char** argv) {
 
     parsetree->showtree("");
 
+    SageCodeGenVisitor main_visitor = SageCodeGenVisitor();
+    main_visitor.visit(parsetree);
 
     delete parsetree;
-    delete parser.lexer;
 
     return 0;
 }

@@ -21,8 +21,6 @@ string nodetype_to_string(ParseNodeType nodetype) {
     	return "KEYWORD";
     case PN_BLOCK:
     	return "BLOCK";
-    case PN_CODE_BLOCK:
-    	return "CODE_BLOCK";
     case PN_PARAM_LIST:
     	return "PARAM_LIST";
     case PN_FUNCDEF:
@@ -70,6 +68,23 @@ string nodetype_to_string(ParseNodeType nodetype) {
     }
 }
 
+// llvm::Type resolve_sage_type(LLVMContext* context, UnaryParseNode* type_node) {
+//     unordered_map<string, llvm::Type*> typemap = {
+//         {"bool", llvm::Type::getInt1Ty(*context)},
+//         {"char", llvm::Type::getInt8Ty(*context)},
+//         {"int", llvm::Type::getInt32Ty(*context)},
+//         {"i8", llvm::Type::getInt8Ty(*context)},
+//         {"i32", llvm::Type::getInt32Ty(*context)},
+//         {"i64", llvm::Type::getInt64Ty(*context)},
+//         {"float", llvm::Type::getFloatTy(*context)},
+//         {"f32", llvm::Type::getFloatTy(*context)},
+//         {"f64", llvm::Type::getDoubleTy(*context)},
+//         {"void", llvm::Type::getVoidTy(*context)}
+//     };
+// 
+//     return typemap[type_node->token->lexeme];
+// }
+
 // SECTION: BlockParseNode definitions
 BlockParseNode::BlockParseNode() {
     children = vector<AbstractParseNode*>();
@@ -86,7 +101,7 @@ BlockParseNode::BlockParseNode(Token token, ParseNodeType represents, vector<Abs
     this->token = token;
     host_nodetype = PN_BLOCK;
     rep_nodetype = represents;
-    children = children;
+    this->children = children;
 }
 
 BlockParseNode::~BlockParseNode() {

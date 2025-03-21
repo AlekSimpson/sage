@@ -22,6 +22,12 @@ SageParser::SageParser(string filename) {
     errors = vector<Token>();
 }
 
+SageParser::~SageParser() {
+    if (this->lexer != nullptr) {
+        delete this->lexer;
+    }
+}
+
 AbstractParseNode* SageParser::parse_program(bool debug_lexer) {
     current_token = lexer->get_token();
 

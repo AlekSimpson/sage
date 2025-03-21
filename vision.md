@@ -33,8 +33,8 @@ CFG:
 S               -> program
 
 STAR            -> *STAR | EMPTYSTRING
-array           -> [ primitive ] | [ ID ]
-primitive       -> int | char | array | void
+array           -> [ primitive ] | [ ID ] | [ primitive : <digits> ] | [ ID : <digits> ]
+primitive       -> int | i.{16, 32, 64} | float | f.{16, 32, 64} | char | array | void
 pointer         -> TYPE STAR
 TYPE            -> primitive | pointer
 
