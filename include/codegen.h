@@ -15,13 +15,13 @@ using namespace llvm;
 
 class SageCodeGenVisitor {
 private:
-  std::unique_ptr<llvm::LLVMContext> llvm_context;
+  std::shared_ptr<llvm::LLVMContext> llvm_context;
   std::unique_ptr<llvm::IRBuilder<>> builder;
   std::unique_ptr<llvm::Module> main_module;
   SageSymbolTable symbol_table;
 
 public:
-  SageCodeGenVisitor();
+  SageCodeGenVisitor(std::shared_ptr<llvm::LLVMContext>);
     
   llvm::Module* get_module();
   void visitor_create_function_return(llvm::Value*);

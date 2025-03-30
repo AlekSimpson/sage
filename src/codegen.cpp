@@ -11,11 +11,12 @@
 
 using namespace llvm;
 
-SageCodeGenVisitor::SageCodeGenVisitor() {
-    llvm_context = make_unique<llvm::LLVMContext>();
+SageCodeGenVisitor::SageCodeGenVisitor(std::shared_ptr<llvm::LLVMContext> context) {
+    llvm_context = context;
     builder = make_unique<llvm::IRBuilder<>>(*llvm_context);
     main_module = make_unique<llvm::Module>("main_module", *llvm_context);
-    symbol_table = SageSymbolTable(*llvm_context);
+    // symbol_table = SageSymbolTable();
+    // symbol_table.initialize(*llvm_context);
 }
 
 llvm::Module* SageCodeGenVisitor::get_module() {

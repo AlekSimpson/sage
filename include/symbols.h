@@ -37,7 +37,6 @@ public:
   bool current_function_has_returned;
 
   SageSymbolTable();
-  SageSymbolTable(llvm::LLVMContext& context);
   ~SageSymbolTable();
 
   void push_scope();
@@ -45,6 +44,7 @@ public:
   bool declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol);
   LLVMSymbol* lookup_symbol(const string& name);
   llvm::Type* resolve_sage_type(UnaryParseNode* type_node);
+  void initialize(llvm::LLVMContext& llvm_context);
 
 };
 

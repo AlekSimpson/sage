@@ -11,13 +11,14 @@ ifeq ($(UNAME_S), Darwin)  # macOS
 else  # Assume Linux
     LLVM_PATH := /usr/lib/llvm-14/lib
     CXX      := g++
-    LDFLAGS  := -L/usr/lib -L/usr/local/lib -L$(LLVM_PATH) $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-14 -ltinfo
+    LDFLAGS  := -L/usr/lib -L/usr/local/lib -L$(LLVM_PATH) $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVM-14 -ltinfo
     INCLUDE  := -Iinclude/ -I/usr/local/include -I/usr/lib/llvm-14/include -std=c++17
 endif
 
 # Common flags
 # CXXFLAGS := -fsanitize=address -Wall -Werror -std=c++17
-CXXFLAGS := -fsanitize=address -Wall -std=c++17
+# CXXFLAGS := -fsanitize=address -Wall -std=c++17
+CXXFLAGS := -Wall -g -std=c++17
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin

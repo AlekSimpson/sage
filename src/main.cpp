@@ -4,11 +4,23 @@
 #include <memory>
 #include <boost/algorithm/string.hpp>
 
+#include "llvm/Support/ManagedStatic.h"
 #include "../include/codegen.h"
 #include "../include/parse_node.h"
 #include "../include/parser.h"
 
+using namespace llvm;
+
 int main(int argc, char** argv) {
+    // Initialize LLVM
+    // llvm::InitializeAllTargetInfos();
+    // llvm::InitializeAllTargets();
+    // llvm::InitializeAllTargetMCs();
+    // llvm::InitializeAllAsmParsers();
+    // llvm::InitializeAllAsmPrinters();
+    
+    auto llvm_context = std::make_shared<llvm::LLVMContext>();
+
     if (argc <= 1) {
         printf("no targets specified (temporary: in the future targets will be specified in start.sage)");
         exit(1);
@@ -39,24 +51,20 @@ int main(int argc, char** argv) {
 
     parsetree->showtree("");
 
-    SageCodeGenVisitor main_visitor = SageCodeGenVisitor();
+    // SageCodeGenVisitor main_visitor = SageCodeGenVisitor(llvm_context);
     printf("%s\n", nodetype_to_string(parsetree->get_nodetype()).c_str());
-    // main_visitor.visit_program(parsetree);
+    
+    // if (parsetree->get_host_nodetype() == PN_BLOCK) {
+    //     auto block = dynamic_cast<BlockParseNode*>()
+    //     main_visitor.visit_program(parsetree);
+    // }
 
     delete parsetree;
 
+    llvm::llvm_shutdown();
+
     return 0;
 }
-
-// #include <boost/uuid/uuid.hpp>
-// #include <boost/uuid/uuid_generators.hpp>
-// #include <boost/uuid/uuid_io.hpp>
-
-// Create a random UUID generator
-// boost::uuids::random_generator generator;
-
-// Generate a UUID
-// boost::uuids::uuid uuid = generator();
 
 
 

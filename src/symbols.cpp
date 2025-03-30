@@ -17,12 +17,21 @@ LLVMSymbol create_symbol(string identifier, llvm::Value* value, llvm::Type* type
     return {value, type, identifier};
 }
 
-SageSymbolTable::SageSymbolTable() {}
-
-SageSymbolTable::SageSymbolTable(llvm::LLVMContext& llvm_context) {
+SageSymbolTable::SageSymbolTable() {
     symbol_stack = stack<SageScope>();
     symbol_table = map<string, LLVMSymbol*>();
     current_function_has_returned = false;
+}
+
+SageSymbolTable::~SageSymbolTable() {
+    LLVMSymbol* temp;
+    for (const auto& pair : symbol_table) {
+        temp = pair.second; // second position holds the LLVMSymbol pointers
+        delete temp;
+    }
+}
+
+void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
     context = &llvm_context;
 
     // initialize root stack with sage built in datatypes and methods
@@ -41,14 +50,6 @@ SageSymbolTable::SageSymbolTable(llvm::LLVMContext& llvm_context) {
     declare_symbol("f32", create_symbol("f32", nullptr, llvm::Type::getFloatTy(*context)), true);
     declare_symbol("f64", create_symbol("f64", nullptr, llvm::Type::getDoubleTy(*context)), true);
     declare_symbol("void", create_symbol("void", nullptr, llvm::Type::getVoidTy(*context)), true);
-}
-
-SageSymbolTable::~SageSymbolTable() {
-    LLVMSymbol* temp;
-    for (const auto& pair : symbol_table) {
-        temp = pair.second; // second position holds the LLVMSymbol pointers
-        delete temp;
-    }
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol) {

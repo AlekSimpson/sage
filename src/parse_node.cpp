@@ -72,6 +72,9 @@ string nodetype_to_string(ParseNodeType nodetype) {
 // SECTION: BlockParseNode definitions
 BlockParseNode::BlockParseNode() {
     children = vector<AbstractParseNode*>();
+    host_nodetype = PN_BLOCK;
+    rep_nodetype = PN_BLOCK;
+    this->token = Token();
 }
 
 BlockParseNode::BlockParseNode(Token token, ParseNodeType represents) {
@@ -283,24 +286,24 @@ UnaryParseNode::UnaryParseNode() {
 
 UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents) {
     this->token = token;
-    host_nodetype = PN_UNARY;
-    rep_nodetype = represents;
-    branch = nullptr;
+    this->host_nodetype = PN_UNARY;
+    this->rep_nodetype = represents;
+    this->branch = nullptr;
 }
 
 UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents, AbstractParseNode* branch) {
     this->token = token;
-    host_nodetype = PN_UNARY;
-    rep_nodetype = represents;
+    this->host_nodetype = PN_UNARY;
+    this->rep_nodetype = represents;
     this->branch = branch;
 }
 
 UnaryParseNode::UnaryParseNode(Token token, ParseNodeType represents, vector<string> lexemes) {
     this->token = token;
-    host_nodetype = PN_UNARY;
-    rep_nodetype = represents;
+    this->host_nodetype = PN_UNARY;
+    this->rep_nodetype = represents;
     this->lexemes = lexemes;
-    branch = nullptr;
+    this->branch = nullptr;
 }
 
 UnaryParseNode::~UnaryParseNode() {
