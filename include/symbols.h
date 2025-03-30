@@ -36,6 +36,7 @@ public:
 
   bool current_function_has_returned;
 
+  SageSymbolTable();
   SageSymbolTable(llvm::LLVMContext& context);
   ~SageSymbolTable();
 

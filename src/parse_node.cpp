@@ -187,7 +187,9 @@ TokenType BinaryParseNode::get_token_type() {
 }
 
 vector<AbstractParseNode*> BinaryParseNode::get_child_node() {
-    return vector<AbstractParseNode*>(left);
+    vector<AbstractParseNode*> retval;
+    retval.push_back(left);
+    return retval;
 }
 
 ParseNodeType BinaryParseNode::get_nodetype() {
@@ -259,8 +261,10 @@ TokenType TrinaryParseNode::get_token_type() {
     return token.token_type;
 }
 
-AbstractParseNode* TrinaryParseNode::get_child_node() {
-    return vector<AbstractParseNode*>(left);
+vector<AbstractParseNode*> TrinaryParseNode::get_child_node() {
+    vector<AbstractParseNode*> retval;
+    retval.push_back(left);
+    return retval;
 }
 
 ParseNodeType TrinaryParseNode::get_nodetype() {
@@ -353,8 +357,10 @@ TokenType UnaryParseNode::get_token_type() {
     return token.token_type;
 }
 
-AbstractParseNode* UnaryParseNode::get_child_node() {
-    return vector<AbstractParseNode*>(branch);
+vector<AbstractParseNode*> UnaryParseNode::get_child_node() {
+    vector<AbstractParseNode*> retval;
+    retval.push_back(branch);
+    return retval;
 }
 
 ParseNodeType UnaryParseNode::get_nodetype() {

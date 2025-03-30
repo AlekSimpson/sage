@@ -1,6 +1,7 @@
-#include <stdio>
+#include <stdio.h>
 #include <cstdlib>
 #include <string>
+#include <memory>
 #include <boost/algorithm/string.hpp>
 
 #include "../include/codegen.h"
@@ -39,7 +40,8 @@ int main(int argc, char** argv) {
     parsetree->showtree("");
 
     SageCodeGenVisitor main_visitor = SageCodeGenVisitor();
-    main_visitor.visit(parsetree);
+    printf("%s\n", nodetype_to_string(parsetree->get_nodetype()).c_str());
+    // main_visitor.visit_program(parsetree);
 
     delete parsetree;
 

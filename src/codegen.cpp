@@ -15,9 +15,7 @@ SageCodeGenVisitor::SageCodeGenVisitor() {
     llvm_context = make_unique<llvm::LLVMContext>();
     builder = make_unique<llvm::IRBuilder<>>(*llvm_context);
     main_module = make_unique<llvm::Module>("main_module", *llvm_context);
-
-    llvm::LLVMContext& context_ref = *llvm_context;
-    symbol_table = SageSymbolTable(context_ref);
+    symbol_table = SageSymbolTable(*llvm_context);
 }
 
 llvm::Module* SageCodeGenVisitor::get_module() {

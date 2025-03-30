@@ -4,7 +4,7 @@
 #include "../include/parser.h"
 
 #include <unordered_map>
-#include <stdio>
+#include <stdio.h>
 #include <cstdlib>
 #include <vector>
 #include <string>
