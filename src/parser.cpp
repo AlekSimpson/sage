@@ -4,7 +4,7 @@
 #include "../include/parser.h"
 
 #include <unordered_map>
-#include <stdio.h>
+#include <stdio>
 #include <cstdlib>
 #include <vector>
 #include <string>
@@ -410,7 +410,9 @@ AbstractParseNode* SageParser::parse_for_statement() {
 
     Token iterator_variable_token = Token();
     iterator_variable_token.fill_with(*current_token);
-    auto iterator_variable_node = new UnaryParseNode(iterator_variable_token, PN_VAR_DEC);
+    auto identifier_token = new UnaryParseNode(iterator_variable_token, PN_IDENTIFIER);
+    auto int_type_token = new UnaryParseNode(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
+    auto iterator_variable_node = new BinaryParseNode(iterator_variable_token, PN_VAR_DEC, identifier_token, int_type_token);
     advance(); // move past iterator
     
     if (current_token->lexeme != "in") {

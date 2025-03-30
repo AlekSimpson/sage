@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 #include "../include/parse_node.h"
 
 using namespace std;
@@ -68,23 +69,6 @@ string nodetype_to_string(ParseNodeType nodetype) {
     }
 }
 
-// llvm::Type resolve_sage_type(LLVMContext* context, UnaryParseNode* type_node) {
-//     unordered_map<string, llvm::Type*> typemap = {
-//         {"bool", llvm::Type::getInt1Ty(*context)},
-//         {"char", llvm::Type::getInt8Ty(*context)},
-//         {"int", llvm::Type::getInt32Ty(*context)},
-//         {"i8", llvm::Type::getInt8Ty(*context)},
-//         {"i32", llvm::Type::getInt32Ty(*context)},
-//         {"i64", llvm::Type::getInt64Ty(*context)},
-//         {"float", llvm::Type::getFloatTy(*context)},
-//         {"f32", llvm::Type::getFloatTy(*context)},
-//         {"f64", llvm::Type::getDoubleTy(*context)},
-//         {"void", llvm::Type::getVoidTy(*context)}
-//     };
-// 
-//     return typemap[type_node->token->lexeme];
-// }
-
 // SECTION: BlockParseNode definitions
 BlockParseNode::BlockParseNode() {
     children = vector<AbstractParseNode*>();
@@ -135,12 +119,12 @@ TokenType BlockParseNode::get_token_type() {
     return token.token_type;
 }
 
-AbstractParseNode* BlockParseNode::get_child_node() {
+vector<AbstractParseNode*> BlockParseNode::get_child_node() {
     if (children.size() == 0) {
-        return nullptr;
+        return vector<AbstractParseNode*>();
     }
 
-    return children[0];
+    return children;
 }
 
 ParseNodeType BlockParseNode::get_nodetype() {
@@ -202,8 +186,8 @@ TokenType BinaryParseNode::get_token_type() {
     return token.token_type;
 }
 
-AbstractParseNode* BinaryParseNode::get_child_node() {
-    return left;
+vector<AbstractParseNode*> BinaryParseNode::get_child_node() {
+    return vector<AbstractParseNode*>(left);
 }
 
 ParseNodeType BinaryParseNode::get_nodetype() {
@@ -276,7 +260,7 @@ TokenType TrinaryParseNode::get_token_type() {
 }
 
 AbstractParseNode* TrinaryParseNode::get_child_node() {
-    return left;
+    return vector<AbstractParseNode*>(left);
 }
 
 ParseNodeType TrinaryParseNode::get_nodetype() {
@@ -370,7 +354,7 @@ TokenType UnaryParseNode::get_token_type() {
 }
 
 AbstractParseNode* UnaryParseNode::get_child_node() {
-    return branch;
+    return vector<AbstractParseNode*>(branch);
 }
 
 ParseNodeType UnaryParseNode::get_nodetype() {

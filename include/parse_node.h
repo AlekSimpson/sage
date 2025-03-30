@@ -6,18 +6,18 @@
 using namespace std;
 
 typedef enum {
-  PN_BINARY,
+  PN_BINARY,//
   PN_TRINARY,
-  PN_UNARY,
-  PN_NUMBER,
-  PN_FLOAT,
-  PN_STRING,
+  PN_UNARY,// 
+  PN_NUMBER,// 
+  PN_FLOAT,// 
+  PN_STRING,// 
   PN_IDENTIFIER,
   PN_KEYWORD,
   PN_BLOCK,
-  PN_PARAM_LIST,//
+  PN_PARAM_LIST,
   PN_FUNCDEF,
-  PN_FUNCCALL,
+  PN_FUNCCALL,// 
   PN_TYPE,
   PN_STRUCT,
   PN_IF,
@@ -27,9 +27,9 @@ typedef enum {
   PN_ASSIGN,
   PN_FOR,
   PN_PROGRAM,
-  PN_RANGE,
+  PN_RANGE,// 
   PN_VAR_DEC,
-  PN_VAR_REF,
+  PN_VAR_REF,// 
   PN_RUN_DIRECTIVE,
   PN_LIST,
   PN_INCLUDE,
@@ -46,10 +46,9 @@ public:
   virtual void showtree(string depth) = 0;
   virtual Token get_token() = 0;
   virtual TokenType get_token_type() = 0;
-  virtual AbstractParseNode* get_child_node() = 0;
+  virtual vector<AbstractParseNode*> get_child_node() = 0;
   virtual ParseNodeType get_nodetype() = 0;
   virtual ParseNodeType get_host_nodetype() = 0;
-  virtual void visit(SageCodeGenVisitor&) = 0;
 };
 
 class BlockParseNode : public AbstractParseNode {
@@ -69,10 +68,9 @@ public:
   void showtree(string depth) override;
   Token get_token() override;
   TokenType get_token_type() override;
-  AbstractParseNode* get_child_node() override;
+  vector<AbstractParseNode*> get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
-  void visit(SageCodeGenVisitor&) override;
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -91,10 +89,9 @@ public:
   void showtree(string depth) override;
   Token get_token() override;
   TokenType get_token_type() override;
-  AbstractParseNode* get_child_node() override;
+  vector<AbstractParseNode*> get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
-  void visit(SageCodeGenVisitor&) override;
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -114,10 +111,9 @@ public:
   void showtree(string depth) override;
   Token get_token() override;
   TokenType get_token_type() override;
-  AbstractParseNode* get_child_node() override;
+  vector<AbstractParseNode*> get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
-  void visit(SageCodeGenVisitor&) override;
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -140,8 +136,7 @@ public:
   void showtree(string depth) override;
   Token get_token() override;
   TokenType get_token_type() override;
-  AbstractParseNode* get_child_node() override;
+  vector<AbstractParseNode*> get_child_node() override;
   ParseNodeType get_nodetype() override;
   ParseNodeType get_host_nodetype() override;
-  void visit(SageCodeGenVisitor&) override;
 };

@@ -1,73 +1,59 @@
 #pragma once
 
-#include "../include/parse_node.h"
-
 #include <stdlib.h>
-#include <stack.h>
+#include <stack>
+#include <memory>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
-#include <memory>
+#include <map>
+
+#include "../include/symbols.h"
+#include "../include/parse_node.h"
 
 using namespace llvm;
-typedef SageSymbolTable std::map<std::string, llvm::Value*>
 
 class SageCodeGenVisitor {
 private:
   std::unique_ptr<llvm::LLVMContext> llvm_context;
-  SageSymbolTable global_table;
   std::unique_ptr<llvm::IRBuilder<>> builder;
   std::unique_ptr<llvm::Module> main_module;
-  CompilerContext symbol_table;
+  SageSymbolTable symbol_table;
 
 public:
   SageCodeGenVisitor();
     
-  void visitor_create_function_return();
-  llvm::Value* visit_binary_expr(BinaryParseNode* node);
-  llvm::Value* visit_function_definition(TrinaryParseNode* node);
-  // Other visit methods for AST nodes
+  llvm::Module* get_module();
+  void visitor_create_function_return(llvm::Value*);
+  llvm::Value* process_expression(BinaryParseNode*);
+  void process_assignment(BinaryParseNode*);
+
+  llvm::Value* visit_program(BlockParseNode*);
+  llvm::Value* visit_variable_decl(AbstractParseNode*);
+  llvm::Value* visit_function_declaration(BinaryParseNode*);
+  llvm::Value* visit_function_definition(TrinaryParseNode*);
+  llvm::Value* visit_codeblock(BlockParseNode*);
+  llvm::Value* visit_unary_expr(UnaryParseNode*);
+  llvm::Value* visit_trinary_expr(TrinaryParseNode*);
+  llvm::Value* visit_binary_expr(BinaryParseNode*);
+  llvm::Value* visit_expression(AbstractParseNode*);
 };
 
-class CompilerContext {
-private:
-  std::stack<SageSymbolTable> scope;
-
-  // this exists to tell the compiler wether the function that we are compiling has generated the return statement or not yet... this is useful so that we can derive whether or not we should automatically add a "return void" statement.
-  bool current_function_has_returned;
-
-public:
-  CompilerContext();
-
-  void push_scope(); // pushes a copy of the top element onto the stack
-  void pop_scope();
-  bool declare_symbol(const std::string& name, llvm::Value* value);
-  llvm::Value* lookup_symbol(const std::string& name);
-};
+typedef AbstractParseNode SageAST;
 
 class SageCompiler {
 private:
-  std::unique_ptr<AST> ast;
-  std::unique_ptr<CompilerContext> compiler_context;
-    
+  std::unique_ptr<SageAST> ast;
+
 public:
-  SageCompiler(std::unique_ptr<AST> ast);
-    
-  std::unique_ptr<llvm::Module> compile() {
-    SageCodeGenVisitor visitor;
-    ast->accept(&visitor);
-    return visitor.getModule();
-  }
-    
-  void optimize(llvm::Module* module, int optLevel);
-  // {
-  //   // Set up optimization passes
-  //   llvm::legacy::PassManager PM;
-  //   if (optLevel > 0) {
-  //     // TODO Add optimization passes based on opt level
-  //   }
-  //   PM.run(*module);
+  SageCompiler(std::unique_ptr<SageAST> ast);
+
+  llvm::Module* compile(); //{
+    // SageCodeGenVisitor visitor = SageCodeGenVisitor();
+    // ast->accept(&visitor);
+    // return visitor.get_module();
   // }
     
+  void optimize(llvm::Module* module, int optLevel);
   void generate_output(llvm::Module* module, const std::string& output_file);
 };

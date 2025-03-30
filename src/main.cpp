@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio>
 #include <cstdlib>
 #include <string>
 #include <boost/algorithm/string.hpp>
