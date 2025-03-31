@@ -11,12 +11,15 @@
 
 using namespace llvm;
 
+
+SageCodeGenVisitor::SageCodeGenVisitor() {}
+
 SageCodeGenVisitor::SageCodeGenVisitor(std::shared_ptr<llvm::LLVMContext> context) {
     llvm_context = context;
     builder = make_unique<llvm::IRBuilder<>>(*llvm_context);
     main_module = make_unique<llvm::Module>("main_module", *llvm_context);
-    // symbol_table = SageSymbolTable();
-    // symbol_table.initialize(*llvm_context);
+    symbol_table = SageSymbolTable();
+    symbol_table.initialize(*llvm_context);
 }
 
 llvm::Module* SageCodeGenVisitor::get_module() {
@@ -26,16 +29,15 @@ llvm::Module* SageCodeGenVisitor::get_module() {
 // this is the first visitor called to compile a whole code module
 llvm::Value* SageCodeGenVisitor::visit_program(BlockParseNode* node) {
     BinaryParseNode* binarynode;
-    TrinaryParseNode* trinarynode;
     for (AbstractParseNode* child : node->children) {
         switch(child->get_nodetype()){
             case PN_FUNCDEF:
-                if (child->get_host_nodetype() != PN_TRINARY) {
-                    // ERROR!! CHILD SHOULD BE A TRINARY NODE
+                if (child->get_host_nodetype() != PN_BINARY) {
+                    // ERROR!! CHILD SHOULD BE A BINARY NODE
                     return nullptr;
                 }
-                trinarynode = dynamic_cast<TrinaryParseNode*>(child);
-                visit_function_definition(trinarynode);
+                binarynode = dynamic_cast<BinaryParseNode*>(child);
+                visit_function_definition(binarynode);
                 break;
             case PN_FUNCDEC:
                 if (child->get_host_nodetype() != PN_BINARY) {
@@ -108,6 +110,7 @@ llvm::Value* SageCodeGenVisitor::visit_function_declaration(BinaryParseNode* nod
     UnaryParseNode* unarynode = dynamic_cast<UnaryParseNode*>(node->right);
     llvm::Type* return_type = symbol_table.resolve_sage_type(unarynode);
     llvm::FunctionType* function_type = llvm::FunctionType::get(return_type, parameter_types, false);
+    // TODO: FUNCTION NAME SHOULD BE USED HERE
     llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, node->get_token().lexeme, main_module.get());
 
     symbol_table.pop_scope();
@@ -115,12 +118,21 @@ llvm::Value* SageCodeGenVisitor::visit_function_declaration(BinaryParseNode* nod
     return nullptr;
 }
 
-llvm::Value* SageCodeGenVisitor::visit_function_definition(TrinaryParseNode* node) {
+llvm::Value* SageCodeGenVisitor::visit_function_definition(BinaryParseNode* node) {
     symbol_table.push_scope();
     symbol_table.current_function_has_returned = false;
+
+    // TODO: add function to symbol table
+    UnaryParseNode* function_name_node = dynamic_cast<UnaryParseNode*>(node->left);
+
+    if (node->right->get_host_nodetype() != PN_TRINARY) {
+        // ERROR!!
+        return nullptr;
+    }
+    TrinaryParseNode* trinary_node = dynamic_cast<TrinaryParseNode*>(node->right);
     
     vector<llvm::Type*> parameter_types;
-    vector<AbstractParseNode*> parameters = node->left->get_child_node();
+    vector<AbstractParseNode*> parameters = trinary_node->left->get_child_node();
     for (AbstractParseNode* abstract_parameter : parameters) {
         if (abstract_parameter->get_host_nodetype() != PN_BINARY) {
             // ERROR!! SOMETHING IS WRONG PARAMETERS SHOULD NEVER BE STORED AS ANYTHING OTHER THAN BINARY NODES
@@ -147,22 +159,27 @@ llvm::Value* SageCodeGenVisitor::visit_function_definition(TrinaryParseNode* nod
         parameter_types.push_back(param_type);
     }
 
-    if (node->middle->get_host_nodetype() != PN_UNARY) {
+    if (trinary_node->middle->get_host_nodetype() != PN_UNARY) {
         // ERROR!! TYPES ONLY REPRESENTED BY UNARY NODES RIGHT NOW
         return nullptr;
     }
-    auto unarytemp = dynamic_cast<UnaryParseNode*>(node->middle);
+    auto unarytemp = dynamic_cast<UnaryParseNode*>(trinary_node->middle);
     llvm::Type* return_type = symbol_table.resolve_sage_type(unarytemp);
     llvm::FunctionType* function_type = llvm::FunctionType::get(return_type, parameter_types, false);
-    llvm::Function* function_ir = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, node->get_token().lexeme, *main_module);
+    llvm::Function* function_ir = llvm::Function::Create(
+        function_type, 
+        llvm::Function::ExternalLinkage, 
+        function_name_node->get_token().lexeme,
+        main_module.get()
+    );
     llvm::BasicBlock* function_block = llvm::BasicBlock::Create(*llvm_context, "entry", function_ir);
     builder->SetInsertPoint(function_block);
 
-    if (node->right->get_host_nodetype() != PN_BLOCK) {
+    if (trinary_node->right->get_host_nodetype() != PN_BLOCK) {
         // ERROR!! RIGHT NODE OF FUNC DEF NODE SHOULD ONLY EVER BE A BLOCK NODE
         return nullptr;
     }
-    auto function_body = dynamic_cast<BlockParseNode*>(node->right);
+    auto function_body = dynamic_cast<BlockParseNode*>(trinary_node->right);
     visit_codeblock(function_body);
 
     if (!symbol_table.current_function_has_returned) {
@@ -172,8 +189,13 @@ llvm::Value* SageCodeGenVisitor::visit_function_definition(TrinaryParseNode* nod
             return nullptr;
         }
 
+        // TODO: have builder create correct corresponding return type using 'return_type'
+        printf("BUILDER CREATE RET\n");
         builder->CreateRetVoid();
     }
+
+    printf("Created function: %s\n", function_ir->getName().str().c_str());
+    printf("Module has function: %s\n", main_module->getFunction(node->get_token().lexeme) ? "yes" : "no");
 
     symbol_table.pop_scope();
 
@@ -181,13 +203,12 @@ llvm::Value* SageCodeGenVisitor::visit_function_definition(TrinaryParseNode* nod
 }
 
 llvm::Value* SageCodeGenVisitor::visit_codeblock(BlockParseNode* node) {
-    TrinaryParseNode* trinaryfill;
     BinaryParseNode* binaryfill;
     for (AbstractParseNode* child : node->children) {
         switch(child->get_nodetype()){
             case PN_FUNCDEF:
-                trinaryfill = dynamic_cast<TrinaryParseNode*>(child);
-                visit_function_definition(trinaryfill);
+                binaryfill = dynamic_cast<BinaryParseNode*>(child);
+                visit_function_definition(binaryfill);
                 break;
             case PN_FUNCDEC:
                 binaryfill = dynamic_cast<BinaryParseNode*>(child);
@@ -201,6 +222,7 @@ llvm::Value* SageCodeGenVisitor::visit_codeblock(BlockParseNode* node) {
                 break;
             default:
                 // error
+                printf("VISIT CODEBLOCK GETTING HERE\n");
                 break;
         }
     }
@@ -264,8 +286,6 @@ llvm::Value* SageCodeGenVisitor::visit_trinary_expr(TrinaryParseNode* node) {
     switch(node->rep_nodetype) {
         case PN_FOR:
             break;
-        case PN_FUNCDEF:
-            return visit_function_definition(node);
         case PN_ASSIGN:
             return visit_variable_decl(node);
         default:
@@ -295,6 +315,8 @@ llvm::Value* SageCodeGenVisitor::visit_binary_expr(BinaryParseNode* node) {
     switch(node->rep_nodetype) {
         case PN_BINARY:
             return visit_expression(node);
+        case PN_FUNCDEF:
+            return visit_function_definition(node);
         case PN_FUNCDEC:
             return visit_function_declaration(node);
         case PN_ASSIGN:

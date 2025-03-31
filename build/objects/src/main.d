@@ -128,7 +128,7 @@ build/objects/src/main.o: src/main.cpp \
  /usr/lib/llvm-14/include/llvm/IR/IntrinsicEnums.inc \
  /usr/lib/llvm-14/include/llvm/IR/Operator.h \
  /usr/lib/llvm-14/include/llvm/IR/ValueHandle.h \
- src/../include/../include/symbols.h \
- src/../include/../include/../include/parse_node.h \
- src/../include/../include/../include/../include/token.h \
- src/../include/parser.h src/../include/lexer.h
+ src/../include/../include/parse_node.h \
+ src/../include/../include/../include/token.h \
+ src/../include/../include/symbols.h src/../include/parser.h \
+ src/../include/lexer.h

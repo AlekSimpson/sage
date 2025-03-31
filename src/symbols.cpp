@@ -27,7 +27,9 @@ SageSymbolTable::~SageSymbolTable() {
     LLVMSymbol* temp;
     for (const auto& pair : symbol_table) {
         temp = pair.second; // second position holds the LLVMSymbol pointers
-        delete temp;
+        // if (temp != nullptr) {
+        //     delete temp;
+        // }
     }
 }
 
@@ -35,10 +37,8 @@ void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
     context = &llvm_context;
 
     // initialize root stack with sage built in datatypes and methods
-    SageScope root_scope = {"bool", "char", "int", "i8", "i32", "i64", "float", "f32", "f64", "void"};
-    symbol_stack.push(root_scope);
-    type_scope = root_scope;
-    
+    symbol_stack.push({});
+ 
     declare_symbol("bool", create_symbol("bool", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("success_t", create_symbol("success_t", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("char", create_symbol("char", nullptr, llvm::Type::getInt8Ty(*context)), true);
@@ -50,6 +50,9 @@ void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
     declare_symbol("f32", create_symbol("f32", nullptr, llvm::Type::getFloatTy(*context)), true);
     declare_symbol("f64", create_symbol("f64", nullptr, llvm::Type::getDoubleTy(*context)), true);
     declare_symbol("void", create_symbol("void", nullptr, llvm::Type::getVoidTy(*context)), true);
+
+    SageScope root_scope = {"bool", "success_t", "char", "int", "i8", "i32", "i64", "float", "f32", "f64", "void"};
+    type_scope = root_scope;
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol) {
@@ -95,9 +98,15 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
 }
 
 llvm::Type* SageSymbolTable::resolve_sage_type(UnaryParseNode* type_node) {
+    auto current_scope = symbol_stack.top();
     string type_name = type_node->get_token().lexeme;
     auto search_name = type_scope.find(type_name);
     if (search_name == type_scope.end()) {
+        return nullptr;
+    }
+
+    auto it = symbol_table.find(type_name);
+    if (it == symbol_table.end() || it->second == nullptr) {
         return nullptr;
     }
 

@@ -6,7 +6,8 @@ ifeq ($(UNAME_S), Darwin)  # macOS
     LLVM_PATH := /opt/homebrew/opt/llvm@19/lib/
     CXX      := clang++
     CXXFLAGS := /opt/homebrew/Cellar/llvm/19.1.7_1/include -std=c++17 -stdlib=libc++ -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
-    LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-19
+    # LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-19
+    LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVM-19
     INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(CXXFLAGS)
 else  # Assume Linux
     LLVM_PATH := /usr/lib/llvm-14/lib

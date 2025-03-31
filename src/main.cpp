@@ -12,13 +12,6 @@
 using namespace llvm;
 
 int main(int argc, char** argv) {
-    // Initialize LLVM
-    // llvm::InitializeAllTargetInfos();
-    // llvm::InitializeAllTargets();
-    // llvm::InitializeAllTargetMCs();
-    // llvm::InitializeAllAsmParsers();
-    // llvm::InitializeAllAsmPrinters();
-    
     auto llvm_context = std::make_shared<llvm::LLVMContext>();
 
     if (argc <= 1) {
@@ -49,19 +42,17 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    parsetree->showtree("");
+    // parsetree->showtree("");
 
-    // SageCodeGenVisitor main_visitor = SageCodeGenVisitor(llvm_context);
-    printf("%s\n", nodetype_to_string(parsetree->get_nodetype()).c_str());
-    
-    // if (parsetree->get_host_nodetype() == PN_BLOCK) {
-    //     auto block = dynamic_cast<BlockParseNode*>()
-    //     main_visitor.visit_program(parsetree);
-    // }
+    SageCompiler compiler = SageCompiler(parsetree, llvm_context);
+    auto module = compiler.compile();
+    auto success = compiler.generate_output(module, "sage.out");
 
-    delete parsetree;
-
-    llvm::llvm_shutdown();
+    if (success) {
+        printf("Compilation finished successfully.\n");
+    }else {
+        printf("Compilation finished unsuccessfully. It's ok try again :)\n");
+    }
 
     return 0;
 }

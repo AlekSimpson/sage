@@ -232,7 +232,7 @@ TrinaryParseNode::~TrinaryParseNode() {
 string TrinaryParseNode::to_string() {
     char buffer[200];
 
-    snprintf(buffer, sizeof(buffer), "BinaryNode{%s | %s | %s | %s | %s}", nodetype_to_string(rep_nodetype).c_str(), token.lexeme.c_str(), left->to_string().c_str(), middle->to_string().c_str(), right->to_string().c_str());
+    snprintf(buffer, sizeof(buffer), "TrinaryNode{%s | %s | %s | %s | %s}", nodetype_to_string(rep_nodetype).c_str(), token.lexeme.c_str(), left->to_string().c_str(), middle->to_string().c_str(), right->to_string().c_str());
 
     string retval;
     retval = buffer;
