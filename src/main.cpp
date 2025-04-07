@@ -35,18 +35,21 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
+    printf("a\n");
     SageParser parser = SageParser(target_file);
     AbstractParseNode* parsetree = parser.parse_program(false);
     if (parsetree == nullptr) {
         printf("parsetree root is null. parsing failed.\n");
         return 1;
     }
+    printf("b\n");
 
-    // parsetree->showtree("");
+    parsetree->showtree("");
 
+    bool success = false;
     SageCompiler compiler = SageCompiler(parsetree, llvm_context);
-    auto module = compiler.compile();
-    auto success = compiler.generate_output(module, "sage.out");
+    // auto module = compiler.compile_module();
+    // success = compiler.generate_output(module, "sage.out");
 
     if (success) {
         printf("Compilation finished successfully.\n");

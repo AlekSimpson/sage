@@ -33,6 +33,7 @@ public:
   llvm::Value* visit_variable_decl(AbstractParseNode*);
   llvm::Value* visit_function_declaration(BinaryParseNode*);
   llvm::Value* visit_function_definition(BinaryParseNode*);
+  llvm::Value* visit_function_call(UnaryParseNode*);
   llvm::Value* visit_codeblock(BlockParseNode*);
   llvm::Value* visit_unary_expr(UnaryParseNode*);
   llvm::Value* visit_trinary_expr(TrinaryParseNode*);
@@ -52,6 +53,8 @@ public:
   ~SageCompiler();
 
   llvm::Module* compile();
+  llvm::Module* compile_module();
+  SageAST* parse_codefile(string target_file);
   void optimize(llvm::Module* module, int level);
   successful generate_output(llvm::Module* module, const std::string& output_file);
 };

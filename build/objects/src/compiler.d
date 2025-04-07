@@ -180,4 +180,5 @@ build/objects/src/compiler.o: src/compiler.cpp \
  /usr/lib/llvm-14/include/llvm/IR/ValueHandle.h \
  src/../include/../include/parse_node.h \
  src/../include/../include/../include/token.h \
- src/../include/../include/symbols.h
+ src/../include/../include/symbols.h src/../include/parser.h \
+ src/../include/lexer.h

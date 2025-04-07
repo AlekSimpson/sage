@@ -27,9 +27,9 @@ SageSymbolTable::~SageSymbolTable() {
     LLVMSymbol* temp;
     for (const auto& pair : symbol_table) {
         temp = pair.second; // second position holds the LLVMSymbol pointers
-        // if (temp != nullptr) {
-        //     delete temp;
-        // }
+        if (temp != nullptr) {
+            delete temp;
+        }
     }
 }
 
@@ -51,7 +51,14 @@ void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
     declare_symbol("f64", create_symbol("f64", nullptr, llvm::Type::getDoubleTy(*context)), true);
     declare_symbol("void", create_symbol("void", nullptr, llvm::Type::getVoidTy(*context)), true);
 
-    SageScope root_scope = {"bool", "success_t", "char", "int", "i8", "i32", "i64", "float", "f32", "f64", "void"};
+    // FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
+    declare_symbol("char*", create_symbol("char*", nullptr, llvm::Type::getInt8PtrTy(*context)), true);
+
+    SageScope root_scope = {
+        "bool", "success_t", "char", "int", "i8", 
+        "i32", "i64", "float", "f32", "f64", "void",
+        "char*"
+    };
     type_scope = root_scope;
 }
 
@@ -95,6 +102,23 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     }
 
     return symbol_table[name];
+}
+
+llvm::Type* SageSymbolTable::derive_sage_type(UnaryParseNode* node) {
+    switch (node->get_nodetype()) {
+        case PN_NUMBER:
+            return llvm::Type::getInt64Ty(*context);
+        case PN_FLOAT:
+            return llvm::Type::getFloatTy(*context);
+        case PN_STRING:
+            return llvm::Type::getInt8Ty(*context);
+        case PN_VAR_REF:
+            // TODO
+            break;
+        default:
+            return nullptr;
+    }
+    return nullptr;
 }
 
 llvm::Type* SageSymbolTable::resolve_sage_type(UnaryParseNode* type_node) {

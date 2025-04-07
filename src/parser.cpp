@@ -529,7 +529,7 @@ AbstractParseNode* SageParser::parse_function() {
     
     Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_list->get_token().linenum);
 
-    // if there is no brace and instead if immidiately followed by a NEWLINE then there is no body
+    // if there is no brace and instead is immidiately followed by a NEWLINE then there is no body
     if (match_types(current_token->token_type, TT_NEWLINE)) {
         advance(); // move past the newline
         return new BinaryParseNode(function_signature, PN_FUNCDEC, parameter_list, return_type_node);

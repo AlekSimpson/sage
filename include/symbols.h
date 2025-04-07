@@ -42,6 +42,7 @@ public:
   void push_scope();
   void pop_scope();
   bool declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol);
+  llvm::Type* derive_sage_type(UnaryParseNode* node);
   LLVMSymbol* lookup_symbol(const string& name);
   llvm::Type* resolve_sage_type(UnaryParseNode* type_node);
   void initialize(llvm::LLVMContext& llvm_context);
