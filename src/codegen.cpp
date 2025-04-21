@@ -19,7 +19,7 @@ SageCodeGenVisitor::SageCodeGenVisitor(std::shared_ptr<llvm::LLVMContext> contex
     builder = make_unique<llvm::IRBuilder<>>(*llvm_context);
     main_module = make_unique<llvm::Module>("main_module", *llvm_context);
     symbol_table = SageSymbolTable();
-    symbol_table.initialize(*llvm_context);
+    symbol_table.initialize(main_module.get(), *llvm_context);
 }
 
 llvm::Module* SageCodeGenVisitor::get_module() {
@@ -519,8 +519,6 @@ llvm::Value* SageCodeGenVisitor::process_expression(BinaryParseNode* node) {
             return builder->CreateMul(LHS_ir, RHS_ir, "multmp");
         case TT_DIV:
             return builder->CreateSDiv(LHS_ir, RHS_ir, "divtmp");
-        case TT_EXP: // TODO:
-            break;
         case TT_AND:
             return builder->CreateAnd(LHS_ir, RHS_ir, "andtmp");
         case TT_OR:

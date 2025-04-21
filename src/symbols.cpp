@@ -33,12 +33,28 @@ SageSymbolTable::~SageSymbolTable() {
     }
 }
 
-void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
+void SageSymbolTable::initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context) {
     context = &llvm_context;
 
     // initialize root stack with sage built in datatypes and methods
     symbol_stack.push({});
  
+    // add printf by default
+    vector<llvm::Type*> param_types;
+    param_types.push_back(llvm::Type::getInt8PtrTy(*context));
+    llvm::FunctionType* function_type = llvm::FunctionType::get(
+        llvm::Type::getInt32Ty(*context), 
+        param_types, 
+        true
+    );
+    llvm::Value* llvmvalue = llvm::Function::Create(
+        function_type,
+        llvm::Function::ExternalLinkage,
+        "printf",
+        main_module
+    );
+    declare_symbol("printf", create_symbol("printf", llvmvalue, function_type), false);
+
     declare_symbol("bool", create_symbol("bool", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("success_t", create_symbol("success_t", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("char", create_symbol("char", nullptr, llvm::Type::getInt8Ty(*context)), true);

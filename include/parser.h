@@ -22,8 +22,6 @@ public:
 
 private:
   // parsing methods
-  AbstractParseNode* library_statement();
-  BlockParseNode* parse_libraries();
   BlockParseNode* parse_statements();
   AbstractParseNode* parse_statement();
   AbstractParseNode* parse_run_directive();
@@ -53,8 +51,6 @@ private:
   void consume(TokenType expected_type, string message);
   void advance();
   Token peek();
-  bool current_token_type_is(TokenType token_type);
-  bool is_ending_token();
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
 };

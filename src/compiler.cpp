@@ -102,11 +102,11 @@ void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
 
 successful SageCompiler::generate_output(llvm::Module* module, const std::string& output_file) {
     // Initialize all targets
-    llvm::InitializeAllTargetInfos();
-    llvm::InitializeAllTargets();
-    llvm::InitializeAllTargetMCs();
-    llvm::InitializeAllAsmParsers();
-    llvm::InitializeAllAsmPrinters();
+    // llvm::InitializeAllTargetInfos();
+    // llvm::InitializeAllTargets();
+    // llvm::InitializeAllTargetMCs();
+    // llvm::InitializeAllAsmParsers();
+    // llvm::InitializeAllAsmPrinters();
 
     // Get target machine
     auto target_triple = "x86_64-pc-linux-gnu";

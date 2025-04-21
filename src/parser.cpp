@@ -10,8 +10,8 @@
 #include <string>
 using namespace std;
 
+bool is_operator(Token op);
 int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
-bool is_operator(TokenType tokentype);
 
 SageParser::SageParser(string filename) {
     lexer = new SageLexer(filename);
@@ -43,68 +43,19 @@ AbstractParseNode* SageParser::parse_program(bool debug_lexer) {
         return nullptr;
     }
 
-    BlockParseNode* root = parse_libraries();
     BlockParseNode* program_root = parse_statements();
 
-    // add all of program_root's children to root's children
-    root->children.insert(root->children.end(), program_root->children.begin(), program_root->children.end());
-
-    // clear program_root's children to avoid unused duplicate pointers
-    program_root->children.clear();
-    delete program_root;
-    
     if (errors.size() != 0) {
         for (Token err : errors) {
             printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
         }
-        for (auto child : root->children) {
+        for (auto child : program_root->children) {
             delete child;
         }
         return nullptr;
     }
 
-    return root;
-}
-
-AbstractParseNode* SageParser::library_statement() {
-    consume(TT_KEYWORD, "Expected include keyword in include statement.\n");
-
-    if (current_token->token_type != TT_STRING) {
-        raise_error("Expected string literal in include statement.\n");
-        return nullptr;
-    }
-
-    Token string_token = Token();
-    string_token.fill_with(*current_token);
-
-    UnaryParseNode* node = new UnaryParseNode(string_token, PN_INCLUDE);
-
-    advance();
-    consume(TT_NEWLINE, "Must have include statements on individual lines.\n");
-
-    return node;
-}
-
-BlockParseNode* SageParser::parse_libraries() {
-    BlockParseNode* list_node = new BlockParseNode();
-
-    while (errors.empty()) {
-        while (match_types(current_token->token_type, TT_NEWLINE)) {
-            advance();
-        }
-        if (!match_types(current_token->token_type, TT_KEYWORD)) {
-            break;
-        }
-
-        auto next_include = library_statement();
-        if (next_include == nullptr) {
-            break; // don't want to add nullptr to children list if an error is found
-        }
-
-        list_node->children.push_back(next_include);
-    }
-
-    return list_node;
+    return program_root;
 }
 
 BlockParseNode* SageParser::parse_statements() {
@@ -180,7 +131,6 @@ AbstractParseNode* SageParser::parse_run_directive() {
 
     Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum);
     auto run_body = parse_body();
-
     return new UnaryParseNode(run_token, PN_RUN_DIRECTIVE, run_body);
 }
 
@@ -686,26 +636,41 @@ AbstractParseNode* SageParser::parse_expression() {
     return parse_operator(parse_primary(), TT_EQUALITY);
 }
 
+bool is_operator(Token op) { 
+    // TT_DIV should be 8 which is the last operator so far
+    return op.token_type <= 8; 
+}
+
+int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) { 
+    if (curr_op_type > op_type) {
+        return 1;
+    }
+    return 0;
+}
+
 AbstractParseNode* SageParser::parse_operator(AbstractParseNode* left, int min_precedence) {
-    Token current = Token();
-    current.fill_with(*current_token);
-    while (is_operator(current_token->token_type) && current.get_operator_precedence() >= min_precedence) {
-        Token op = current;
+    // this should be an operator token because LHS will have already been evaluated
+    Token current_op = Token(); 
+    current_op.fill_with(*current_token);
+
+    while (is_operator(current_op) && current_op.get_operator_precedence() >= min_precedence) {
+        Token op = current_op;
         advance();
 
         auto right = parse_primary();
-        current.fill_with(*current_token);
-        while (is_operator(current_token->token_type) && (current_token->token_type > op.token_type ||
-               (op_is_right_associative(current.lexeme) && current.token_type == op.token_type))) {
+        current_op.fill_with(*current_token);
 
-            int inc = decide_precedence_inc(current.token_type, op.token_type);
-            right = parse_operator(right, op.token_type+inc);
+        while (
+            (is_operator(current_op) && current_op.get_operator_precedence() > op.get_operator_precedence()) || 
+            (op_is_right_associative(current_op.lexeme) && current_op.get_operator_precedence() == op.get_operator_precedence())
+        ) {
+            int inc = decide_precedence_inc(current_op.token_type, op.token_type);
+            right = parse_operator(right, op.get_operator_precedence() + inc);
 
-            current.fill_with(*current_token);
+            current_op.fill_with(*current_token);
         }
         left = new BinaryParseNode(op, PN_BINARY, left, right);
     }
-
     return left;
 }
 
@@ -779,17 +744,6 @@ UnaryParseNode* SageParser::parse_struct_field_access() {
     return new UnaryParseNode(token, PN_LIST, identifier_lexemes);
 }
 
-bool is_operator(TokenType tokentype) {
-    return tokentype <= 9; // TT_EXP should be 9 which is the last operator so far
-}
-
-int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) {
-    if (curr_op_type > op_type) {
-        return 1;
-    } 
-    return 0;
-}
-
 // parser utility methods
 void SageParser::raise_error(string message) {
     Token error_token = Token(message, current_token->linenum);
@@ -814,7 +768,12 @@ bool SageParser::matches_any(TokenType type_a, TokenType* possible_types, int ty
 // if the current token is token_type then advance otherwise throw an error
 // used to expected certain tokens in the input
 void SageParser::consume(TokenType tokentype, string message) {
-    if (current_token_type_is(tokentype)) {
+    if (current_token->token_type == TT_EOF) {
+        raise_error(message);
+        return;
+    }
+
+    if (current_token->token_type == tokentype) {
         advance();
         return;
     }
@@ -843,18 +802,6 @@ Token SageParser::peek() {
     return peeked_token;
 }
 
-bool SageParser::current_token_type_is(TokenType tokentype) {
-    if (is_ending_token()) {
-        return false;
-    }
-
-    return current_token->token_type == tokentype;
-}
-
-bool SageParser::is_ending_token() {
-    return current_token->token_type == TT_EOF;
-}
-
 bool SageParser::op_is_left_associative(string op_literal) {
     unordered_map<string, bool> left_map = {
         {"*", true},
@@ -862,7 +809,6 @@ bool SageParser::op_is_left_associative(string op_literal) {
         {"-", true},
         {"+", true},
         {"==", true},
-        {"^", true},
     };
 
     return left_map[op_literal];

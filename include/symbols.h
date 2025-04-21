@@ -23,7 +23,7 @@ struct LLVMSymbol {
 typedef unordered_set<string> SageScope;
 typedef bool successful;
 
-LLVMSymbol create_symbol(string identifier, llvm::Value* value, llvm::Type* type);
+LLVMSymbol create_symbol(string, llvm::Value*, llvm::Type*);
 
 class SageSymbolTable {
 private:
@@ -45,7 +45,7 @@ public:
   llvm::Type* derive_sage_type(UnaryParseNode* node);
   LLVMSymbol* lookup_symbol(const string& name);
   llvm::Type* resolve_sage_type(UnaryParseNode* type_node);
-  void initialize(llvm::LLVMContext& llvm_context);
+  void initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context);
 
 };
 

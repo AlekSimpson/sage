@@ -1,29 +1,92 @@
-include "stdio.g"
+#execute {
+    executable_name = "output"
+    platform = "LINUX"
+    architecture = "X86"
+    bitsize = 64
 
-Car :: struct {
-    name          string, 
-    price         int16,
-    plate_num     string,
-    service_years [int32],
-    next_car      Car*,
+    include_files = [
+	"some_package", 
+	"some_other_package",
+    ]
 }
 
-add :: (x int, y int) -> int {
+// '--' symbol means keep the value uninitialized
+Car :: struct {
+    name:          string = "default",
+    price:         i16 = 1300,
+    plate_num:     string = "34A0",
+    service_years: [i32 : 4] = [0, 0, 0, 0],
+    next_car:      Car* = --,
+}
+
+// the 'compact' keyword makes it so that this data structure will be stored in memory as a structure of arrays
+// no special indexing is required to work with NumberCache objects, the syntax stays the same
+// the only thing that changes is how the memory is laid out under the hood
+// Note: when a heap NumberCache is allocated this creates another NumberCache SOA container on the heap
+//       this way there is no weird edge cases that come up with mixed allocations types for the same SOA container
+NumberCache :: compact struct {
+   float_value: float,
+   int_value: int,
+   int32_value: i32,
+
+   using car : Car,
+}
+
+add :: (x: int, y: int) -> int {
     ret x + y
 }
 
-mult :: (x int, y int) -> int {
-    result int
-    for x in (0...50) {
-        result++x
-        result--4
+mult :: (x: int, y: int) -> int {
+    // 'do_mult' captures the value 'result', capturing means that the function will search for the 
+    // captured variable in the current scope and use that value in the function
+    // we do not have to capture 'result', we could omit the '[result]' notation and the function 
+    // would still run and it would still search for result in the outer scopes like normal 
+    // the point of capturing values is that this way if or when we want to promote this function to a higher scope we 
+    // have a way of documenting to the programmer that this function depends on currently in scope variables that 
+    // should probably become parameters if the function is moved to a higher scope.
+    do_mult :: [result] (end: int, num: int) {
+	// 'it' is a built in iterator variable that is initialized in every for loop scope
+	// holds either the index or iterator object, depending on the loop
+	// 'it' is not initialized if another named iterator variable is specified
+	for 0...end {
+	    result = result * it + num
+	}
+	ret result
     }
+
+    result int
+    do_mult(50, x)
+    do_mult(4, y)
+
     ret result
 }
 
-honk :: () -> void {
-    message string = "honk!\n"
-    printf(message)
+honk :: (using car : Car) -> void {
+    message: string = "honk!\n"
+    printf("%s honked!\n", name) // printf is builtin, no imports required
+}
+
+main :: () {
+    car : Car!* = new Car // the '!' pointer parameter tells the compiler that it owns this memory and it will free the memory when the current scope closes
+    car.name = "BYD"
+
+    car_two := new Car
+    car_two.name = "Xiaomi"
+
+    car.next_car = car_two
+
+    car.next_char.honk() // prints: 'Xiaomi honked!\n'
+
+    // arrays
+    dynamic_array: [int : ..]
+    dynamic_array.append(5) 
+
+    static_array: [int : 4] = --
+    static_array[0] = 9
+
+    
+    // no need to free the first car because it will be auto freed when the main function ends
+    free car_two 
 }
 
 
@@ -88,23 +151,15 @@ VISION:
 3. Polymorphic functions
 4. C like memory management. No smart pointers. No complicated borrow rules. No garbage collection.
 5. The build system is built into the compiler
-6. Arbitrary Compile Time Code Execution
+6. Arbitrary Compile Time Code Execution, using bytecode interpreter
 7. Functions as first class citizens
 
-- eventually i want to add macros
-- also want to add function pattern matching definition types like in haskell, 
-	ex: 
-	and 1 1 = 1 
-	and 0 1 = 0 
-	and 1 0 = 0 
-	and 0 0 = 0 
-	and _ _ = 0
 - ternary expressions
 - Automated AST Manipulation / Refactoring
 - the ':=' operator
 - infix array initialization, ex: ages [int:5] = [50, 20, 1, 17, 80]
 - 'fallthrough' keyword
-- keyword 'using' before function parameters means that the scope of that value is injected into the scope of the function, (this probably could also be consisted with library imports)
+- keyword 'using' before function parameters means that the scope of that value is injected into the scope of the function
 
 
 target datalayouts for the most common platforms:

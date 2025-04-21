@@ -13,7 +13,6 @@ typedef enum {
     TT_SUB,
     TT_MUL,
     TT_DIV,
-    TT_EXP,
     TT_NUM,
     TT_IDENT,
     TT_FLOAT,
