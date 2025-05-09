@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
 #include <string>
 #include "parse_node.h"
 
@@ -13,7 +12,11 @@ struct nodebox {
 
 class NodeManager {
 private:
-    vector<nodebox> container;
+	nodebox* container;
+	int box_count;
+	int capacity;
+	vector<int> free_spaces;
+
     NodeIndex root_node;
 
 public:
@@ -44,4 +47,6 @@ public:
     NodeIndex create_unary(Token, ParseNodeType);
     NodeIndex create_unary(Token, ParseNodeType, NodeIndex branch);
     NodeIndex create_unary(Token, ParseNodeType, vector<string> lexemes);
+
+	void expand_container();
 }

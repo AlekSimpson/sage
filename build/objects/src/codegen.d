@@ -128,5 +128,6 @@ build/objects/src/codegen.o: src/codegen.cpp \
  /usr/lib/llvm-14/include/llvm/IR/IntrinsicEnums.inc \
  /usr/lib/llvm-14/include/llvm/IR/Operator.h \
  /usr/lib/llvm-14/include/llvm/IR/ValueHandle.h \
- src/../include/parse_node.h src/../include/../include/token.h \
- src/../include/symbols.h src/../include/codegen.h
+ src/../include/parse_node.h src/../include/token.h \
+ src/../include/node_manager.h src/../include/symbols.h \
+ src/../include/codegen.h
