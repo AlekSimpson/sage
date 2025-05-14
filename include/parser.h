@@ -1,7 +1,7 @@
 #pragma once
 
 #include "lexer.h"
-#include "parse_node.h"
+#include "node_manager.h"
 #include "token.h"
 
 #include <vector>
@@ -11,38 +11,40 @@ class SageParser {
 public:
   SageLexer* lexer;
   Token* current_token;
-  AbstractParseNode* node_cache;
+  NodeIndex node_cache;
   vector<Token> errors;
   string filename;
+  NodeManager* node_manager;
 
-  SageParser(string filename);
+  SageParser();
+  SageParser(NodeManager*, string filename);
   ~SageParser();
 
-  AbstractParseNode* parse_program(bool debug_lexer);
+  NodeIndex parse_program(bool debug_lexer);
 
 private:
   // parsing methods
-  BlockParseNode* parse_statements();
-  AbstractParseNode* parse_statement();
-  AbstractParseNode* parse_run_directive();
-  AbstractParseNode* parse_value_dec();
-  AbstractParseNode* parse_value_dec_list();
-  AbstractParseNode* parse_assign();
-  AbstractParseNode* parse_keyword_statement();
-  AbstractParseNode* parse_if_statement();
-  AbstractParseNode* parse_while_statement();
-  AbstractParseNode* parse_for_statement();
-  AbstractParseNode* parse_range();
-  AbstractParseNode* parse_construct();
-  AbstractParseNode* parse_struct();
-  AbstractParseNode* parse_function();
-  AbstractParseNode* parse_function_call();
-  AbstractParseNode* parse_body();
-  AbstractParseNode* parse_type();
-  AbstractParseNode* parse_expression();
-  AbstractParseNode* parse_operator(AbstractParseNode* left, int min_precedence);
-  AbstractParseNode* parse_primary();
-  UnaryParseNode* parse_struct_field_access();
+  NodeIndex parse_statements();
+  NodeIndex parse_statement();
+  NodeIndex parse_run_directive();
+  NodeIndex parse_value_dec();
+  NodeIndex parse_value_dec_list();
+  NodeIndex parse_assign();
+  NodeIndex parse_keyword_statement();
+  NodeIndex parse_if_statement();
+  NodeIndex parse_while_statement();
+  NodeIndex parse_for_statement();
+  NodeIndex parse_range();
+  NodeIndex parse_construct();
+  NodeIndex parse_struct();
+  NodeIndex parse_function();
+  NodeIndex parse_function_call();
+  NodeIndex parse_body();
+  NodeIndex parse_type();
+  NodeIndex parse_expression();
+  NodeIndex parse_operator(NodeIndex left, int min_precedence);
+  NodeIndex parse_primary();
+  NodeIndex parse_struct_field_access();
 
   // util methods
   void raise_error(string message);
@@ -51,6 +53,9 @@ private:
   void consume(TokenType expected_type, string message);
   void advance();
   Token peek();
+  bool current_token_type_is(TokenType token_type);
+  bool is_ending_token();
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
+
 };

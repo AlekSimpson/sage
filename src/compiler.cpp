@@ -16,69 +16,65 @@
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 #include "../include/symbols.h"
 
+using namespace std;
 using namespace llvm;
 
-SageCompiler::SageCompiler(SageAST* ast, std::shared_ptr<llvm::LLVMContext> context) {
-    this->ast = ast;
-    this->visitor = SageCodeGenVisitor(context);
+SageCompiler::SageCompiler() {}
+
+SageCompiler::SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context) {
+    this->ast = NULL_INDEX;
+    this->visitor = SageCodeGenVisitor(node_manager, context);
+    this->node_manager = new NodeManager();
+    this->parser = SageParser(node_manager, mainfile);
 }
 
 SageCompiler::~SageCompiler() {
-    delete ast;
+    delete node_manager;
     llvm::llvm_shutdown();
 }
 
-SageAST* SageCompiler::parse_codefile(string target_file) {
-    // validate that file is valid
-    if (target_file.find('.') == string::npos) {
-        printf("cannot target files that have no file extension.\n");
-        exit(1);
-    }
-
-    vector<string> delimited;
-    boost::split(delimited, target_file, boost::is_any_of("."));
-
-    if (delimited[1] != "sage") {
-        printf("cannot target non sage source files.\n");
-        exit(1);
-    }
-
-    SageParser parser = SageParser(target_file);
-    AbstractParseNode* parsetree = parser.parse_program(false);
-    if (parsetree == nullptr) {
+NodeIndex SageCompiler::parse_codefile(string target_file) {
+    parser.filename = target_file;
+    NodeIndex parsetree = parser.parse_program(false);
+    if (parsetree == NULL_INDEX) {
         printf("parsetree root is null. parsing failed.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
     return parsetree;
 }
 
-llvm::Module* SageCompiler::compile_module() {
-    if (ast->get_host_nodetype() == PN_BLOCK) {
+llvm::Module* SageCompiler::compile_module(NodeIndex ast) {
+    if (ast == NULL_INDEX) {
+        printf("Cannot compiler module, root was null.\n");
+        return nullptr;
+    }
+
+    if (node_manager->get_host_nodetype(ast) == PN_BLOCK) {
         vector<string> filenames;
 
-        auto program_block = dynamic_cast<BlockParseNode*>(ast);
-        for (auto child : program_block->children) {
-            if (child->get_nodetype() == PN_INCLUDE) {
-                string codefile = child->get_token().lexeme;
+        // find all included code
+        for (NodeIndex child : node_manager->get_children(ast)) {
+            if (node_manager->get_nodetype(child) == PN_INCLUDE) {
+                string codefile = node_manager->get_lexeme(child);
                 codefile.erase(std::remove(codefile.begin(), codefile.end(), '"'), codefile.end());
                 codefile = codefile + ".sage";
                 filenames.push_back(codefile);
             }
         }
 
+        // compile it first
         for (string filename : filenames) {
             string file = "sage_modules/" + filename;
-            SageAST* file_ast = parse_codefile(file);
+            NodeIndex file_ast = parse_codefile(file);
 
-            auto program_block = dynamic_cast<BlockParseNode*>(file_ast);
-            this->visitor.visit_program(program_block);
+            this->visitor.visit_program(file_ast);
         }
 
-        auto main_block = dynamic_cast<BlockParseNode*>(ast);
-        this->visitor.visit_program(main_block);
+        // then compile the main program
+        this->visitor.visit_program(ast);
 
         return this->visitor.get_module();
     }
@@ -88,9 +84,8 @@ llvm::Module* SageCompiler::compile_module() {
 }
 
 llvm::Module* SageCompiler::compile() {
-    if (ast->get_host_nodetype() == PN_BLOCK) {
-        auto program_block = dynamic_cast<BlockParseNode*>(ast);
-        this->visitor.visit_program(program_block);
+    if (node_manager->get_host_nodetype(ast) == PN_BLOCK) {
+        this->visitor.visit_program(ast);
         return this->visitor.get_module();
     }
 
@@ -101,12 +96,6 @@ llvm::Module* SageCompiler::compile() {
 void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
 
 successful SageCompiler::generate_output(llvm::Module* module, const std::string& output_file) {
-    // Initialize all targets
-    // llvm::InitializeAllTargetInfos();
-    // llvm::InitializeAllTargets();
-    // llvm::InitializeAllTargetMCs();
-    // llvm::InitializeAllAsmParsers();
-    // llvm::InitializeAllAsmPrinters();
 
     // Get target machine
     auto target_triple = "x86_64-pc-linux-gnu";
@@ -163,6 +152,37 @@ successful SageCompiler::generate_output(llvm::Module* module, const std::string
 
     std::string link_cmd = "clang -no-pie sage.out -o sage.run";
     system(link_cmd.c_str());
+
+    return true;
+}
+
+void SageCompiler::compiler_exit(int error_code) {
+    // this way the program aborts without leaving unfreed memory
+    delete node_manager;
+    exit(error_code);
+}
+
+void SageCompiler::compiler_exit(string message, int error_code) {
+    // this way the program aborts without leaving unfreed memory
+    delete node_manager;
+    printf("%s\n", message.c_str());
+    exit(error_code);
+}
+
+bool SageCompiler::check_filename_valid(string filename) {
+    // validate that file is valid
+    if (filename.find('.') == string::npos) {
+        printf("cannot target files that have no file extension.\n");
+        return false;
+    }
+
+    vector<string> delimited;
+    boost::split(delimited, filename, boost::is_any_of("."));
+
+    if (delimited[1] != "sage") {
+        printf("cannot target non sage source files.\n");
+        return false;
+    }
 
     return true;
 }

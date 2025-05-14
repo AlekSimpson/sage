@@ -9,7 +9,7 @@
 #include <llvm/IR/IRBuilder.h>
 
 #include "symbols.h"
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 
 using namespace llvm;
 
@@ -120,8 +120,8 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     return symbol_table[name];
 }
 
-llvm::Type* SageSymbolTable::derive_sage_type(UnaryParseNode* node) {
-    switch (node->get_nodetype()) {
+llvm::Type* SageSymbolTable::derive_sage_type(const NodeManager* manager, NodeIndex node) {
+    switch (manager->get_nodetype(node)) {
         case PN_NUMBER:
             return llvm::Type::getInt64Ty(*context);
         case PN_FLOAT:
@@ -137,9 +137,9 @@ llvm::Type* SageSymbolTable::derive_sage_type(UnaryParseNode* node) {
     return nullptr;
 }
 
-llvm::Type* SageSymbolTable::resolve_sage_type(UnaryParseNode* type_node) {
+llvm::Type* SageSymbolTable::resolve_sage_type(const NodeManager* manager, NodeIndex type_node) {
     auto current_scope = symbol_stack.top();
-    string type_name = type_node->get_token().lexeme;
+    string type_name = manager->get_lexeme(type_node);
     auto search_name = type_scope.find(type_name);
     if (search_name == type_scope.end()) {
         return nullptr;

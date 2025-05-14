@@ -2,10 +2,11 @@
 
 #include <string>
 #include <vector>
-// #include "../include/token.h"
 #include "token.h"
-#include "node_manager.h"
+// #include "node_manager.h"
 using namespace std;
+
+class NodeManager;
 
 typedef enum {
   PN_BINARY,
@@ -44,7 +45,7 @@ string nodetype_to_string(ParseNodeType nodetype);
 class AbstractParseNode {
 public:
   virtual string to_string() = 0;
-  virtual NodeManager* node_manager() = 0;
+  virtual NodeManager* get_node_manager() = 0;
 };
 
 class BlockParseNode : public AbstractParseNode {
@@ -54,14 +55,14 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
 
-  vector<NodeIndex> children;
+  vector<int> children;
 
-  BlockParseNode();
+  BlockParseNode(NodeManager* man);
   BlockParseNode(NodeManager* man, Token token, ParseNodeType represents);
-  BlockParseNode(NodeManager* man, Token token, ParseNodeType represents, vector<NodeIndex> children);
+  BlockParseNode(NodeManager* man, Token token, ParseNodeType represents, vector<int> children);
 
   string to_string() override;
-  NodeManager* node_manager() override;
+  NodeManager* get_node_manager() override;
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -71,13 +72,13 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
 
-  NodeIndex left;
-  NodeIndex right;
+  int left;
+  int right;
 
-  BinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, NodeIndex left, NodeIndex right);
+  BinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int left, int right);
 
   string to_string() override;
-  NodeManager* node_manager() override;
+  NodeManager* get_node_manager() override;
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -87,14 +88,14 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
 
-  NodeIndex left;
-  NodeIndex middle;
-  NodeIndex right;
+  int left;
+  int middle;
+  int right;
 
-  TrinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, NodeIndex left, NodeIndex middle, NodeIndex right);
+  TrinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int left, int middle, int right);
 
   string to_string() override;
-  NodeManager* node_manager() override;
+  NodeManager* get_node_manager() override;
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -105,12 +106,12 @@ public:
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
   vector<string> lexemes;
 
-  NodeIndex branch;
+  int branch;
 
   UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents);
-  UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents, NodeIndex branch);
+  UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int branch);
   UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents, vector<string> lexemes);
 
   string to_string() override;
-  NodeManager* node_manager() override;
+  NodeManager* get_node_manager() override;
 };

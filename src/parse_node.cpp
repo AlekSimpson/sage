@@ -71,8 +71,8 @@ string nodetype_to_string(ParseNodeType nodetype) {
 }
 
 // SECTION: BlockParseNode definitions
-BlockParseNode::BlockParseNode() {
-    node_manager = nullptr;
+BlockParseNode::BlockParseNode(NodeManager* man) {
+    node_manager = man;
     children = vector<NodeIndex>();
     host_nodetype = PN_BLOCK;
     rep_nodetype = PN_BLOCK;
@@ -99,7 +99,7 @@ string BlockParseNode::to_string() {
     return "BLOCK";
 }
 
-NodeManager* BlockParseNode::node_manager() {
+NodeManager* BlockParseNode::get_node_manager() {
     return node_manager;
 }
 
@@ -134,7 +134,7 @@ string BinaryParseNode::to_string() {
     return retval;
 }
 
-NodeManager* BinaryParseNode::node_manager() {
+NodeManager* BinaryParseNode::get_node_manager() {
     return node_manager;
 }
 
@@ -173,7 +173,7 @@ string TrinaryParseNode::to_string() {
     return retval;
 }
 
-NodeManager* TrinaryParseNode::node_manager() {
+NodeManager* TrinaryParseNode::get_node_manager() {
     return node_manager;
 }
 
@@ -245,7 +245,7 @@ string UnaryParseNode::to_string() {
     return retval;
 }
 
-NodeManager* UnaryParseNode::node_manager() {
+NodeManager* UnaryParseNode::get_node_manager() {
     return node_manager;
 }
 
