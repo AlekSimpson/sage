@@ -9,7 +9,7 @@ NodeManager::NodeManager() {
     capacity = 500;
     container = new nodebox[500];
     for (int i = 0; i < 500; i++) {
-        container[i] = nodebox();
+        container[i] = nodebox{nullptr, PN_UNARY};
         free_spaces.push_back(i);
     }
 
@@ -50,7 +50,8 @@ string NodeManager::to_string(NodeIndex index) {
 }
 
 void NodeManager::showtree(NodeIndex index) {
-    auto node = get_node(index).node;
+    nodebox box = get_node(index);
+    auto node = box.node;
     if (node == nullptr) {
         return;
     }
@@ -64,7 +65,7 @@ ParseNodeType NodeManager::get_nodetype(NodeIndex index) {
         return PN_UNARY;
     }
 
-    return node->rep_nodetype;
+    return node->get_rep_nodetype();
 }
 
 ParseNodeType NodeManager::get_host_nodetype(NodeIndex index) {
@@ -72,7 +73,7 @@ ParseNodeType NodeManager::get_host_nodetype(NodeIndex index) {
     if (node == nullptr) {
         return PN_UNARY;
     }
-    return node->host_nodetype;
+    return node->get_host_nodetype();
 }
 
 string NodeManager::get_lexeme(NodeIndex index) {
@@ -94,7 +95,12 @@ Token NodeManager::get_token(NodeIndex index) {
 }
 
 void NodeManager::add_child(NodeIndex index, NodeIndex new_child) {
-    auto node = get_node(index).node;
+    nodebox box = get_node(index);
+    if (box.host_type != PN_BLOCK) {
+        return;
+    }
+
+    BlockParseNode* node = dynamic_cast<BlockParseNode*>(box.node);
     if (node == nullptr || new_child < 0 || new_child >= capacity) {
         return;
     }
@@ -103,7 +109,12 @@ void NodeManager::add_child(NodeIndex index, NodeIndex new_child) {
 }
 
 string NodeManager::get_full_lexeme(NodeIndex index) {
-    auto node = get_node(index).node;
+    nodebox box = get_node(index);
+    if (box.host_type != PN_UNARY) {
+        return "";
+    }
+
+    UnaryParseNode* node = dynamic_cast<UnaryParseNode*>(box.node);
     if (node == nullptr) {
         return "";
     }

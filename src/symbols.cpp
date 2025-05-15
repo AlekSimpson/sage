@@ -120,7 +120,7 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     return symbol_table[name];
 }
 
-llvm::Type* SageSymbolTable::derive_sage_type(const NodeManager* manager, NodeIndex node) {
+llvm::Type* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex node) {
     switch (manager->get_nodetype(node)) {
         case PN_NUMBER:
             return llvm::Type::getInt64Ty(*context);
@@ -137,7 +137,7 @@ llvm::Type* SageSymbolTable::derive_sage_type(const NodeManager* manager, NodeIn
     return nullptr;
 }
 
-llvm::Type* SageSymbolTable::resolve_sage_type(const NodeManager* manager, NodeIndex type_node) {
+llvm::Type* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex type_node) {
     auto current_scope = symbol_stack.top();
     string type_name = manager->get_lexeme(type_node);
     auto search_name = type_scope.find(type_name);

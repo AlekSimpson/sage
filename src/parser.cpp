@@ -43,7 +43,7 @@ NodeIndex SageParser::parse_program(bool debug_lexer) {
             counter++;
         }
 
-        return nullptr;
+        return NULL_INDEX;
     }
 
     NodeIndex program_root = parse_statements();
@@ -149,7 +149,7 @@ NodeIndex SageParser::parse_value_dec() {
         return NULL_INDEX;
     }
 
-    Token type_identifier_token = type_identifier_node->get_token();
+    Token type_identifier_token = node_manager->get_token(type_identifier_node);
 
     if (match_types(current_token->token_type, TT_ASSIGN)) {
         advance(); // move past the "=" symbol
@@ -165,7 +165,7 @@ NodeIndex SageParser::parse_value_dec() {
     
     // NOTE: probably could just make nodetype equal to ->get_nodetype() and don't need the this conditional
     ParseNodeType nodetype = PN_VAR_DEC;
-    if (type_identifier_node->get_nodetype() == PN_VARARG) {
+    if (node_manager->get_nodetype(type_identifier_node) == PN_VARARG) {
         nodetype = PN_VARARG;
     }
 
@@ -204,13 +204,13 @@ NodeIndex SageParser::parse_value_dec_list() {
 
         TokenType condition_slice[2] = {TT_RBRACE, TT_RPAREN};
         if (matches_any(current_token->token_type, condition_slice, 2)) {
-            list_token.lexeme = value_dec->get_token().lexeme;
+            list_token.lexeme = node_manager->get_lexeme(value_dec);
             _list_node->children.push_back(value_dec);
             break;
         }
 
         consume(TT_COMMA, "Expected comma symbol after value declaration list.\n");
-        list_token_lexeme += value_dec->get_token().lexeme;
+        list_token_lexeme += node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
 
         while (match_types(current_token->token_type, TT_NEWLINE)) {
@@ -246,7 +246,7 @@ NodeIndex SageParser::parse_assign() {
     // it could be that we are referencing the field in some expression
     if (is_field_access && current_token->token_type != TT_ASSIGN) {
         node_cache = name_node; // save parsed node for further expression parsing
-        return nullptr;         // return null to signify that we actually are parsing a different kind of statement
+        return NULL_INDEX;         // return null to signify that we actually are parsing a different kind of statement
     }
 
     consume(TT_ASSIGN, "Expected '=' symbol in assign statement.\n");
@@ -279,7 +279,7 @@ NodeIndex SageParser::parse_keyword_statement() {
         
         advance(); // advance past return token
         NodeIndex expression = parse_expression();
-        Token new_token = Token(TT_KEYWORD, "ret " + expression->to_string(), return_token.linenum);
+        Token new_token = Token(TT_KEYWORD, "ret " + node_manager->to_string(expression), return_token.linenum);
         return node_manager->create_unary(new_token, PN_KEYWORD, expression);
     }
 
@@ -371,7 +371,12 @@ NodeIndex SageParser::parse_for_statement() {
     iterator_variable_token.fill_with(*current_token);
     NodeIndex identifier_token = node_manager->create_unary(iterator_variable_token, PN_IDENTIFIER);
     NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
-    NodeIndex iterator_variable_node = node_manager->create_binary(iterator_variable_token, PN_VAR_DEC, identifier_token, int_type_toen);
+    NodeIndex iterator_variable_node = node_manager->create_binary(
+        iterator_variable_token, 
+        PN_VAR_DEC, 
+        identifier_token, 
+        int_type_token
+    );
     advance(); // move past iterator
     
     if (current_token->lexeme != "in") {
@@ -428,7 +433,7 @@ NodeIndex SageParser::parse_construct() {
     case TT_LPAREN:
         // its a function
         binding_node = parse_function();
-        nodetype = binding_node->get_nodetype();
+        nodetype = node_manager->get_nodetype(binding_node);
         break;
 
     default:
@@ -548,7 +553,7 @@ NodeIndex SageParser::parse_body() {
             break;
         }
 
-        node_manager->add_child(next_statement);
+        node_manager->add_child(body_node, next_statement);
     }
 
     consume(TT_RBRACE, "Expected RBRACE in body definition statement.\n");
@@ -612,7 +617,7 @@ NodeIndex SageParser::parse_type() {
         }
 
         Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
-        return_ndoe = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
+        return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
     }else if (match_types(current_token->token_type, TT_VARARG)) {
         advance(); // advance past the vararg '...' notation
         Token type_token = Token();

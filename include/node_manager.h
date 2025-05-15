@@ -42,7 +42,7 @@ public:
     NodeIndex get_branch(NodeIndex);
     vector<NodeIndex> get_children(NodeIndex);
 
-    void add_child(NodeIndex, NodeIndex new_child);
+    void add_child(NodeIndex self, NodeIndex new_child);
 
     void delete_node(NodeIndex index);
 

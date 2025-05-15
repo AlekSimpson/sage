@@ -41,9 +41,9 @@ public:
   void push_scope();
   void pop_scope();
   bool declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol);
-  llvm::Type* derive_sage_type(const NodeManager*, NodeIndex node);
+  llvm::Type* derive_sage_type(NodeManager*, NodeIndex node);
   LLVMSymbol* lookup_symbol(const string& name);
-  llvm::Type* resolve_sage_type(const NodeManager*, NodeIndex type_node);
+  llvm::Type* resolve_sage_type(NodeManager*, NodeIndex type_node);
   void initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context);
 
 };

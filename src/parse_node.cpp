@@ -95,6 +95,28 @@ BlockParseNode::BlockParseNode(NodeManager* man, Token token, ParseNodeType repr
     this->children = children;
 }
 
+void BlockParseNode::showtree(string depth) {
+    printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
+
+    BlockParseNode* child;
+    for (int i = 0; i < (int)children.size(); ++i) {
+        child = dynamic_cast<BlockParseNode*>(node_manager->get_node(children[i]).node);
+        child->showtree(depth + "\t");
+    }
+}
+
+ParseNodeType BlockParseNode::get_rep_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType BlockParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
+
+Token BlockParseNode::get_token() {
+    return token;
+}
+
 string BlockParseNode::to_string() {
     return "BLOCK";
 }
@@ -112,6 +134,33 @@ BinaryParseNode::BinaryParseNode(NodeManager* man, Token token, ParseNodeType re
     host_nodetype = PN_BINARY;
     this->left = left;
     this->right = right;
+}
+
+void BinaryParseNode::showtree(string depth) {
+    printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
+
+    BinaryParseNode* child;
+    if (left != NULL_INDEX) {
+        child = dynamic_cast<BinaryParseNode*>(node_manager->get_node(left).node);
+        child->showtree(depth + "\t");
+    }
+
+    if (right != NULL_INDEX) {
+        child = dynamic_cast<BinaryParseNode*>(node_manager->get_node(right).node);
+        child->showtree(depth + "\t");
+    }
+}
+
+ParseNodeType BinaryParseNode::get_rep_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType BinaryParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
+
+Token BinaryParseNode::get_token() {
+    return token;
 }
 
 string BinaryParseNode::to_string() {
@@ -150,12 +199,44 @@ TrinaryParseNode::TrinaryParseNode(NodeManager* man, Token token, ParseNodeType 
     this->right = right;
 }
 
+void TrinaryParseNode::showtree(string depth) {
+    printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
+
+    TrinaryParseNode* child;
+    if (left != NULL_INDEX) {
+        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(left).node);
+        child->showtree(depth + "\t");
+    }
+
+    if (middle != NULL_INDEX) {
+        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(middle).node);
+        child->showtree(depth + "\t");
+    }
+
+    if (right != NULL_INDEX) {
+        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(right).node);
+        child->showtree(depth + "\t");
+    }
+}
+
+ParseNodeType TrinaryParseNode::get_rep_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType TrinaryParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
+
+Token TrinaryParseNode::get_token() {
+    return token;
+}
+
 string TrinaryParseNode::to_string() {
     char buffer[200];
 
     string left_string = node_manager->to_string(left);
     string middle_string = node_manager->to_string(middle);
-    srting right_string = node_manager->to_string(right);
+    string right_string = node_manager->to_string(right);
 
     snprintf(buffer, 
              sizeof(buffer), 
@@ -204,27 +285,32 @@ UnaryParseNode::UnaryParseNode(NodeManager* man, Token token, ParseNodeType repr
     this->branch = -1;
 }
 
-// string UnaryParseNode::get_full_lexeme() {
-//     if (lexemes.size() == 0) {
-//         return "";
-//     }
-// 
-//     string full_lex;
-// 
-//     for (int i = 0; i < (int)lexemes.size(); ++i) {
-//         full_lex += lexemes[i];
-//         full_lex += ".";
-//     }
-// 
-//     full_lex.pop_back();
-// 
-//     return full_lex;
-// }
+void UnaryParseNode::showtree(string depth) {
+    printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
+
+    UnaryParseNode* child;
+    if (branch != NULL_INDEX) {
+        child = dynamic_cast<UnaryParseNode*>(node_manager->get_node(branch).node);
+        child->showtree(depth + "\t");
+    }
+}
+
+Token UnaryParseNode::get_token() {
+    return token;
+}
+
+ParseNodeType UnaryParseNode::get_rep_nodetype() {
+    return rep_nodetype;
+}
+
+ParseNodeType UnaryParseNode::get_host_nodetype() {
+    return host_nodetype;
+}
 
 string UnaryParseNode::to_string() {
     char buffer[100];
 
-    if (branch != nullptr) {
+    if (branch != NULL_INDEX) {
         string branch_string = node_manager->to_string(branch);
 
         snprintf(buffer, 
