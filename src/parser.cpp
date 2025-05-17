@@ -16,7 +16,7 @@ int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
 SageParser::SageParser(){}
 
 SageParser::SageParser(NodeManager* _node_manager, string _filename) {
-    lexer = new SageLexer(filename);
+    lexer = new SageLexer(_filename);
 
     node_manager = _node_manager;
     filename = _filename;

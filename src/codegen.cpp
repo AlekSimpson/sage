@@ -461,13 +461,13 @@ llvm::Value* SageCodeGenVisitor::process_expression(NodeIndex node) {
     if (node_manager->get_host_nodetype(LHS_node) == PN_UNARY) {
         LHS_ir = visit_unary_expr(LHS_node);
     }else {
-        process_expression(LHS_node);
+        LHS_ir = process_expression(LHS_node);
     }
 
     if (node_manager->get_host_nodetype(RHS_node) == PN_UNARY) {
         RHS_ir = visit_unary_expr(RHS_node);
     }else {
-        process_expression(RHS_node);
+        RHS_ir = process_expression(RHS_node);
     }
     
     // parse operator IR

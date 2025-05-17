@@ -8,6 +8,7 @@
 #include "../include/codegen.h"
 #include "../include/node_manager.h"
 #include "../include/parser.h"
+#include "../include/token.h"
 
 using namespace llvm;
 

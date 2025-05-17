@@ -46,11 +46,11 @@ public:
 class SageCompiler {
 private:
   NodeIndex ast;
-  SageCodeGenVisitor visitor;
 
 public:
-  SageParser parser;
   NodeManager* node_manager;
+  SageParser parser;
+  SageCodeGenVisitor visitor;
 
   SageCompiler();
   SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context);

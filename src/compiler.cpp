@@ -24,11 +24,11 @@ using namespace llvm;
 
 SageCompiler::SageCompiler() {}
 
-SageCompiler::SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context) {
-    this->ast = NULL_INDEX;
-    this->visitor = SageCodeGenVisitor(node_manager, context);
-    this->node_manager = new NodeManager();
-    this->parser = SageParser(node_manager, mainfile);
+SageCompiler::SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context) 
+    : ast(NULL_INDEX),
+      node_manager(new NodeManager()),
+      parser(SageParser(node_manager, mainfile)),
+      visitor(SageCodeGenVisitor(node_manager, context)) {
 }
 
 SageCompiler::~SageCompiler() {
@@ -96,6 +96,11 @@ llvm::Module* SageCompiler::compile() {
 void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
 
 successful SageCompiler::generate_output(llvm::Module* module, const std::string& output_file) {
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
 
     // Get target machine
     auto target_triple = "x86_64-pc-linux-gnu";
@@ -104,7 +109,7 @@ successful SageCompiler::generate_output(llvm::Module* module, const std::string
     std::string error;
     const llvm::Target* target = llvm::TargetRegistry::lookupTarget(target_triple, error);
 
-    if (!target) {
+    if (target == nullptr) {
         printf("Target not found.\n");
         return false;
     }

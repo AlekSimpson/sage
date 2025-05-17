@@ -44,6 +44,7 @@ string nodetype_to_string(ParseNodeType nodetype);
 
 class AbstractParseNode {
 public:
+  virtual ~AbstractParseNode() {}
   virtual string to_string() = 0;
   virtual void showtree(string depth) = 0;
   virtual NodeManager* get_node_manager() = 0;
