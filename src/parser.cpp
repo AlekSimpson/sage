@@ -1,5 +1,5 @@
 #include "../include/lexer.h"
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 #include "../include/token.h"
 #include "../include/parser.h"
 
@@ -10,15 +10,18 @@
 #include <string>
 using namespace std;
 
+bool is_operator(Token op);
 int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
-bool is_operator(TokenType tokentype);
 
-SageParser::SageParser(string filename) {
-    lexer = new SageLexer(filename);
+SageParser::SageParser(){}
 
-    this->filename = filename;
+SageParser::SageParser(NodeManager* _node_manager, string _filename) {
+    lexer = new SageLexer(_filename);
+
+    node_manager = _node_manager;
+    filename = _filename;
     current_token = nullptr;
-    node_cache = nullptr;
+    node_cache = NULL_INDEX;
     errors = vector<Token>();
 }
 
@@ -28,7 +31,7 @@ SageParser::~SageParser() {
     }
 }
 
-AbstractParseNode* SageParser::parse_program(bool debug_lexer) {
+NodeIndex SageParser::parse_program(bool debug_lexer) {
     current_token = lexer->get_token();
 
     if (debug_lexer) {
@@ -40,75 +43,24 @@ AbstractParseNode* SageParser::parse_program(bool debug_lexer) {
             counter++;
         }
 
-        return nullptr;
+        return NULL_INDEX;
     }
 
-    BlockParseNode* root = parse_libraries();
-    BlockParseNode* program_root = parse_statements();
+    NodeIndex program_root = parse_statements();
 
-    // add all of program_root's children to root's children
-    root->children.insert(root->children.end(), program_root->children.begin(), program_root->children.end());
-
-    // clear program_root's children to avoid unused duplicate pointers
-    program_root->children.clear();
-    delete program_root;
-    
     if (errors.size() != 0) {
         for (Token err : errors) {
             printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
         }
-        for (auto child : root->children) {
-            delete child;
-        }
-        return nullptr;
+
+        return NULL_INDEX;
     }
 
-    return root;
+    return program_root;
 }
 
-AbstractParseNode* SageParser::library_statement() {
-    consume(TT_KEYWORD, "Expected include keyword in include statement.\n");
-
-    if (current_token->token_type != TT_STRING) {
-        raise_error("Expected string literal in include statement.\n");
-        return nullptr;
-    }
-
-    Token string_token = Token();
-    string_token.fill_with(*current_token);
-
-    UnaryParseNode* node = new UnaryParseNode(string_token, PN_INCLUDE);
-
-    advance();
-    consume(TT_NEWLINE, "Must have include statements on individual lines.\n");
-
-    return node;
-}
-
-BlockParseNode* SageParser::parse_libraries() {
-    BlockParseNode* list_node = new BlockParseNode();
-
-    while (errors.empty()) {
-        while (match_types(current_token->token_type, TT_NEWLINE)) {
-            advance();
-        }
-        if (!match_types(current_token->token_type, TT_KEYWORD)) {
-            break;
-        }
-
-        auto next_include = library_statement();
-        if (next_include == nullptr) {
-            break; // don't want to add nullptr to children list if an error is found
-        }
-
-        list_node->children.push_back(next_include);
-    }
-
-    return list_node;
-}
-
-BlockParseNode* SageParser::parse_statements() {
-    BlockParseNode* list_node = new BlockParseNode();
+NodeIndex SageParser::parse_statements() {
+    NodeIndex list_node = node_manager->create_block();
 
     while (errors.empty()) {
         while (match_types(current_token->token_type, TT_NEWLINE)) {
@@ -118,18 +70,18 @@ BlockParseNode* SageParser::parse_statements() {
             break;
         }
 
-        auto next_statement = parse_statement();
-        if (next_statement == nullptr) {
+        NodeIndex next_statement = parse_statement();
+        if (next_statement == NULL_INDEX) {
             break; // don't want to add nullptr to children list if an error is found
         }
 
-        list_node->children.push_back(next_statement);
+        node_manager->add_child(list_node, next_statement);
     }
 
     return list_node;
 }
 
-AbstractParseNode* SageParser::parse_statement() {
+NodeIndex SageParser::parse_statement() {
     Token next_token;
     TokenType value_assign_slice[2] = {TT_ASSIGN, TT_FIELD_ACCESSOR};
     TokenType value_dec_slice[3] = {TT_KEYWORD, TT_LBRACKET, TT_IDENT};
@@ -143,8 +95,8 @@ AbstractParseNode* SageParser::parse_statement() {
             }else if (matches_any(next_token.token_type, value_dec_slice, 3)) {
                 return parse_value_dec();
             }else if (matches_any(next_token.token_type, value_assign_slice, 2)) {
-                auto retval = parse_assign();
-                if (retval == nullptr) {
+                NodeIndex retval = parse_assign();
+                if (retval == NULL_INDEX) {
                     // nil means that we actually were parsing an expression and should stop parsing for assign
                     break;
                 }
@@ -169,63 +121,62 @@ AbstractParseNode* SageParser::parse_statement() {
     return parse_expression();
 }
 
-AbstractParseNode* SageParser::parse_run_directive() {
+NodeIndex SageParser::parse_run_directive() {
     consume(TT_POUND, "Expected 'run' directive to begin with '#' symbol");
 
     if (current_token->token_type != TT_IDENT || current_token->lexeme != "run") {
         raise_error("Expected 'run' keyword in run directive statement.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
     advance();
 
     Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum);
-    auto run_body = parse_body();
+    NodeIndex run_body = parse_body();
 
-    return new UnaryParseNode(run_token, PN_RUN_DIRECTIVE, run_body);
+    return node_manager->create_unary(run_token, PN_RUN_DIRECTIVE, run_body);
 }
 
-AbstractParseNode* SageParser::parse_value_dec() {
+NodeIndex SageParser::parse_value_dec() {
     Token name_identifier_token = Token();
     name_identifier_token.fill_with(*current_token);
 
-    UnaryParseNode* name_identifier_node = new UnaryParseNode(name_identifier_token, PN_IDENTIFIER);
+    NodeIndex name_identifier_node = node_manager->create_unary(name_identifier_token, PN_IDENTIFIER);
     advance(); // move past identifier
 
-    AbstractParseNode* type_identifier_node = parse_type();
-    if (type_identifier_node == nullptr) {
+    NodeIndex type_identifier_node = parse_type();
+    if (type_identifier_node == NULL_INDEX) {
         raise_error("Found invalid type in value declaration list.\n");
-        delete name_identifier_node;
-        return nullptr;
+        return NULL_INDEX;
     }
 
-    Token type_identifier_token = type_identifier_node->get_token();
+    Token type_identifier_token = node_manager->get_token(type_identifier_node);
 
     if (match_types(current_token->token_type, TT_ASSIGN)) {
         advance(); // move past the "=" symbol
-        auto rhs = parse_expression();
+        NodeIndex rhs = parse_expression();
 
-        string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + rhs->to_string();
+        string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->to_string(rhs);
 
         Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum);
-        return new TrinaryParseNode(dec_token, PN_ASSIGN, name_identifier_node, type_identifier_node, rhs);
+        return node_manager->create_trinary(dec_token, PN_ASSIGN, name_identifier_node, type_identifier_node, rhs);
     }
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;
     
     // NOTE: probably could just make nodetype equal to ->get_nodetype() and don't need the this conditional
     ParseNodeType nodetype = PN_VAR_DEC;
-    if (type_identifier_node->get_nodetype() == PN_VARARG) {
+    if (node_manager->get_nodetype(type_identifier_node) == PN_VARARG) {
         nodetype = PN_VARARG;
     }
 
     Token token = Token(TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.linenum);
-    return new BinaryParseNode(token, nodetype, name_identifier_node, type_identifier_node);
+    return node_manager->create_binary(token, nodetype, name_identifier_node, type_identifier_node);
 }
 
-AbstractParseNode* SageParser::parse_value_dec_list() {
+NodeIndex SageParser::parse_value_dec_list() {
     if (match_types(current_token->token_type, TT_RPAREN)) {
         Token token = Token(TT_COMPILER_CREATED, "empty parameter list", current_token->linenum);
-        return new BlockParseNode(token, PN_PARAM_LIST);
+        return node_manager->create_block(token, PN_PARAM_LIST);
     }
 
     while (match_types(current_token->token_type, TT_NEWLINE)) {
@@ -234,32 +185,33 @@ AbstractParseNode* SageParser::parse_value_dec_list() {
 
     if (!match_types(current_token->token_type, TT_IDENT)) {
         raise_error("Expecting value dec to begin with identifier.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
 
-    BlockParseNode* list_node = new BlockParseNode();
-    list_node->rep_nodetype = PN_PARAM_LIST;
+    NodeIndex list_node = node_manager->create_block();
+    BlockParseNode* _list_node = node_manager->unbox(list_node);
+    _list_node->rep_nodetype = PN_PARAM_LIST;
     string list_token_lexeme = "";
     Token list_token = Token(TT_COMPILER_CREATED, "", current_token->linenum);
 
     while (match_types(current_token->token_type, TT_IDENT)) {
-        auto value_dec = parse_value_dec();
+        NodeIndex value_dec = parse_value_dec();
 
-        if (value_dec->get_host_nodetype() == PN_TRINARY) {
+        if (node_manager->get_host_nodetype(value_dec) == PN_TRINARY) {
             raise_error("Cannot initialize value in value declaration list.\n");
-            return nullptr;
+            return NULL_INDEX;
         }
 
         TokenType condition_slice[2] = {TT_RBRACE, TT_RPAREN};
         if (matches_any(current_token->token_type, condition_slice, 2)) {
-            list_token.lexeme = value_dec->get_token().lexeme;
-            list_node->children.push_back(value_dec);
+            list_token.lexeme = node_manager->get_lexeme(value_dec);
+            _list_node->children.push_back(value_dec);
             break;
         }
 
         consume(TT_COMMA, "Expected comma symbol after value declaration list.\n");
-        list_token_lexeme += value_dec->get_token().lexeme;
-        list_node->children.push_back(value_dec);
+        list_token_lexeme += node_manager->get_lexeme(value_dec);
+        _list_node->children.push_back(value_dec);
 
         while (match_types(current_token->token_type, TT_NEWLINE)) {
             advance();
@@ -267,25 +219,24 @@ AbstractParseNode* SageParser::parse_value_dec_list() {
     }
 
     list_token.lexeme = list_token_lexeme;
-    list_node->token = list_token;
+    _list_node->token = list_token;
 
     return list_node;
 }
 
-AbstractParseNode* SageParser::parse_assign() {
+NodeIndex SageParser::parse_assign() {
     Token name_token = Token();
     name_token.fill_with(*current_token);
 
-    auto name_node = new UnaryParseNode(name_token, PN_IDENTIFIER);
+    NodeIndex name_node = node_manager->create_unary(name_token, PN_IDENTIFIER);
     
     Token lookahead = peek();
     bool is_field_access = match_types(lookahead.token_type, TT_FIELD_ACCESSOR);
     if (is_field_access) {
-        delete name_node;
-        name_node = nullptr;
+        node_manager->delete_node(name_node);
 
         name_node = parse_struct_field_access();
-        name_token.lexeme = name_node->get_full_lexeme();
+        name_token.lexeme = node_manager->get_full_lexeme(name_node);
     }else {
 	// parse_struct_field_access leaves the current token cursor on the next token already
 	// so if it is a field access then calling this p.advance() would be unnecessary
@@ -295,19 +246,19 @@ AbstractParseNode* SageParser::parse_assign() {
     // it could be that we are referencing the field in some expression
     if (is_field_access && current_token->token_type != TT_ASSIGN) {
         node_cache = name_node; // save parsed node for further expression parsing
-        return nullptr;         // return null to signify that we actually are parsing a different kind of statement
+        return NULL_INDEX;         // return null to signify that we actually are parsing a different kind of statement
     }
 
     consume(TT_ASSIGN, "Expected '=' symbol in assign statement.\n");
 
-    auto value_node = parse_expression();
+    NodeIndex value_node = parse_expression();
 
-    string token_lexeme = name_token.lexeme + " = " + value_node->get_token().lexeme;
+    string token_lexeme = name_token.lexeme + " = " + node_manager->get_lexeme(value_node);
     Token token = Token(TT_ASSIGN, token_lexeme, name_token.linenum);
-    return new BinaryParseNode(token, PN_ASSIGN, name_node, value_node);
+    return node_manager->create_binary(token, PN_ASSIGN, name_node, value_node);
 }
 
-AbstractParseNode* SageParser::parse_keyword_statement() {
+NodeIndex SageParser::parse_keyword_statement() {
     Token return_token = Token();
 
     unordered_map<string, int> lexeme_map = {
@@ -323,13 +274,13 @@ AbstractParseNode* SageParser::parse_keyword_statement() {
         auto lookahead = peek();
         if (match_types(lookahead.token_type, TT_NEWLINE)) {
             advance();
-            return new UnaryParseNode(return_token, PN_KEYWORD);
+            return node_manager->create_unary(return_token, PN_KEYWORD);
         }
         
         advance(); // advance past return token
-        auto expression = parse_expression();
-        Token new_token = Token(TT_KEYWORD, "ret " + expression->to_string(), return_token.linenum);
-        return new UnaryParseNode(new_token, PN_KEYWORD, expression);
+        NodeIndex expression = parse_expression();
+        Token new_token = Token(TT_KEYWORD, "ret " + node_manager->to_string(expression), return_token.linenum);
+        return node_manager->create_unary(new_token, PN_KEYWORD, expression);
     }
 
     case 2: 
@@ -343,18 +294,21 @@ AbstractParseNode* SageParser::parse_keyword_statement() {
     } 
 
     raise_error("Could not recognize statement.\n");
-    return nullptr;
+    return NULL_INDEX;
 }
 
-AbstractParseNode* SageParser::parse_if_statement() {
+NodeIndex SageParser::parse_if_statement() {
     advance(); // advance past the "if" keyword
     
-    vector<AbstractParseNode*> elif_statements = vector<AbstractParseNode*>();
+    vector<NodeIndex> elif_statements = vector<NodeIndex>();
 
-    auto condition_expression = parse_expression();
-    auto condition_body = parse_body();
-    Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", condition_expression->get_token().linenum);
-    BinaryParseNode* primary_if = new BinaryParseNode(prime_node_token, PN_IF_BRANCH, condition_expression, condition_body);
+    NodeIndex condition_expression = parse_expression();
+    Token expression_token = node_manager->get_token(condition_expression);
+
+    NodeIndex condition_body = parse_body();
+
+    Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum);
+    NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression, condition_body);
 
     elif_statements.push_back(primary_if);
 
@@ -363,98 +317,111 @@ AbstractParseNode* SageParser::parse_if_statement() {
         
         if (current_token->lexeme != "if" && current_token->lexeme != "{") {
             raise_error("Expected body or if statements after else keywords.\n");
-            return nullptr;
+            return NULL_INDEX;
         }
 
         if (current_token->lexeme == "if") {
             advance(); // move past if
 
-            auto condition_exp = parse_expression();
-            auto condition_body = parse_body();
+            NodeIndex condition_exp = parse_expression();
+            Token exp_token = node_manager->get_token(condition_exp);
+
+            NodeIndex condition_body = parse_body();
             // TODO: more detailed token lexeme
-            Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", condition_exp->get_token().linenum);
-            BinaryParseNode* next_elif_statement = new BinaryParseNode(node_token, PN_IF_BRANCH, condition_exp, condition_body);
+            Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum);
+            NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp, condition_body);
             elif_statements.push_back(next_elif_statement);
 
         } else if (match_types(current_token->token_type, TT_LBRACE)) {
-            auto else_body = parse_body();
-            Token node_token = Token(TT_COMPILER_CREATED, "else { ... }", else_body->get_token().linenum);
-            UnaryParseNode* new_node = new UnaryParseNode(node_token, PN_ELSE_BRANCH, else_body);
+            NodeIndex else_body = parse_body();
+            Token body_token = node_manager->get_token(else_body);
+
+            Token node_token = Token(TT_COMPILER_CREATED, "else { ... }", body_token.linenum);
+            NodeIndex new_node = node_manager->create_unary(node_token, PN_ELSE_BRANCH, else_body);
             elif_statements.push_back(new_node);
 
             break;
         }
     }
 
-    return new BlockParseNode(condition_expression->get_token(), PN_IF, elif_statements);
+    return node_manager->create_block(expression_token, PN_IF, elif_statements);
 }
 
-AbstractParseNode* SageParser::parse_while_statement() {
+NodeIndex SageParser::parse_while_statement() {
     consume(TT_KEYWORD, "Expected 'while' keyword in while statement.\n");
 
-    auto condition_node = parse_expression();
+    NodeIndex condition_node = parse_expression();
+    auto node_token = node_manager->get_token(condition_node);
 
-    auto body_node = parse_body();
+    NodeIndex body_node = parse_body();
 
-    Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", condition_node->get_token().linenum);
-    return new BinaryParseNode(token, PN_WHILE, condition_node, body_node);
+    Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", node_token.linenum);
+    return node_manager->create_binary(token, PN_WHILE, condition_node, body_node);
 }
 
-AbstractParseNode* SageParser::parse_for_statement() {
+NodeIndex SageParser::parse_for_statement() {
     consume(TT_KEYWORD, "Expected 'for' keyword in for statement.\n");
 
     if (match_types(current_token->token_type, TT_IDENT)) {
         raise_error("For statement expects iterator name.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
 
     Token iterator_variable_token = Token();
     iterator_variable_token.fill_with(*current_token);
-    auto identifier_token = new UnaryParseNode(iterator_variable_token, PN_IDENTIFIER);
-    auto int_type_token = new UnaryParseNode(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
-    auto iterator_variable_node = new BinaryParseNode(iterator_variable_token, PN_VAR_DEC, identifier_token, int_type_token);
+    NodeIndex identifier_token = node_manager->create_unary(iterator_variable_token, PN_IDENTIFIER);
+    NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
+    NodeIndex iterator_variable_node = node_manager->create_binary(
+        iterator_variable_token, 
+        PN_VAR_DEC, 
+        identifier_token, 
+        int_type_token
+    );
     advance(); // move past iterator
     
     if (current_token->lexeme != "in") {
         raise_error("Expected 'in' keyword in for statement.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
     advance(); // move past in keyword
     
-    auto range_node = parse_range();
-    auto body_node = parse_body();
+    NodeIndex range_node = parse_range();
+    string range_lexeme = node_manager->get_lexeme(range_node);
 
-    string for_lexeme = "for " + iterator_variable_token.lexeme + " in " + range_node->get_token().lexeme + "{ ... }";
+    NodeIndex body_node = parse_body();
+
+    string for_lexeme = "for " + iterator_variable_token.lexeme + " in " + range_lexeme + "{ ... }";
     Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum);
-    return new TrinaryParseNode(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
+    return node_manager->create_trinary(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
 }
 
-AbstractParseNode* SageParser::parse_range() {
-    auto lhs = parse_expression();
+NodeIndex SageParser::parse_range() {
+    NodeIndex lhs = parse_expression();
+    Token left_token = node_manager->get_token(lhs);
 
     consume(TT_RANGE, "Expected '...' operator in range statement.\n");
 
-    auto rhs = parse_expression();
+    NodeIndex rhs = parse_expression();
 
-    string range_lex = lhs->get_token().lexeme + "..." + rhs->get_token().lexeme;
-    Token range_token = Token(TT_COMPILER_CREATED, range_lex, lhs->get_token().linenum);
+    string range_lex = left_token.lexeme + "..." + node_manager->get_lexeme(rhs);
+    Token range_token = Token(TT_COMPILER_CREATED, range_lex, left_token.linenum);
 
-    return new BinaryParseNode(range_token, PN_RANGE, lhs, rhs);
+    return node_manager->create_binary(range_token, PN_RANGE, lhs, rhs);
 }
 
-AbstractParseNode* SageParser::parse_construct() {
+NodeIndex SageParser::parse_construct() {
     if (!match_types(current_token->token_type, TT_IDENT)) {
         raise_error("Expected identifier name at the beginning of construct statement.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
 
     Token name_identifier_token = Token();
     name_identifier_token.fill_with(*current_token);
-    auto name_identifier_node = new UnaryParseNode(name_identifier_token, PN_IDENTIFIER);
+    NodeIndex name_identifier_node = node_manager->create_unary(name_identifier_token, PN_IDENTIFIER);
     advance(); // move identifier
     advance(); // move past the '::' symbol (we know its here because we peeked for it in parse_staetment()
     
-    AbstractParseNode* binding_node;
+    NodeIndex binding_node = NULL_INDEX;
     ParseNodeType nodetype;
     switch (current_token->token_type) {
     case TT_KEYWORD:
@@ -466,7 +433,7 @@ AbstractParseNode* SageParser::parse_construct() {
     case TT_LPAREN:
         // its a function
         binding_node = parse_function();
-        nodetype = binding_node->get_nodetype();
+        nodetype = node_manager->get_nodetype(binding_node);
         break;
 
     default:
@@ -475,41 +442,42 @@ AbstractParseNode* SageParser::parse_construct() {
         break;
     }
 
-    if (binding_node == nullptr) {
-        return nullptr;
+    if (binding_node == NULL_INDEX) {
+        return NULL_INDEX;
     }
 
-    string token_lexeme = name_identifier_token.lexeme + " :: " + binding_node->get_token().lexeme;
+    string token_lexeme = name_identifier_token.lexeme + " :: " + node_manager->get_lexeme(binding_node);
     Token construct_token = Token(TT_COMPILER_CREATED, token_lexeme, name_identifier_token.linenum);
-    return new BinaryParseNode(construct_token, nodetype, name_identifier_node, binding_node);
+    return node_manager->create_binary(construct_token, nodetype, name_identifier_node, binding_node);
 }
 
-AbstractParseNode* SageParser::parse_struct() {
+NodeIndex SageParser::parse_struct() {
     if (current_token->lexeme != "struct") {
         raise_error("Expected 'struct' keyword in structure definition.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
     advance(); // advance past the struct keyword
     
     consume(TT_LBRACE, "Expected LBRACE in structure definition.\n");
 
-    auto struct_contents = parse_value_dec_list();
+    NodeIndex struct_contents = parse_value_dec_list();
 
     consume(TT_RBRACE, "Expected RBRACE in structure definition.\n");
 
-    return new UnaryParseNode(struct_contents->get_token(), PN_STRUCT, struct_contents);
+    return node_manager->create_unary(node_manager->get_token(struct_contents), PN_STRUCT, struct_contents);
 }
 
-AbstractParseNode* SageParser::parse_function() {
+NodeIndex SageParser::parse_function() {
     consume(TT_LPAREN, "Expected LPAREN in function definition.\n");
 
     string signature_lexeme = "(";
-    auto parameter_list = parse_value_dec_list();
-    if (parameter_list == nullptr) {
-        return nullptr;
+    NodeIndex parameter_list = parse_value_dec_list();
+    if (parameter_list == NULL_INDEX) {
+        return NULL_INDEX;
     }
+    Token parameter_token = node_manager->get_token(parameter_list);
 
-    signature_lexeme += parameter_list->get_token().lexeme;
+    signature_lexeme += parameter_token.lexeme;
 
     consume(TT_RPAREN, "Expected RPAREN in function definition.\n");
     consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.\n");
@@ -517,29 +485,29 @@ AbstractParseNode* SageParser::parse_function() {
 
     if (!match_types(current_token->token_type, TT_KEYWORD)) {
         raise_error("Function must have a return type.\n");
-        return nullptr;
+        return NULL_INDEX;
     }
 
     Token return_type_token = Token();
     return_type_token.fill_with(*current_token);
 
-    auto return_type_node = new UnaryParseNode(return_type_token, PN_TYPE);
+    NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
     signature_lexeme += return_type_token.lexeme;
     advance(); // move past type keyword
     
-    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_list->get_token().linenum);
+    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
     // if there is no brace and instead is immidiately followed by a NEWLINE then there is no body
     if (match_types(current_token->token_type, TT_NEWLINE)) {
         advance(); // move past the newline
-        return new BinaryParseNode(function_signature, PN_FUNCDEC, parameter_list, return_type_node);
+        return node_manager->create_binary(function_signature, PN_FUNCDEC, parameter_list, return_type_node);
     }
 
-    auto body_node = parse_body();
-    return new TrinaryParseNode(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
+    NodeIndex body_node = parse_body();
+    return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
 }
 
-AbstractParseNode* SageParser::parse_function_call() {
+NodeIndex SageParser::parse_function_call() {
     Token function_name_token = Token();
     function_name_token.fill_with(*current_token);
     advance(); // move past func name identifier
@@ -547,10 +515,11 @@ AbstractParseNode* SageParser::parse_function_call() {
     consume(TT_LPAREN, "Expected function call to include opening '(' bracket\n");
 
     Token params_token = Token(TT_COMPILER_CREATED, "", -1);
-    auto params_node = new BlockParseNode(params_token, PN_BLOCK);
+    NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
+
     while (true) {
-        auto param = parse_primary();
-        params_node->children.push_back(param);
+        NodeIndex param = parse_primary();
+        node_manager->add_child(params_node, param);
 
         if (!match_types(current_token->token_type, TT_COMMA)) {
             break;
@@ -561,14 +530,14 @@ AbstractParseNode* SageParser::parse_function_call() {
 
     consume(TT_RPAREN, "Expected function call to include closing ')' bracket.\n");
 
-    return new UnaryParseNode(function_name_token, PN_FUNCCALL, params_node);
+    return node_manager->create_unary(function_name_token, PN_FUNCCALL, params_node);
 }
 
-AbstractParseNode* SageParser::parse_body() {
+NodeIndex SageParser::parse_body() {
     consume(TT_LBRACE, "Expected LBRACE in body definition statement\n");
 
     Token body_token = Token(TT_COMPILER_CREATED, "{ ... }", current_token->linenum);
-    auto body_node = new BlockParseNode(body_token, PN_BLOCK);
+    NodeIndex body_node = node_manager->create_block(body_token, PN_BLOCK);
     // body_node->token = body_token;
 
     while (true) {
@@ -579,12 +548,12 @@ AbstractParseNode* SageParser::parse_body() {
             break;
         }
 
-        auto next_statement = parse_statement();
-        if (next_statement == nullptr) {
+        NodeIndex next_statement = parse_statement();
+        if (next_statement == NULL_INDEX) {
             break;
         }
 
-        body_node->children.push_back(next_statement);
+        node_manager->add_child(body_node, next_statement);
     }
 
     consume(TT_RBRACE, "Expected RBRACE in body definition statement.\n");
@@ -593,12 +562,13 @@ AbstractParseNode* SageParser::parse_body() {
     return body_node;
 }
 
-AbstractParseNode* SageParser::parse_type() {
-    UnaryParseNode* return_node;
+NodeIndex SageParser::parse_type() {
+    NodeIndex return_node = NULL_INDEX;
 
     if (match_types(current_token->token_type, TT_LPAREN)) {
-        auto function_type = parse_function();
-        return_node = new UnaryParseNode(function_type->get_token(), PN_TYPE, function_type);
+        NodeIndex function_type = parse_function();
+
+        return_node = node_manager->create_unary(node_manager->get_token(function_type), PN_TYPE, function_type);
 
         return return_node;
     }else if (match_types(current_token->token_type, TT_LBRACKET)) {
@@ -614,12 +584,12 @@ AbstractParseNode* SageParser::parse_type() {
         TokenType slice[2] = {TT_KEYWORD, TT_IDENT};
         if (!matches_any(current_token->token_type, slice, 2)) {
             raise_error("Expected valid type identifier in array type.\n");
-            return nullptr;
+            return NULL_INDEX;
         }
 
         Token array_type_token = Token();
         array_type_token.fill_with(*current_token);
-        auto array_type_node = new UnaryParseNode(array_type_token, PN_TYPE);
+        NodeIndex array_type_node = node_manager->create_unary(array_type_token, PN_TYPE);
         token_lexeme += array_type_token.lexeme;
         advance(); // advance past the identifier
         
@@ -628,8 +598,8 @@ AbstractParseNode* SageParser::parse_type() {
             
             if (!match_types(current_token->token_type, TT_NUM)) {
                 raise_error("Expected a number to define the length of the array type declaration.\n");
-                delete array_type_node;
-                return nullptr;
+                node_manager->delete_node(array_type_node);
+                return NULL_INDEX;
             }
 
             advance(); // advance past the number
@@ -643,29 +613,29 @@ AbstractParseNode* SageParser::parse_type() {
 
         if (lbracket_nest_count != 0) {
             raise_error("Unambiguous array nesting found, please ensure all '[' have a matching ']'.\n");
-            return nullptr;
+            return NULL_INDEX;
         }
 
         Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
-        return_node = new UnaryParseNode(new_token, PN_TYPE, array_type_node);
+        return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
     }else if (match_types(current_token->token_type, TT_VARARG)) {
         advance(); // advance past the vararg '...' notation
         Token type_token = Token();
         type_token.fill_with(*current_token);
-        return_node = new UnaryParseNode(type_token, PN_VARARG);
+        return_node = node_manager->create_unary(type_token, PN_VARARG);
         advance();
     } else {
         Token type_token = Token();
         type_token.fill_with(*current_token);
-        return_node = new UnaryParseNode(type_token, PN_TYPE);
+        return_node = node_manager->create_unary(type_token, PN_TYPE);
         advance(); // advance past the identifier
     }
 
     if (current_token->lexeme == "*") {
         advance(); // advance past the star
-        Token retnode_token = return_node->get_token();
+        Token retnode_token = node_manager->get_token(return_node);
         Token new_token = Token(retnode_token.token_type, retnode_token.lexeme + "*", retnode_token.linenum);
-        auto new_return_node = new UnaryParseNode(new_token, PN_TYPE, return_node);
+        NodeIndex new_return_node = node_manager->create_unary(new_token, PN_TYPE, return_node);
 
         return new_return_node;
     }
@@ -673,57 +643,72 @@ AbstractParseNode* SageParser::parse_type() {
     return return_node;
 }
 
-AbstractParseNode* SageParser::parse_expression() {
+NodeIndex SageParser::parse_expression() {
     // if the node cache isn't empty then that means we were previously parsing,
     //	  an identifier that looked like another statement but actually was an expression,
     //	  so instead of parsing for a primary we simply use the primary that was already found first.
-    if (node_cache != nullptr) {
-        auto first_primary = node_cache;
-        node_cache = nullptr;
+    if (node_cache != NULL_INDEX) {
+        NodeIndex first_primary = node_cache;
+        node_cache = NULL_INDEX;
 
         return parse_operator(first_primary, TT_EQUALITY);
     }
     return parse_operator(parse_primary(), TT_EQUALITY);
 }
 
-AbstractParseNode* SageParser::parse_operator(AbstractParseNode* left, int min_precedence) {
-    Token current = Token();
-    current.fill_with(*current_token);
-    while (is_operator(current_token->token_type) && current.get_operator_precedence() >= min_precedence) {
-        Token op = current;
+bool is_operator(Token op) { 
+    // TT_DIV should be 8 which is the last operator so far
+    return op.token_type <= 8; 
+}
+
+int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) { 
+    if (curr_op_type > op_type) {
+        return 1;
+    }
+    return 0;
+}
+
+NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
+    // this should be an operator token because LHS will have already been evaluated
+    Token current_op = Token(); 
+    current_op.fill_with(*current_token);
+
+    while (is_operator(current_op) && current_op.get_operator_precedence() >= min_precedence) {
+        Token op = current_op;
         advance();
 
-        auto right = parse_primary();
-        current.fill_with(*current_token);
-        while (is_operator(current_token->token_type) && (current_token->token_type > op.token_type ||
-               (op_is_right_associative(current.lexeme) && current.token_type == op.token_type))) {
+        NodeIndex right = parse_primary();
+        current_op.fill_with(*current_token);
 
-            int inc = decide_precedence_inc(current.token_type, op.token_type);
-            right = parse_operator(right, op.token_type+inc);
+        while (
+            (is_operator(current_op) && current_op.get_operator_precedence() > op.get_operator_precedence()) || 
+            (op_is_right_associative(current_op.lexeme) && current_op.get_operator_precedence() == op.get_operator_precedence())
+        ) {
+            int inc = decide_precedence_inc(current_op.token_type, op.token_type);
+            right = parse_operator(right, op.get_operator_precedence() + inc);
 
-            current.fill_with(*current_token);
+            current_op.fill_with(*current_token);
         }
-        left = new BinaryParseNode(op, PN_BINARY, left, right);
+        left = node_manager->create_binary(op, PN_BINARY, left, right);
     }
-
     return left;
 }
 
-AbstractParseNode* SageParser::parse_primary() {
+NodeIndex SageParser::parse_primary() {
     Token token = Token();
     Token lookahead;
-    AbstractParseNode* ret;
-    AbstractParseNode* expression;
+    NodeIndex ret = NULL_INDEX;
+    NodeIndex expression = NULL_INDEX;
     switch (current_token->token_type) {
         case TT_NUM:
             token.fill_with(*current_token);
-            ret = new UnaryParseNode(token, PN_NUMBER);
+            ret = node_manager->create_unary(token, PN_NUMBER);
             advance();
             return ret;
 
         case TT_FLOAT:
             token.fill_with(*current_token);
-            ret = new UnaryParseNode(token, PN_FLOAT);
+            ret = node_manager->create_unary(token, PN_FLOAT);
             advance();
             return ret;
 
@@ -736,7 +721,7 @@ AbstractParseNode* SageParser::parse_primary() {
                 return parse_function_call();
             }
 
-            ret = new UnaryParseNode(token, PN_VAR_REF);
+            ret = node_manager->create_unary(token, PN_VAR_REF);
             advance();
             return ret;
 
@@ -748,18 +733,18 @@ AbstractParseNode* SageParser::parse_primary() {
 
         case TT_STRING:
             token.fill_with(*current_token);
-            ret = new UnaryParseNode(token, PN_STRING);
+            ret = node_manager->create_unary(token, PN_STRING);
             advance();
             return ret;
         
         default:
             printf("current tok : %s\n", current_token->lexeme.c_str());
             raise_error("Unrecognized statement; could not find valid primary.\n");
-            return nullptr;
+            return NULL_INDEX;
     }
 }
 
-UnaryParseNode* SageParser::parse_struct_field_access() {
+NodeIndex SageParser::parse_struct_field_access() {
     vector<string> identifier_lexemes = vector<string>();
     identifier_lexemes.push_back(current_token->lexeme);
     advance();
@@ -768,7 +753,7 @@ UnaryParseNode* SageParser::parse_struct_field_access() {
         advance();
         if (!match_types(current_token->token_type, TT_IDENT)) {
             raise_error("Expected identifier in struct field accessor statement.\n");
-            return nullptr;
+            return NULL_INDEX;
         }
 
         identifier_lexemes.push_back(current_token->lexeme);
@@ -776,18 +761,7 @@ UnaryParseNode* SageParser::parse_struct_field_access() {
     }
 
     Token token = Token(TT_COMPILER_CREATED, identifier_lexemes[0], -1);
-    return new UnaryParseNode(token, PN_LIST, identifier_lexemes);
-}
-
-bool is_operator(TokenType tokentype) {
-    return tokentype <= 9; // TT_EXP should be 9 which is the last operator so far
-}
-
-int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) {
-    if (curr_op_type > op_type) {
-        return 1;
-    } 
-    return 0;
+    return node_manager->create_unary(token, PN_LIST, identifier_lexemes);
 }
 
 // parser utility methods
@@ -814,7 +788,12 @@ bool SageParser::matches_any(TokenType type_a, TokenType* possible_types, int ty
 // if the current token is token_type then advance otherwise throw an error
 // used to expected certain tokens in the input
 void SageParser::consume(TokenType tokentype, string message) {
-    if (current_token_type_is(tokentype)) {
+    if (current_token->token_type == TT_EOF) {
+        raise_error(message);
+        return;
+    }
+
+    if (current_token->token_type == tokentype) {
         advance();
         return;
     }
@@ -843,18 +822,6 @@ Token SageParser::peek() {
     return peeked_token;
 }
 
-bool SageParser::current_token_type_is(TokenType tokentype) {
-    if (is_ending_token()) {
-        return false;
-    }
-
-    return current_token->token_type == tokentype;
-}
-
-bool SageParser::is_ending_token() {
-    return current_token->token_type == TT_EOF;
-}
-
 bool SageParser::op_is_left_associative(string op_literal) {
     unordered_map<string, bool> left_map = {
         {"*", true},
@@ -862,7 +829,6 @@ bool SageParser::op_is_left_associative(string op_literal) {
         {"-", true},
         {"+", true},
         {"==", true},
-        {"^", true},
     };
 
     return left_map[op_literal];

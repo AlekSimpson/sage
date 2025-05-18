@@ -60,9 +60,6 @@ string Token::to_string() {
         case TT_DIV:
             return "TT_DIV";
             break;
-        case TT_EXP:
-            return "TT_EXP";
-            break;
         case TT_NUM:
             return "TT_NUM";
             break;
@@ -200,9 +197,6 @@ int Token::get_operator_precedence() {
             break;
         case TT_DIV:
             return 4;
-            break;
-        case TT_EXP:
-            return 5;
             break;
         default:
             return -1;

@@ -9,8 +9,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
-
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 
 using namespace llvm;
 
@@ -23,7 +22,7 @@ struct LLVMSymbol {
 typedef unordered_set<string> SageScope;
 typedef bool successful;
 
-LLVMSymbol create_symbol(string identifier, llvm::Value* value, llvm::Type* type);
+LLVMSymbol create_symbol(string, llvm::Value*, llvm::Type*);
 
 class SageSymbolTable {
 private:
@@ -42,10 +41,10 @@ public:
   void push_scope();
   void pop_scope();
   bool declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol);
-  llvm::Type* derive_sage_type(UnaryParseNode* node);
+  llvm::Type* derive_sage_type(NodeManager*, NodeIndex node);
   LLVMSymbol* lookup_symbol(const string& name);
-  llvm::Type* resolve_sage_type(UnaryParseNode* type_node);
-  void initialize(llvm::LLVMContext& llvm_context);
+  llvm::Type* resolve_sage_type(NodeManager*, NodeIndex type_node);
+  void initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context);
 
 };
 

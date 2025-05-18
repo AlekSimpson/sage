@@ -1,3 +1,3 @@
 build/objects/src/parser.o: src/parser.cpp src/../include/lexer.h \
- src/../include/token.h src/../include/parse_node.h \
- src/../include/parser.h
+ src/../include/token.h src/../include/node_manager.h \
+ src/../include/parse_node.h src/../include/parser.h

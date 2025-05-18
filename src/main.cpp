@@ -6,8 +6,9 @@
 
 #include "llvm/Support/ManagedStatic.h"
 #include "../include/codegen.h"
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 #include "../include/parser.h"
+#include "../include/token.h"
 
 using namespace llvm;
 
@@ -21,35 +22,24 @@ int main(int argc, char** argv) {
 
     string target_file = string(argv[1]);
 
-    // validate that file is valid
-    if (target_file.find('.') == string::npos) {
-        printf("cannot target files that have no file extension.\n");
-        exit(1);
+    SageCompiler compiler = SageCompiler(target_file, llvm_context);
+    if (!compiler.check_filename_valid(target_file)) {
+        compiler.compiler_exit("Main program filename is not valid. Make sure it ends in '.sage'", 1);
     }
 
-    vector<string> delimited;
-    boost::split(delimited, argv[1], boost::is_any_of("."));
-
-    if (delimited[1] != "sage") {
-        printf("cannot target non sage source files.\n");
-        exit(1);
-    }
-
-    printf("a\n");
-    SageParser parser = SageParser(target_file);
-    AbstractParseNode* parsetree = parser.parse_program(false);
-    if (parsetree == nullptr) {
+    // SageParser parser = SageParser(compiler->node_manager, target_file);
+    NodeIndex parsetree = compiler.parser.parse_program(false);
+    if (parsetree == -1) {
         printf("parsetree root is null. parsing failed.\n");
         return 1;
     }
-    printf("b\n");
-
-    parsetree->showtree("");
 
     bool success = false;
-    SageCompiler compiler = SageCompiler(parsetree, llvm_context);
-    // auto module = compiler.compile_module();
-    // success = compiler.generate_output(module, "sage.out");
+
+    // compiler->node_manager->showtree(parsetree);
+
+    auto module = compiler.compile_module(parsetree);
+    success = compiler.generate_output(module, "sage.out");
 
     if (success) {
         printf("Compilation finished successfully.\n");

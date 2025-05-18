@@ -1,5 +1,3 @@
-include "io"
-
 #run {
     executable_name = "output"
     platform = "LINUX"

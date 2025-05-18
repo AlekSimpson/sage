@@ -9,7 +9,7 @@
 #include <llvm/IR/IRBuilder.h>
 
 #include "symbols.h"
-#include "../include/parse_node.h"
+#include "../include/node_manager.h"
 
 using namespace llvm;
 
@@ -33,12 +33,28 @@ SageSymbolTable::~SageSymbolTable() {
     }
 }
 
-void SageSymbolTable::initialize(llvm::LLVMContext& llvm_context) {
+void SageSymbolTable::initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context) {
     context = &llvm_context;
 
     // initialize root stack with sage built in datatypes and methods
     symbol_stack.push({});
  
+    // add printf by default
+    vector<llvm::Type*> param_types;
+    param_types.push_back(llvm::Type::getInt8PtrTy(*context));
+    llvm::FunctionType* function_type = llvm::FunctionType::get(
+        llvm::Type::getInt32Ty(*context), 
+        param_types, 
+        true
+    );
+    llvm::Value* llvmvalue = llvm::Function::Create(
+        function_type,
+        llvm::Function::ExternalLinkage,
+        "printf",
+        main_module
+    );
+    declare_symbol("printf", create_symbol("printf", llvmvalue, function_type), false);
+
     declare_symbol("bool", create_symbol("bool", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("success_t", create_symbol("success_t", nullptr, llvm::Type::getInt1Ty(*context)), true);
     declare_symbol("char", create_symbol("char", nullptr, llvm::Type::getInt8Ty(*context)), true);
@@ -104,8 +120,8 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     return symbol_table[name];
 }
 
-llvm::Type* SageSymbolTable::derive_sage_type(UnaryParseNode* node) {
-    switch (node->get_nodetype()) {
+llvm::Type* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex node) {
+    switch (manager->get_nodetype(node)) {
         case PN_NUMBER:
             return llvm::Type::getInt64Ty(*context);
         case PN_FLOAT:
@@ -121,9 +137,9 @@ llvm::Type* SageSymbolTable::derive_sage_type(UnaryParseNode* node) {
     return nullptr;
 }
 
-llvm::Type* SageSymbolTable::resolve_sage_type(UnaryParseNode* type_node) {
+llvm::Type* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex type_node) {
     auto current_scope = symbol_stack.top();
-    string type_name = type_node->get_token().lexeme;
+    string type_name = manager->get_lexeme(type_node);
     auto search_name = type_scope.find(type_name);
     if (search_name == type_scope.end()) {
         return nullptr;

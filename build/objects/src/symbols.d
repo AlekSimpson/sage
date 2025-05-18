@@ -128,4 +128,5 @@ build/objects/src/symbols.o: src/symbols.cpp \
  /usr/lib/llvm-14/include/llvm/IR/IntrinsicEnums.inc \
  /usr/lib/llvm-14/include/llvm/IR/Operator.h \
  /usr/lib/llvm-14/include/llvm/IR/ValueHandle.h include/symbols.h \
- include/../include/parse_node.h include/../include/../include/token.h
+ include/../include/node_manager.h include/../include/parse_node.h \
+ include/../include/token.h
