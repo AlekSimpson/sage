@@ -9,10 +9,16 @@
 #include <map>
 
 #include "../include/parser.h"
+#include "../include/interpreter.h"
 #include "../include/node_manager.h"
 #include "../include/symbols.h"
 
 using namespace llvm;
+
+struct SageIR {
+  instruction sage_ir;
+  llvm::Value* llvm_ir;
+};
 
 class SageCodeGenVisitor {
 private:
@@ -21,26 +27,31 @@ private:
   std::unique_ptr<llvm::Module> main_module;
   SageSymbolTable symbol_table;
   NodeManager* node_manager;
+  vector<instruction> sage_bytecode; // builder functions write to this
+  SageCompiler* compiler;
 
 public:
   SageCodeGenVisitor();
-  SageCodeGenVisitor(NodeManager*, std::shared_ptr<llvm::LLVMContext>);
+  SageCodeGenVisitor(SageComiler*, NodeManager*, std::shared_ptr<llvm::LLVMContext>);
     
+  SageInterpreter* interpreter(); // NOTE: might not need?
   llvm::Module* get_module();
-  void visitor_create_function_return(llvm::Value*);
-  llvm::Value* process_expression(NodeIndex);
-  void process_assignment(NodeIndex);
+  void visitor_create_function_return(SageIR);
+  SageIR process_expression(NodeIndex);
 
-  llvm::Value* visit_program(NodeIndex);
-  llvm::Value* visit_variable_decl(NodeIndex);
-  llvm::Value* visit_function_declaration(NodeIndex);
-  llvm::Value* visit_function_definition(NodeIndex);
-  llvm::Value* visit_function_call(NodeIndex);
-  llvm::Value* visit_codeblock(NodeIndex);
-  llvm::Value* visit_unary_expr(NodeIndex);
-  llvm::Value* visit_trinary_expr(NodeIndex);
-  llvm::Value* visit_binary_expr(NodeIndex);
-  llvm::Value* visit_expression(NodeIndex);
+  SageIR build_store(SageIR rhs, SageIR variable_symbol);
+
+  SageIR visit_program(NodeIndex);
+  SageIR visit_variable_decl(NodeIndex);
+  SageIR visit_function_declaration(NodeIndex);
+  SageIR visit_function_definition(NodeIndex);
+  SageIR visit_function_call(NodeIndex);
+  SageIR visit_codeblock(NodeIndex);
+  SageIR visit_unary_expr(NodeIndex);
+  SageIR visit_trinary_expr(NodeIndex);
+  SageIR visit_binary_expr(NodeIndex);
+  SageIR visit_expression(NodeIndex);
+  SageIR visit_variable_assignment(NodeIndex);
 };
 
 class SageCompiler {
@@ -51,6 +62,7 @@ public:
   NodeManager* node_manager;
   SageParser parser;
   SageCodeGenVisitor visitor;
+  SageInterpreter* interpreter;
 
   SageCompiler();
   SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context);

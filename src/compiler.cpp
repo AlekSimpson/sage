@@ -28,11 +28,13 @@ SageCompiler::SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> c
     : ast(NULL_INDEX),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
-      visitor(SageCodeGenVisitor(node_manager, context)) {
+      visitor(SageCodeGenVisitor(this, node_manager, context)),
+      interpreter(new SageInterpreter(this, 1000)){
 }
 
 SageCompiler::~SageCompiler() {
     delete node_manager;
+    delete interpreter;
     llvm::llvm_shutdown();
 }
 

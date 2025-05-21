@@ -334,20 +334,20 @@ llvm::Value* SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
     return nullptr;
 }
 
-void SageCodeGenVisitor::process_assignment(NodeIndex node) {
+void SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     // NOTE: in the future to support heap memory reassignment we should maybe have something in the symbol table that indicates whether a value lives on the heap or not
     // so that we can inform this code section with what IR generation to use
     
     NodeIndex LHS = node_manager->get_left(node);
-    LLVMSymbol* assign_value = symbol_table.lookup_symbol(node_manager->get_lexeme(LHS));
-    if (assign_value == nullptr) {
+    LLVMSymbol* variable_symbol = symbol_table.lookup_symbol(node_manager->get_lexeme(LHS));
+    if (variable_symbol == nullptr) {
         // ERROR!!
         return;
     }
     
     llvm::Value* RHS = visit_expression(node);
     
-    builder->CreateStore(RHS, assign_value->value);
+    builder->CreateStore(RHS, variable_symbol->value);
 }
 
 llvm::Value* SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
@@ -360,8 +360,7 @@ llvm::Value* SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
             return visit_function_declaration(node);
         case PN_ASSIGN:
             // stack variable reassignment
-            process_assignment(node);
-            break;
+            return visit_variable_assignment(node);
         case PN_VAR_DEC: 
             // allocating space on stack without assigning value
             return visit_variable_decl(node);
@@ -444,7 +443,7 @@ llvm::Value* SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
 
         auto final = builder->CreateStore(RHS, allocation);
 
-        return final;
+        return final; // NOTE: might actually end up wanting to return allocation here also
     }
 
     // ERROR!!

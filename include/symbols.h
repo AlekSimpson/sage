@@ -13,9 +13,13 @@
 
 using namespace llvm;
 
+// TODO: NEED TO UPDATE THE SYMBOL TO ALSO SUPPORT CUSTOM SAGE TYPES
+
 struct LLVMSymbol {
   llvm::Value* value;
   llvm::Type* type;
+  int vm_stack_pointer;
+  int vm_heap_pointer;
   string identifier;
 };
 

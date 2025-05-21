@@ -14,7 +14,7 @@
 using namespace llvm;
 
 LLVMSymbol create_symbol(string identifier, llvm::Value* value, llvm::Type* type) {
-    return {value, type, identifier};
+    return LLVMSymbol{value, type, NULL_INDEX, NULL_INDEX, identifier};
 }
 
 SageSymbolTable::SageSymbolTable() {
