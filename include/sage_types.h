@@ -17,6 +17,7 @@ enum SageType {
 
 class SageValue {
 public:
+  virtual int get_value() = 0;
   virtual SageType get_type() = 0;
 };
 
@@ -25,7 +26,10 @@ public:
   int bitsize;
   int value;
 
+  SageIntValue(int value, int bitsize);
+
   SageType get_type() override;
+  int get_value() override;
 };
 
 class SageCharValue {
@@ -33,6 +37,7 @@ public:
   char value;
 
   SageType get_type() override;
+  int get_value() override;
 };
 
 class SageArrayValue {
@@ -42,4 +47,5 @@ public:
   SageType nested_type;
 
   SageType get_type() override;
+  int get_value() override;
 };

@@ -10,10 +10,11 @@
 
 #include "symbols.h"
 #include "../include/node_manager.h"
+#include "../include/codegen.h"
 
 using namespace llvm;
 
-LLVMSymbol create_symbol(string identifier, llvm::Value* value, llvm::Type* type) {
+LLVMSymbol create_symbol(string identifier, VisitorValue value, llvm::Type* type) {
     return LLVMSymbol{value, type, NULL_INDEX, NULL_INDEX, identifier};
 }
 

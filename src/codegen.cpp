@@ -334,7 +334,7 @@ llvm::Value* SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
     return nullptr;
 }
 
-void SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
+VisitorValue SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     // NOTE: in the future to support heap memory reassignment we should maybe have something in the symbol table that indicates whether a value lives on the heap or not
     // so that we can inform this code section with what IR generation to use
     
@@ -342,12 +342,12 @@ void SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     LLVMSymbol* variable_symbol = symbol_table.lookup_symbol(node_manager->get_lexeme(LHS));
     if (variable_symbol == nullptr) {
         // ERROR!!
-        return;
+        return VisitorValue();
     }
     
-    llvm::Value* RHS = visit_expression(node);
+    VisitorValue RHS = visit_expression(node);
     
-    builder->CreateStore(RHS, variable_symbol->value);
+    return build_store(RHS, variable_symbol);
 }
 
 llvm::Value* SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {

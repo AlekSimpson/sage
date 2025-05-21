@@ -15,9 +15,12 @@
 
 using namespace llvm;
 
-struct SageIR {
-  instruction sage_ir;
+struct VisitorValue {
+  SageValue sage_ir;
   llvm::Value* llvm_ir;
+
+  VisitorValue(SageValue, llvm::Value*);
+  VisitorValue();
 };
 
 class SageCodeGenVisitor {
@@ -37,21 +40,21 @@ public:
   SageInterpreter* interpreter(); // NOTE: might not need?
   llvm::Module* get_module();
   void visitor_create_function_return(SageIR);
-  SageIR process_expression(NodeIndex);
+  VisitorValue process_expression(NodeIndex);
 
-  SageIR build_store(SageIR rhs, SageIR variable_symbol);
+  VisitorValue build_store(VisitorValue rhs, LLVMSymbol* variable_symbol);
 
-  SageIR visit_program(NodeIndex);
-  SageIR visit_variable_decl(NodeIndex);
-  SageIR visit_function_declaration(NodeIndex);
-  SageIR visit_function_definition(NodeIndex);
-  SageIR visit_function_call(NodeIndex);
-  SageIR visit_codeblock(NodeIndex);
-  SageIR visit_unary_expr(NodeIndex);
-  SageIR visit_trinary_expr(NodeIndex);
-  SageIR visit_binary_expr(NodeIndex);
-  SageIR visit_expression(NodeIndex);
-  SageIR visit_variable_assignment(NodeIndex);
+  VisitorValue visit_program(NodeIndex);
+  VisitorValue visit_variable_decl(NodeIndex);
+  VisitorValue visit_function_declaration(NodeIndex);
+  VisitorValue visit_function_definition(NodeIndex);
+  VisitorValue visit_function_call(NodeIndex);
+  VisitorValue visit_codeblock(NodeIndex);
+  VisitorValue visit_unary_expr(NodeIndex);
+  VisitorValue visit_trinary_expr(NodeIndex);
+  VisitorValue visit_binary_expr(NodeIndex);
+  VisitorValue visit_expression(NodeIndex);
+  VisitorValue visit_variable_assignment(NodeIndex);
 };
 
 class SageCompiler {

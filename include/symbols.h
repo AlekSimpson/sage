@@ -9,14 +9,13 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
-#include "../include/node_manager.h"
+#include "node_manager.h"
+#include "codegen.h"
 
 using namespace llvm;
 
-// TODO: NEED TO UPDATE THE SYMBOL TO ALSO SUPPORT CUSTOM SAGE TYPES
-
 struct LLVMSymbol {
-  llvm::Value* value;
+  VisitorValue value;
   llvm::Type* type;
   int vm_stack_pointer;
   int vm_heap_pointer;
@@ -26,7 +25,7 @@ struct LLVMSymbol {
 typedef unordered_set<string> SageScope;
 typedef bool successful;
 
-LLVMSymbol create_symbol(string, llvm::Value*, llvm::Type*);
+LLVMSymbol create_symbol(string, VisitorValue, llvm::Type*);
 
 class SageSymbolTable {
 private:

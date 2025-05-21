@@ -22,13 +22,14 @@ enum SageOpCode {
 
   OP_LOAD,
   OP_STORE,
+  OP_MOV,
 
   // heap ops
   OP_ALLOC,
   OP_FREE,
 
   OP_JMP,
-  OP_JZ,   // jump is zero
+  OP_JZ,   // jump if zero
   OP_JNZ,  // jump if not zero
   OP_CALL, // call a routine
   OP_RET,  // return
@@ -63,6 +64,20 @@ public:
   int stack_pointer; // always points to the value on the top of the stack
   
   int stack_size;
+
+  // sage registers
+  int sr1 = -1;
+  int sr2 = -1;
+  int sr3 = -1;
+  int sr4 = -1;
+  int sr5 = -1;
+  int sr6 = -1;
+  int sr7 = -1;
+  int sr8 = -1;
+  int sr9 = -1;
+  int sra = -1; // bool logical result register
+  int srb = -1; // syscall register
+  int src = -1; // subroutine return register
 
   vector<instruction> program;
   vector<SageValue&> heap;
