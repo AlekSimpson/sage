@@ -269,19 +269,20 @@ NodeIndex SageParser::parse_keyword_statement() {
     };
 
     switch (lexeme_map[current_token->lexeme]) {
-    case 1: {
+    case 1:
         return_token.fill_with(*current_token);
         auto lookahead = peek();
         if (match_types(lookahead.token_type, TT_NEWLINE)) {
             advance();
+            // return void
             return node_manager->create_unary(return_token, PN_KEYWORD);
         }
         
         advance(); // advance past return token
         NodeIndex expression = parse_expression();
         Token new_token = Token(TT_KEYWORD, "ret " + node_manager->to_string(expression), return_token.linenum);
+        // return expression
         return node_manager->create_unary(new_token, PN_KEYWORD, expression);
-    }
 
     case 2: 
         return parse_if_statement();
@@ -291,7 +292,7 @@ NodeIndex SageParser::parse_keyword_statement() {
 
     case 4:
         return parse_for_statement();
-    } 
+    }
 
     raise_error("Could not recognize statement.\n");
     return NULL_INDEX;

@@ -29,20 +29,24 @@ SageVM provides the following registers: TODO
 ### Data Movement Instructions
 
 MOV
-- Format: MOV dst, src
+- Format: MOV src, dst
 - Description: Copy src to dst
 
 LOAD
-- Format: LOAD dst, [addr]
+- Format: LOAD [addr], dst
 - Description: Load value from stack memory into dst
 
 STORE
-- Format: STORE addr, src
+- Format: STORE src, [addr]
 - Description: Store src value to stack memory
 
 ...
 
 ### Arithmetic Operations
+
+INC
+- Format: INC dst
+- Description: increments dst by 1
 
 ADD
 - Format: ADD dst, src1, src2
@@ -101,16 +105,12 @@ JNZ
 - Description: Jump to addr if value is not 0
 
 CALL
-- Format: CALL addr
-- Description: Call subroutine at addr
+- Format: CALL label
+- Description: Call subroutine at label, automatically moves the call program pointer into sr23
 
 RET
 - Format: RET
-- Description: Return from subroutine
-
-RV
-- Format: RV value
-- Description: returns from subroutine with value being placed into rs6
+- Description: Return from subroutine back to program location set in sr23
 
 ...
 

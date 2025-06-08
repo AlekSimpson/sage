@@ -23,29 +23,7 @@ int main(int argc, char** argv) {
     string target_file = string(argv[1]);
 
     SageCompiler compiler = SageCompiler(target_file, llvm_context);
-    if (!compiler.check_filename_valid(target_file)) {
-        compiler.compiler_exit("Main program filename is not valid. Make sure it ends in '.sage'", 1);
-    }
-
-    // SageParser parser = SageParser(compiler->node_manager, target_file);
-    NodeIndex parsetree = compiler.parser.parse_program(false);
-    if (parsetree == -1) {
-        printf("parsetree root is null. parsing failed.\n");
-        return 1;
-    }
-
-    bool success = false;
-
-    // compiler->node_manager->showtree(parsetree);
-
-    auto module = compiler.compile_module(parsetree);
-    success = compiler.generate_output(module, "sage.out");
-
-    if (success) {
-        printf("Compilation finished successfully.\n");
-    }else {
-        printf("Compilation finished unsuccessfully. It's ok try again :)\n");
-    }
+    compiler.begin_compilation(target_file);
 
     return 0;
 }

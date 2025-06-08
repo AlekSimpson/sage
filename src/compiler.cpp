@@ -22,15 +22,16 @@
 using namespace std;
 using namespace llvm;
 
+// void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
 SageCompiler::SageCompiler() {}
 
 SageCompiler::SageCompiler(string mainfile, std::shared_ptr<llvm::LLVMContext> context) 
     : ast(NULL_INDEX),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
-      visitor(SageCodeGenVisitor(this, node_manager, context)),
-      interpreter(new SageInterpreter(this, 1000)){
-}
+      interpreter(new SageInterpreter(4046)),
+      visitor(SageCodeGenVisitor(interpreter, node_manager, context)),
+      analysis(new SageAnalyzer(node_manager)) {}
 
 SageCompiler::~SageCompiler() {
     delete node_manager;
@@ -48,7 +49,7 @@ NodeIndex SageCompiler::parse_codefile(string target_file) {
     return parsetree;
 }
 
-llvm::Module* SageCompiler::compile_module(NodeIndex ast) {
+llvm::Module* SageCompiler::compile(NodeIndex ast) {
     if (ast == NULL_INDEX) {
         printf("Cannot compiler module, root was null.\n");
         return nullptr;
@@ -85,19 +86,7 @@ llvm::Module* SageCompiler::compile_module(NodeIndex ast) {
     return nullptr;
 }
 
-llvm::Module* SageCompiler::compile() {
-    if (node_manager->get_host_nodetype(ast) == PN_BLOCK) {
-        this->visitor.visit_program(ast);
-        return this->visitor.get_module();
-    }
-
-    printf("Expected parsetree root to be a block node.\n");
-    return nullptr;
-}
-
-void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
-
-successful SageCompiler::generate_output(llvm::Module* module, const std::string& output_file) {
+successful SageCompiler::emit_and_link_llvm(llvm::Module* module, const std::string& output_file) {
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
@@ -145,8 +134,10 @@ successful SageCompiler::generate_output(llvm::Module* module, const std::string
         printf("MODULE IS NULL\n");
     }
 
-    // for debug purposes
-    module->print(llvm::outs(), nullptr);
+    if (debug == COMPILATION || debug == ALL) {
+        // for debug purposes
+        module->print(llvm::outs(), nullptr);
+    }
 
     std::string verify_error;
     if (llvm::verifyModule(*module, &llvm::errs())) {
@@ -163,17 +154,36 @@ successful SageCompiler::generate_output(llvm::Module* module, const std::string
     return true;
 }
 
-void SageCompiler::compiler_exit(int error_code) {
-    // this way the program aborts without leaving unfreed memory
-    delete node_manager;
-    exit(error_code);
-}
+void SageCompiler::begin_compilation(string mainfile) {
+    if (!check_filename_valid(targetfile)) {
+        printf("Main program filename is not valid, Make sure it ends in '.sage'.\n");
+        return;
+    }
 
-void SageCompiler::compiler_exit(string message, int error_code) {
-    // this way the program aborts without leaving unfreed memory
-    delete node_manager;
-    printf("%s\n", message.c_str());
-    exit(error_code);
+    NodeIndex program_parsetree = parser.parse_program(debug == PARSING || debug == ALL);
+    if (program_parsetree == -1) {
+        printf("Program parsetree root was null. Parsing failed.\n");
+        return;
+    }
+
+    if (debug >= COMPILATION) {
+        node_manager->showtree(program_parsetree);
+    }
+
+    // 1. program static analysis
+    analyzer.perform_static_analysis(program_parsetree);
+
+    // 2. program compilation
+    auto module = compile(program_parsetree);
+
+    // 3. Linking
+    bool success = emit_and_link_llvm(module, "sage.out"); 
+
+    if (success) {
+        printf("Compilation finished successfully.\n");
+    }else {
+        printf("Compilation finished unsuccessfully.\n");
+    }
 }
 
 bool SageCompiler::check_filename_valid(string filename) {

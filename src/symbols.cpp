@@ -4,82 +4,66 @@
 #include <unordered_set>
 #include <memory>
 #include <stack>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/IRBuilder.h>
+#include <uuid/uuid.h>
+#include <format>
 
-#include "symbols.h"
+#include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
+#include "../include/sage_types.h"
 
 using namespace llvm;
 
-LLVMSymbol create_symbol(string identifier, VisitorValue value, llvm::Type* type) {
-    return LLVMSymbol{value, type, NULL_INDEX, NULL_INDEX, identifier};
+SageSymbol::SageSymbol(SageValue rawvalue, string identifier) {
+    value = rawvalue;
+
+    identifier = identifier;
 }
 
 SageSymbolTable::SageSymbolTable() {
     symbol_stack = stack<SageScope>();
-    symbol_table = map<string, LLVMSymbol*>();
+    // symbol_table = map<string, SageSymbol*>();
     current_function_has_returned = false;
 }
 
 SageSymbolTable::~SageSymbolTable() {
-    LLVMSymbol* temp;
-    for (const auto& pair : symbol_table) {
-        temp = pair.second; // second position holds the LLVMSymbol pointers
-        if (temp != nullptr) {
-            delete temp;
+    for (auto symbol : symbol_table) {
+        if (symbol != nullptr) {
+            delete symbol;
         }
     }
 }
 
-void SageSymbolTable::initialize(llvm::Module* main_module, llvm::LLVMContext& llvm_context) {
-    context = &llvm_context;
-
+void SageSymbolTable::initialize() {
     // initialize root stack with sage built in datatypes and methods
     symbol_stack.push({});
- 
-    // add printf by default
-    vector<llvm::Type*> param_types;
-    param_types.push_back(llvm::Type::getInt8PtrTy(*context));
-    llvm::FunctionType* function_type = llvm::FunctionType::get(
-        llvm::Type::getInt32Ty(*context), 
-        param_types, 
-        true
-    );
-    llvm::Value* llvmvalue = llvm::Function::Create(
-        function_type,
-        llvm::Function::ExternalLinkage,
-        "printf",
-        main_module
-    );
-    declare_symbol("printf", create_symbol("printf", llvmvalue, function_type), false);
 
-    declare_symbol("bool", create_symbol("bool", nullptr, llvm::Type::getInt1Ty(*context)), true);
-    declare_symbol("success_t", create_symbol("success_t", nullptr, llvm::Type::getInt1Ty(*context)), true);
-    declare_symbol("char", create_symbol("char", nullptr, llvm::Type::getInt8Ty(*context)), true);
-    declare_symbol("int", create_symbol("int", nullptr, llvm::Type::getInt64Ty(*context)), true);
-    declare_symbol("i8", create_symbol("i8", nullptr, llvm::Type::getInt8Ty(*context)), true);
-    declare_symbol("i32", create_symbol("i32", nullptr, llvm::Type::getInt32Ty(*context)), true);
-    declare_symbol("i64", create_symbol("i64", nullptr, llvm::Type::getInt64Ty(*context)), true);
-    declare_symbol("float", create_symbol("float", nullptr, llvm::Type::getFloatTy(*context)), true);
-    declare_symbol("f32", create_symbol("f32", nullptr, llvm::Type::getFloatTy(*context)), true);
-    declare_symbol("f64", create_symbol("f64", nullptr, llvm::Type::getDoubleTy(*context)), true);
-    declare_symbol("void", create_symbol("void", nullptr, llvm::Type::getVoidTy(*context)), true);
+    // we'll rely on cpp printf for now but we can recreate print in bytecode i think
+    declare_symbol("printf", function_type, llvmvalue);
 
-    // FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
-    declare_symbol("char*", create_symbol("char*", nullptr, llvm::Type::getInt8PtrTy(*context)), true);
+    declare_type_symbol("bool", SageBuiltinType(BOOL));
+    declare_type_symbol("char",  SageBuiltinType(CHAR));
+    declare_type_symbol("int", SageBuiltinType(I64));
+    declare_type_symbol("i8", SageBuiltinType(I8));
+    declare_type_symbol("i32", SageBuiltinType(I32));
+    declare_type_symbol("i64", SageBuiltinType(I64));
+    declare_type_symbol("float", SageBuiltinType(F64));
+    declare_type_symbol("f32", SageBuiltinType(F32));
+    declare_type_symbol("f64", SageBuiltinType(F64));
+    declare_type_symbol("void", SageBuiltinType(VOID));
+
+    // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
+    declare_type_symbol("char*", SagePointerType(SageBuiltinType(CHAR)));
 
     SageScope root_scope = {
-        "bool", "success_t", "char", "int", "i8", 
+        "bool", "char", "int", "i8", 
         "i32", "i64", "float", "f32", "f64", "void",
         "char*"
     };
     type_scope = root_scope;
 }
 
-successful SageSymbolTable::declare_symbol(const string& name, LLVMSymbol value, bool is_type_symbol) {
+successful SageSymbolTable::declare_symbol(const string& name, SageValue value) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
@@ -87,17 +71,61 @@ successful SageSymbolTable::declare_symbol(const string& name, LLVMSymbol value,
         return false;
     }
 
-    if (is_type_symbol) {
-        type_scope.insert(name);
+    current_scope.insert(name);
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->value = value;
+    new_symbol->identifier = name;
+
+    // symbol_table[name] = new_symbol;
+    symbol_table.push_back(new_symbol);
+    symbol_map[name] = static_cast<uint32_t>(symbol_table.size() - 1);
+
+    return true;
+}
+
+successful SageSymbolTable::declare_symbol(uuid_t id, SageValue value) {
+    string name = std::format("{}", id);
+
+    return declare_symbol(name, value);
+}
+
+successful SageSymbolTable::declare_symbol(const string& name, SageType valuetype) {
+    auto current_scope = symbol_stack.top();
+
+    auto search = current_scope.find(name);
+    if (search != current_scope.end()) {
+        return false;
     }
 
     current_scope.insert(name);
-    LLVMSymbol* new_symbol = new LLVMSymbol;
-    new_symbol->value = value.value;
-    new_symbol->type = value.type;
-    new_symbol->identifier = value.identifier;
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->type = valuetype;
+    new_symbol->identifier = name;
 
-    symbol_table[name] = new_symbol;
+    symbol_table.push_back(new_symbol);
+    symbol_map[name] = symbol_table.size() - 1;
+
+    return true;
+}
+
+successful SageSymbolTable::declare_type_symbol(const string& name, SageType type) {
+    auto current_scope = symbol_stack.top();
+
+    auto search = current_scope.find(name);
+    if (search != current_scope.end()) {
+        return false;
+    }
+
+    type_scope.insert(name);
+
+    current_scope.insert(name);
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->type = type;
+    new_symbol->identifier = name;
+
+    symbol_table.push_back(new_symbol);
+    symbol_map[name] = static_cast<uint32_t>(symbol_table.size() - 1);
+    
     return true;
 }
 
@@ -107,10 +135,21 @@ void SageSymbolTable::push_scope() {
 }
 
 void SageSymbolTable::pop_scope() {
+    auto scope = symbol_stack.top();
     symbol_stack.pop();
+
+    auto previous_scope = symbol_stack.top();
+
+    // any symbols declared in the scope to pop should be removed from the symbol table
+    for (string symbol: scope) {
+        if (!previous_scope.contains(symbol)) {
+            delete symbol_table[symbol_map[symbol]];
+            symbol_map.erase(symbol);
+        }
+    }
 }
 
-LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
+SageSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
@@ -118,41 +157,44 @@ LLVMSymbol* SageSymbolTable::lookup_symbol(const string& name) {
         return nullptr;
     }
 
-    return symbol_table[name];
+    return symbol_table[symbol_map[name]];
 }
 
-llvm::Type* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex node) {
-    switch (manager->get_nodetype(node)) {
+SageSymbol* SageSymbolTable::lookup_symbol(uuid_t id) {
+    string name = std::format("{}", id);
+    return lookup_symbol(name);
+}
+
+SageType SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex typenode) {
+    switch (manager->get_nodetype(typenode)) {
         case PN_NUMBER:
-            return llvm::Type::getInt64Ty(*context);
+            return SageBuiltinType(I64);
         case PN_FLOAT:
-            return llvm::Type::getFloatTy(*context);
+            return SageBuiltinType(F64);
         case PN_STRING:
-            return llvm::Type::getInt8Ty(*context);
+            return SagePointerType(SageBuiltinType(CHAR));
         case PN_VAR_REF:
             // TODO
             break;
         default:
-            return nullptr;
+            break;
     }
-    return nullptr;
+    return SageBuiltinType(VOID);
 }
 
-llvm::Type* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex type_node) {
+SageType SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex typenode) {
     auto current_scope = symbol_stack.top();
-    string type_name = manager->get_lexeme(type_node);
+    string type_name = manager->get_lexeme(typenode);
     auto search_name = type_scope.find(type_name);
     if (search_name == type_scope.end()) {
-        return nullptr;
+        return SageBuiltinType(VOID);
     }
 
     auto it = symbol_table.find(type_name);
     if (it == symbol_table.end() || it->second == nullptr) {
-        return nullptr;
+        return SageBuiltinType(VOID);
     }
 
-    return symbol_table[type_name]->type;
+    return symbol_table[symbol_map[type_name]]->type;
 }
-
-
 

@@ -256,6 +256,70 @@ not confirmed ideas:
 						- UNARY NODE (VAR_REF: result)
 
 
+=============================================
+
+#execute {
+     executable_name = "output"
+     platform = "LINUX"
+     architecture = "X86"
+     bitsize = 64
+}
+
+add:: (x: int, y: int) -> int {
+    return x + y
+}
+
+main:: () -> void {
+    result: i64 = add(2, 2) * 10
+    printf("this result is : %d\n", result)
+}
+
+=============================================
+
+begin // begin compile time execution
+
+add stack_pointer, stack_pointer, 1
+store "output", stack_pointer
+
+add stack_pointer, stack_pointer, 1
+store "LINUX", stack_pointer
+
+add stack_pointer, stack_pointer, 1
+store "X86", stack_pointer
+
+add stack_pointer, stack_pointer, 1
+store 64, stack_pointer
+
+end // end compile time execution
+
+add:
+  add sr12, sr0, sr1
+  mov sr12, sr6
+  ret
+
+main:
+  mov 2, sr0
+  mov 2, sr1
+  call add
+
+  mul sr9, sr6, 10
+
+  add stack_pointer, stack_pointer, 1
+  store sr9, stack_pointer
+
+  load sr10, sr9 // sr9 value is auto treated as a stack pointer
+
+  // idea: honestly maybe print and all the other builtins could be a "syscall"
+  print "this result is: %d\n", sr10
+
+  mov 0, sr22 // 0 is the program exit syscall code
+  syscall
+
+
+
+
+
+
 
 
 
