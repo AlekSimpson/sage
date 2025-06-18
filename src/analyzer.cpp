@@ -465,7 +465,7 @@ void SageAnalyzer::perform_static_analysis(NodeIndex root) {
     linear_scan_register_allocation(&lifetimes, 10);
 
     delete controlflow;
-    program_lifetimes = lifetimes;
+    variable_lifetimes = lifetimes;
 }
 
 

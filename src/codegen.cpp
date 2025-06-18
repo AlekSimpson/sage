@@ -6,44 +6,36 @@
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 
-using namespace llvm;
 using namespace std;
+
+// TODO: MAKE SURE TYPE CHECKING IS DONE EVERYWHERE THATS NEEDED HERE 
+// DO THIS BEFORE WE INTRODUCE THE ERROR SYSTEM
 
 SageCodeGenVisitor::SageCodeGenVisitor() {}
 
 SageCodeGenVisitor::SageCodeGenVisitor(
-    NodeManager* node_man,
-    SageInterpreter* _vm
-) {
-    procedures.push_back(bytecode()); // push the global space into the bytecode builder
-    current_procedure.push(0);
-    
-    symbol_table = SageSymbolTable();
-    symbol_table.initialize(main_module.get(), *llvm_context);
+    NodeManager* node_man, SageInterpreter* _vm, SageAnalyzer* analysis
+) : symbol_table(SageSymbolTable()) {
+    symbol_table.initialize();
     node_manager = node_man;
     vm = _vm;
-    generate_uuid(NULL_ID);
-}
-
-llvm::Module* SageCodeGenVisitor::get_module() {
-    return main_module.get();
 }
 
 // this is the first visitor called to compile a whole code module
-uuid_t SageCodeGenVisitor::visit_program(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
     for (NodeIndex child : node_manager->get_children(node)) {
         switch(node_manager->get_nodetype(child)){
             case PN_FUNCDEF:
                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
                     // ERROR!! CHILD SHOULD BE A BINARY NODE
-                    return NULL_ID;
+                    return -1;
                 }
                 return visit_function_definition(child);
 
             case PN_FUNCDEC:
                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
                     // ERROR!! CHILD SHOULD BE A BINARY NODE
-                    return NULL_ID;
+                    return -1;
                 }
                 return visit_function_declaration(child);
 
@@ -51,8 +43,12 @@ uuid_t SageCodeGenVisitor::visit_program(NodeIndex node) {
                 break;
             case PN_INCLUDE:
                 break;
-            case PN_RUN_DIRECTIVE:
+            case PN_RUN_DIRECTIVE: {
+                build_begin();
+                visit_codeblock(node_manager->get_branch(child));
+                build_end();
                 break;
+            }
             default:
                 // ERROR
                 break;
@@ -60,19 +56,19 @@ uuid_t SageCodeGenVisitor::visit_program(NodeIndex node) {
     }
 
     // ERROR
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_function_return(uuid_t value) {
+ui32 SageCodeGenVisitor::visit_function_return(ui32 value) {
     symbol_table.current_function_has_returned = true;
-    if (value != NULL_ID) {
+    if (value != -1) {
         return build_return(value);
     }
 
-    return build_return(NULL_ID);
+    return build_return(-1);
 }
 
-uuid_t SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
     // binary node
     //  - unary     <-- function name
     //  - binary
@@ -81,7 +77,7 @@ uuid_t SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
 
     if (node_manager->get_host_nodetype(node_manager->get_right(node)) != PN_BINARY) {
         // ERROR!!
-        return NULL_ID;
+        return -1;
     }
     NodeIndex rightnode = node_manager->get_right(node);
 
@@ -107,13 +103,13 @@ uuid_t SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
     // add to symbol table
     if (symbol_table.declare_symbol(function_name, function_type)) {
         // ERROR!!
-        return NULL_ID;
+        return -1;
     }
 
-    return NULL_ID
+    return -1; 
 }
 
-uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
     symbol_table.push_scope();
     symbol_table.current_function_has_returned = false;
 
@@ -122,7 +118,7 @@ uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
     auto right_host = node_manager->get_host_nodetype(trinary_node);
     if (right_host != PN_TRINARY) {
         // ERROR!!
-        return NULL_ID; 
+        return -1; 
     }
     
     vector<string> parameter_names;
@@ -131,13 +127,13 @@ uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
     for (NodeIndex parameter : parameters) {
         if (node_manager->get_host_nodetype(parameter) != PN_BINARY) {
             // ERROR!! SOMETHING IS WRONG PARAMETERS SHOULD NEVER BE STORED AS ANYTHING OTHER THAN BINARY NODES
-            return NULL_ID;
+            return -1;
         }
 
         auto right_side = node_manager->get_right(parameter);
         if (node_manager->get_host_nodetype(right_side) != PN_UNARY) {
             // ERROR!! TYPE CANNOT BE REPRESENTED BY ANYTHING OTHER THAN UNARY FOR NOW
-            return NULL_ID;
+            return -1;
         }
         auto param_type = symbol_table.resolve_sage_type(node_manager, right_side);
 
@@ -147,7 +143,7 @@ uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
         bool already_exists = symbol_table.declare_symbol(parameter_name, param_type);
         if (already_exists) {
             // ERROR!!
-            return NULL_ID;
+            return -1;
         }
 
         parameter_types.push_back(param_type);
@@ -156,20 +152,19 @@ uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
     auto return_node = node_manager->get_middle(trinary_node);
     if (node_manager->get_host_nodetype(return_node) != PN_UNARY) {
         // ERROR!! TYPES ONLY REPRESENTED BY UNARY NODES RIGHT NOW
-        return NULL_ID;
+        return -1;
     }
 
     auto body_node = node_manager->get_right(trinary_node);
     if (node_manager->get_host_nodetype(body_node) != PN_BLOCK) {
         // ERROR!! RIGHT NODE OF FUNC DEF NODE SHOULD ONLY EVER BE A BLOCK NODE
-        return NULL_ID;
+        return -1;
     }
 
     auto function_type = SageFunctionType(return_type, parameter_types);
-
     if (symbol_table.declare_symbol(function_name, function_type)) {
         // ERROR!!!
-        return NULL_ID;
+        return -1;
     }
 
     build_function_with_block(
@@ -183,27 +178,27 @@ uuid_t SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
         if (return_type != VOID) {
             // ERROR: function was defined with no return statement
             symbol_table.pop_scope();
-            return NULL_ID;
+            return -1;
         }else {
             // auto return on void functions
-            build_return(NULL_ID);
+            build_return(-1);
         }
     }
 
     symbol_table.pop_scope();
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_function_call(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_function_call(NodeIndex node) {
     NodeIndex args_node = node_manager->get_branch(node);
     string func_call_name = node_manager->get_lexeme(node);
-    vector<uuid_t> args;
+    vector<ui32> args;
 
     // retrieve function from symbol table
-    SageSymbol* symbol = symbol_table.lookup_symbol(func_call_name);
+    SageSymbol* symbol = symbol_table.lookup(func_call_name);
     if (symbol == nullptr) {
         // ERROR!!
-        return NULL_ID;
+        return -1;
     }
 
     for (NodeIndex arg : node_manager->get_children(args_node)) {
@@ -226,7 +221,7 @@ uuid_t SageCodeGenVisitor::visit_function_call(NodeIndex node) {
     return build_function_call(args, result_name);
 }
 
-uuid_t SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
     for (NodeIndex child : node_manager->get_children(node)) {
         switch (node_manager->get_host_nodetype(child)) {
             case PN_UNARY:
@@ -244,20 +239,20 @@ uuid_t SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
         }
     }
 
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
     SageSymbol* symbol_value;
     string node_lexeme = node_manager->get_lexeme(node);
     
     switch(node_manager->get_nodetype(node)) {
         case PN_VAR_REF: // PN_VAR_REF should do the same thing as PN_IDENTIFIER
         case PN_IDENTIFIER:
-            symbol_value = symbol_table.lookup_symbol(node_lexeme);
+            symbol_value = symbol_table.lookup(node_lexeme);
             if (symbol_value == nullptr) {
                 // ERROR!!
-                return NULL_ID;
+                return -1;
             }
 
             return build_load(symbol_value->type, node_lexeme);
@@ -305,46 +300,55 @@ uuid_t SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
     }
 
     // ERROR
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
     switch(node_manager->get_nodetype(node)) {
         case PN_FOR:
             break;
+
         case PN_ASSIGN:
             return visit_variable_decl(node);
+
+        case PN_FUNCDEF:
+            return visit_function_definition(node);
 
         default:
             break;
     }
     
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     // NOTE: in the future to support heap memory reassignment we should maybe have something in the symbol table that indicates whether a value lives on the heap or not
     // so that we can inform this code section with what IR generation to use
 
     NodeIndex LHS = node_manager->get_left(node);
-    SageSymbol* variable_symbol = symbol_table.lookup_symbol(node_manager->get_lexeme(LHS));
+    SageSymbol* variable_symbol = symbol_table.lookup(node_manager->get_lexeme(LHS));
     if (variable_symbol == nullptr) {
         // ERROR!!
-        return NULL_ID;
+        return -1;
     }
     
-    uuid_t RHS = visit_expression(node);
+    ui32 RHS = visit_expression(node);
+
+    // check expression type against variable type
+    SageSymbol* expression_symbol = symbol_table.lookup(RHS);
+    auto variable_type = variable_symbol->value.valuetype;
+    auto expression_type = expression_symbol->value.valuetype;
+    if (!variable_type.match(expression_type)) {
+        // ERROR: type mismatch
+    }
     
     return build_store(RHS, variable_symbol);
 }
 
-uuid_t SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
     switch(node_manager->get_nodetype(node)) {
         case PN_BINARY:
             return visit_expression(node);
-
-        case PN_FUNCDEF:
-            return visit_function_definition(node);
 
         case PN_FUNCDEC:
             return visit_function_declaration(node);
@@ -366,17 +370,17 @@ uuid_t SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
         case PN_RANGE:
             break;
         case PN_TYPE:
-            break; // ERRRO!! COMPLEX REPRESENTED TYPES DONT EXIST YET
+            break; // ERROR!! COMPLEX REPRESENTED TYPES DONT EXIST YET
         default:
             break;
     }
 
     // ERROR
-    return NULL_ID;
+    return -1;
 }
 
 // TODO: split this into two functions trinary_decl and binary_decl
-uuid_t SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
     if (concrete_node_type == PN_BINARY) {
         // left is variable identifier
@@ -386,7 +390,7 @@ uuid_t SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
         auto rightside = node_manager->get_right(node);
         if (node_manager->get_host_nodetype(rightside) != PN_UNARY) {
             // ERROR!! FOR NOW NON UNARY REPRESENTED TYPES DONT EXIST
-            return NULL_ID;
+            return -1;
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, rightside);
 
@@ -394,7 +398,7 @@ uuid_t SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
         successful success = symbol_table.declare_symbol(variable_name, type_ident);
         if (!success) {
             // ERROR!!
-            return NULL_ID;
+            return -1;
         }
 
         return build_alloca(type_ident, variable_name);
@@ -407,38 +411,37 @@ uuid_t SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
         auto middle = node_manager->get_middle(node);
         if (node_manager->get_host_nodetype(middle) != PN_UNARY) {
             // ERROR!! FOR NOW NON UNARY REPRESENTED TYPES DONT EXIST
-            return NULL_ID;
+            return -1;
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, middle);
 
         // update symbol table
-        if (symbol_table.lookup_symbol(variable_name) != nullptr) {
+        if (symbol_table.lookup(variable_name) != nullptr) {
             // ERROR!! symbol already exists
-            return NULL_ID;
+            return -1;
         }
 
         // don't need to check the success of this call because we already know this symbol doesn't already exist
         symbol_table.declare_symbol(variable_name, type_ident);
         build_alloca(type_ident, variable_name);
 
-        visit_expression(node_manager->get_right(node));
+        ui32 rhs = visit_expression(node_manager->get_right(node));
 
-        return build_store(node_manager->get_right(node), variable_name);
+        return build_store(rhs, variable_name);
     }
 
     // ERROR!!
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::process_expression(NodeIndex node) {
+ui32 SageCodeGenVisitor::process_expression(NodeIndex node) {
     auto LHS_node = node_manager->get_left(node);
     auto RHS_node = node_manager->get_right(node);
 
-    uuid_t LHS;
-    uuid_t RHS;
+    ui32 LHS;
+    ui32 RHS;
 
     if (node_manager->get_host_nodetype(LHS_node) == PN_UNARY) {
-        // TODO: make visit_unary_expr return VisitorValue again, this is the only visitor that should need to return something
         LHS = visit_unary_expr(LHS_node);
     }else {
         LHS = process_expression(LHS_node);
@@ -468,22 +471,22 @@ uuid_t SageCodeGenVisitor::process_expression(NodeIndex node) {
         case TT_LTE: // TODO:
             break;
         case TT_ADD:
-            return build_add(LHS, RHS, "addtmp");
+            return build_add(LHS, RHS);
 
         case TT_SUB:
-            return build_sub(LHS, RHS, "subtmp");
+            return build_sub(LHS, RHS);
 
         case TT_MUL:
-            return build_mul(LHS, RHS, "multmp");
+            return build_mul(LHS, RHS);
 
         case TT_DIV:
-            return build_div(LHS, RHS, "divtmp");
+            return build_div(LHS, RHS);
 
         case TT_AND:
-            return build_and(LHS, RHS, "andtmp");
+            return build_and(LHS, RHS);
 
         case TT_OR:
-            return build_or(LHS, RHS, "ortmp");
+            return build_or(LHS, RHS);
 
         case TT_BIT_AND: // TODO:
             break;
@@ -495,10 +498,10 @@ uuid_t SageCodeGenVisitor::process_expression(NodeIndex node) {
 
 
     // ERROR!!
-    return NULL_ID;
+    return -1;
 }
 
-uuid_t SageCodeGenVisitor::visit_expression(NodeIndex node) {
+ui32 SageCodeGenVisitor::visit_expression(NodeIndex node) {
     switch (node_manager->get_nodetype(node)) {
         case PN_BINARY:
             return process_expression(node);
@@ -514,5 +517,5 @@ uuid_t SageCodeGenVisitor::visit_expression(NodeIndex node) {
     }
     
     // ERROR!!
-    return NULL_ID;
+    return -1;
 }

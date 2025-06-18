@@ -224,7 +224,7 @@ Token* SageLexer::lex_for_identifiers() {
         {"ret", 18},
         {"struct", 19},
         {"using", 20},
-        {"execute", 21},
+        {"run", 21}, // TODO: change to "execute"
     };
 
     while (isalpha(current_char) || isdigit(current_char) || current_char == '_') {

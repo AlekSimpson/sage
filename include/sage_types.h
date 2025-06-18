@@ -9,20 +9,31 @@ enum CanonicalType {
   F32, 
   F64,
   VOID,
+  POINTER,
+  ARRAY,
+  FUNC,
 };
 
-class SageType {};
+class SageType {
+public:
+  virtual CanonicalType identify() = 0;
+  virtual bool match(SageType) = 0;
+};
 
 class SageBuiltinType : public SageType {
 public:
   CanonicalType canonical_type;
   SageBuiltinType(CanonicalType);
+  CanonicalType identify() override;
+  bool match(SageType) override;
 };
 
 class SagePointerType : public SageType {
 public:
   SageType pointer_type;
   SagePointerType(SageType);
+  CanonicalType identify() override;
+  bool match(SageType) override;
 };
 
 class SageArrayType : public SageType {
@@ -30,59 +41,37 @@ public:
   SageType array_type;
   int size;
   SageArrayType(SageType, int);
+  CanonicalType identify() override;
+  bool match(SageType) override;
 };
 
 class SageFunctionType : public SageType {
 public:
-  SageType return_type;
+  vector<SageType> return_type;
   vector<SageType> parameter_types;
-  SageFunctionType(SageType returntype, vector<SageType> parameters);
+  SageFunctionType(
+    vector<SageType> returntype, 
+    vector<SageType> parameters
+  );
+  CanonicalType identify() override;
+  bool match(SageType) override;
 };
 
+union value_t {
+  int int_value;
+  float float_value;
+  char char_value;
+  bool bool_value;
+  string* string_value;
+  void* complex_type;
+};
 
 class SageValue {
 public:
-  virtual int get_value() = 0;
-  virtual SageType get_type() = 0;
-};
-
-class SageIntValue : public SageValue {
-public:
   int bitsize;
-  int value;
+  value_t value;
+  SageType valuetype;
 
-  SageIntValue(int value, int bitsize);
-
-  SageType get_type() override;
-  int get_value() override;
+  SageValue(int, value_t, SageType);
 };
 
-class SageFloatValue : public SageValue {
-public:
-  int bitsize;
-  float value;
-
-  SageFloatValue(float value, int bitsize);
-
-  SageType get_type() override;
-  int get_value() override;
-  float get_float_value();
-};
-
-class SageCharValue : public SageValue {
-public:
-  char value;
-
-  SageType get_type() override;
-  int get_value() override;
-};
-
-class SageArrayValue : public SageValue {
-public:
-  int headpointer; // points to a position in the stack or heap
-  int size; // by default is -1 if size is unknown
-  SageType nested_type;
-
-  SageType get_type() override;
-  int get_value() override;
-};

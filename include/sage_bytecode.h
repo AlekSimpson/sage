@@ -8,10 +8,7 @@
 
 // NOTE: this is not a complete set of opcodes, I am planning to just add them as needed for now
 enum SageOpCode {
-  OP_PUSH = 0,
-  OP_POP,
-
-  OP_ADD,
+  OP_ADD = 0,
   OP_SUB,
   OP_MUL,
   OP_DIV,

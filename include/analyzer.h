@@ -9,7 +9,7 @@ public:
   int register_range_begin;
   int register_range_end;
 
-  unordered_map<string, VariableLifetime> program_lifetimes;
+  unordered_map<string, VariableLifetime> variable_lifetimes;
 
   SageAnalyzer(NodeManager* manager);
   SageAnalyzer();

@@ -5,7 +5,7 @@
 
 // StackFrame
 
-StackFrame::StackFrame() : stack_height(0) {}
+StackFrame::StackFrame() {}
 
 void StackFrame::add_allocation(string name) {
     stack_height++;
@@ -41,20 +41,78 @@ void StackFrame::pop_stack_scope() {
 
 SageInterpreter::SageInterpreter() {}
 
-SageInterpreter::SageInterpreter(int _stack_size) 
-    : program_counter(0), stack_size(_stack_size), stack_frame(StackFrame()) {
-    for (int i = 0; i < stack_size; ++i) {
-        stack[i] = SageIntValue(0, 64);
+SageInterpreter::SageInterpreter(int stack_size) 
+    : stack_frame(StackFrame()) {
+    stack.reserve(stack_size);
+}
+
+void SageInterpreter::load_program(bytecode _program) {
+    program = _program;
+}
+
+void SageInterpreter::execute(int begin_program_counter) {
+    registers[PROGRAM_POINTER] = begin_program_counter;
+    registers[STACK_POINTER] = stack_frame.function_scopes[stack_frame.current_scope_stack.top()];
+
+    instruction current_instruction;
+
+    bool reached_end = false;
+
+    while (!reached_end) {
+        switch (current_instruction.opcode) {
+            case OP_ADD:
+                break;
+            case OP_SUB:
+                break;
+            case OP_MUL:
+                break;
+            case OP_DIV:
+                break;
+            case OP_LOAD:
+                break;
+            case OP_STORE:
+                break;
+            case OP_MOV:
+                break;
+            case OP_ALLOC:
+                break;
+            case OP_FREE:
+                break;
+            case OP_JMP:
+                break;
+            case OP_JZ:
+                break;
+            case OP_JNZ:
+                break;
+            case OP_CALL:
+                break;
+            case OP_RET:
+                break;
+            case OP_EQ:
+                break;
+            case OP_LT:
+                break;
+            case OP_GT:
+                break;
+            case OP_AND:
+                break;
+            case OP_OR:
+                break;
+            case OP_NOT:
+                break;
+            case OP_SYSCALL:
+                break;
+            case OP_LABEL:
+                break;
+            case OP_BEGIN_EXECUTION:
+                break;
+            case OP_END_EXECUTION:
+                break;
+            default:
+                // ERROR
+                break;
+        }
     }
 }
 
-string SageInterpreter::get_string(SageArrayValue string_pointer) {}
-
-void SageInterpreter::load_program(vector<instruction> program) {}
-
-SageValue* SageInterpreter::run_program() {}
-
-int SageInterpreter::allocate_register() {
-
-}
 

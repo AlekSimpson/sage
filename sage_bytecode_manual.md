@@ -44,49 +44,62 @@ STORE
 
 ### Arithmetic Operations
 
-INC
-- Format: INC dst
-- Description: increments dst by 1
-
-ADD
+ADDR
 - Format: ADD dst, src1, src2
 - Description: dst = src1 + src2
 
-SUB
+ADDS
+- Format: ADD [dst], src1, src2
+- Description: dst = src1 + src2
+
+SUBR
 - Format: SUB dst, src1, src2
 - Description: dst = src1 - src2
 
-MUL
+SUBS
+- Format: SUB [dst], src1, src2
+- Description: dst = src1 - src2
+
+MULR
 - Format: MUL dst, src1, src2
 - Description: dst = src1 * src2
+
+MULS
+- Format: MUL [dst], src1, src2
+- Description: dst = src1 * src2
+
+DIV
+- Format: DIV dst, src1, src2
+- Description: dst = src1 / src2
+- if the result is a float then its stored on the stack and a pointer to it on the stack is put in dst register
 
 ...
 
 ### Logical Operations
 
 AND
-- Format: AND dst, src1, src2
-- Description: dst = src1 & src2
+- Format: AND src1, src2
+- Description: sr21 = src1 & src2
 
 OR
-- Format: OR dst, src1, src2
-- Description: dst = src1 | src2
+- Format: OR src1, src2
+- Description: sr21 = src1 | src2
 
 NOT 
-- Format: NOT value
-- Description: inverts boolean values
+- Format: NOT src
+- Description: inverts boolean values, result goes to sr21
 
 GT
-- Format: GT dst, src1, src2
-- Description: copies truth value into dst if src1 is greater than src2
+- Format: GT src1, src2
+- Description: copies truth value into dst if src1 is greater than src2, result goes to sr21
 
 LT
-- Format: LT dst, src1, src2
-- Description: copies truth value into dst if src1 is less than src2
+- Format: LT src1, src2
+- Description: copies truth value into dst if src1 is less than src2, result goes to sr21
 
 EQ
-- Format: EQ dst, src1, src2
-- Description: copies truth value into dst if src1 is equal to src2
+- Format: EQ src1, src2
+- Description: copies truth value into dst if src1 is equal to src2, result goes to sr21
 
 ...
 
@@ -114,25 +127,15 @@ RET
 
 ...
 
-### Stack Operations
-
-PUSH
-- Format: PUSH src
-- Description: Push src onto stack
-
-POP
-- Format: POP dst
-- Description: Pop from stack into dst
-
 ...
 
 ### Memory Operations
 
-ALLOC (Opcode: 0x50)
+ALLOC
 - Format: ALLOC dst, size
 - Description: Allocate memory of size bytes on the virtual heap
 
-FREE (Opcode: 0x51)
+FREE
 - Format: FREE addr
 - Description: Free allocated memory at addr on the virtual heap
 

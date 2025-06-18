@@ -83,12 +83,6 @@ successful SageSymbolTable::declare_symbol(const string& name, SageValue value) 
     return true;
 }
 
-successful SageSymbolTable::declare_symbol(uuid_t id, SageValue value) {
-    string name = std::format("{}", id);
-
-    return declare_symbol(name, value);
-}
-
 successful SageSymbolTable::declare_symbol(const string& name, SageType valuetype) {
     auto current_scope = symbol_stack.top();
 
@@ -149,7 +143,18 @@ void SageSymbolTable::pop_scope() {
     }
 }
 
-SageSymbol* SageSymbolTable::lookup_symbol(const string& name) {
+uint32_t SageSymbolTable::lookup_id(string name) {
+    auto current_scope = symbol_stack.top();
+
+    auto search = current_scope.find(name);
+    if (search != current_scope.end()) {
+        return nullptr;
+    }
+
+    return symbol_map[name];
+}
+
+SageSymbol* SageSymbolTable::lookup(const string& name) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
@@ -160,9 +165,12 @@ SageSymbol* SageSymbolTable::lookup_symbol(const string& name) {
     return symbol_table[symbol_map[name]];
 }
 
-SageSymbol* SageSymbolTable::lookup_symbol(uuid_t id) {
-    string name = std::format("{}", id);
-    return lookup_symbol(name);
+SageSymbol* SageSymbolTable::lookup(uint32_t id) {
+    if (id < 0 || id >= symbol_table.size()) {
+        return nullptr;
+    }
+
+    return symbol_table[id];
 }
 
 SageType SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex typenode) {

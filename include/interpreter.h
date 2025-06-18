@@ -45,21 +45,22 @@ public:
   // sr24 = stack pointer
   //
 
-  int program_counter;
-  int stack_size;
+  // int program_counter;
   StackFrame stack_frame;
   int registers[31];
+  int procedure_encoding; // starts at 0
+  map<string, int> procedure_label_encoding;
 
   bytecode program;
-  vector<SageValue&> heap;
-  SageValue&* stack;
+  map<int, SageValue> heap;
+  vector<SageValue> stack;
 
   SageInterpreter();
   SageInterpreter(int _stack_size);
 
-  string get_string(SageArrayValue);
-  void load_program(vector<instruction> program);
-  SageValue* run_program();
+  int store_in_heap(SageValue value);
+  void load_program(bytecode program);
+  void execute(int begin_program_counter);
 };
 
 

@@ -309,7 +309,7 @@ main:
 
   load sr10, sr9 // sr9 value is auto treated as a stack pointer
 
-  // idea: honestly maybe print and all the other builtins could be a "syscall"
+  // this should also just be a syscall
   print "this result is: %d\n", sr10
 
   mov 0, sr22 // 0 is the program exit syscall code

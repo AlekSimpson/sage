@@ -4,18 +4,19 @@
 #include <stack>
 #include <memory>
 #include <map>
-#include <uuid/uuid.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/IRBuilder.h>
+// #include <llvm/IR/LLVMContext.h>
+// #include <llvm/IR/Module.h>
+// #include <llvm/IR/IRBuilder.h>
 
 #include "parser.h"
 #include "interpreter.h"
 #include "node_manager.h"
 #include "symbols.h"
 #include "analyzer.h"
+#include "sage_bytecode.h"
 
-using namespace llvm;
+#define ui32 uint32_t
+#define bytecode vector<instruction>
 
 enum debug_level {
   NONE,
@@ -36,41 +37,47 @@ public:
 
   stack<int> current_procedure;
   vector<bytecode> procedures; // global space is the first element in this arrya
+  int last_begin_program_pos;
 
   SageCodeGenVisitor();
   SageCodeGenVisitor(NodeManager*, SageInterpreter*, SageAnalyzer*);
 
-  // llvm::Module* get_module();
-  uuid_t process_expression(NodeIndex);
+  void add_instruction(SageOpCode, int);
+  void add_instruction(SageOpCode, int, int);
+  void add_instruction(SageOpCode, int, int, int);
+  void add_instruction(SageOpCode, int, int, int, int);
+  ui32 process_expression(NodeIndex);
 
-  uuid_t build_store(uuid_t rhs, string variable_symbol);
-  uuid_t build_return(uuid_t);
-  uuid_t build_function_with_block(vector<string>, string);
-  uuid_t build_alloca(SageType, string);
-  uuid_t build_add(uuid_t, uuid_t);
-  uuid_t build_sub(uuid_t, uuid_t);
-  uuid_t build_div(uuid_t, uuid_t);
-  uuid_t build_mul(uuid_t, uuid_t);
-  uuid_t build_and(uuid_t, uuid_t);
-  uuid_t build_or(uuid_t, uuid_t);
-  uuid_t build_load(SageType, string);
-  uuid_t build_constant_int(string);
-  uuid_t build_constant_float(string);
-  uuid_t build_string_pointer(string);
-  uuid_t build_function_call(vector<string>, string)
+  ui32 build_begin();
+  ui32 build_end();
+  ui32 build_store(ui32 rhs, string variable_symbol);
+  ui32 build_return(ui32);
+  ui32 build_function_with_block(vector<string>, string);
+  ui32 build_alloca(SageType, string);
+  ui32 build_add(ui32, ui32);
+  ui32 build_sub(ui32, ui32);
+  ui32 build_div(ui32, ui32);
+  ui32 build_mul(ui32, ui32);
+  ui32 build_and(ui32, ui32);
+  ui32 build_or(ui32, ui32);
+  ui32 build_load(SageType, string);
+  ui32 build_constant_int(string);
+  ui32 build_constant_float(string);
+  ui32 build_string_pointer(string);
+  ui32 build_function_call(vector<string>, string)
 
-  uuid_t visit_function_return(uuid_t);
-  uuid_t visit_program(NodeIndex);
-  uuid_t visit_variable_decl(NodeIndex);
-  uuid_t visit_function_declaration(NodeIndex);
-  uuid_t visit_function_definition(NodeIndex);
-  uuid_t visit_function_call(NodeIndex);
-  uuid_t visit_codeblock(NodeIndex);
-  uuid_t visit_trinary_expr(NodeIndex);
-  uuid_t visit_binary_expr(NodeIndex);
-  uuid_t visit_expression(NodeIndex);
-  uuid_t visit_variable_assignment(NodeIndex);
-  uuid_t visit_unary_expr(NodeIndex);
+  ui32 visit_function_return(ui32);
+  ui32 visit_program(NodeIndex);
+  ui32 visit_variable_decl(NodeIndex);
+  ui32 visit_function_declaration(NodeIndex);
+  ui32 visit_function_definition(NodeIndex);
+  ui32 visit_function_call(NodeIndex);
+  ui32 visit_codeblock(NodeIndex);
+  ui32 visit_trinary_expr(NodeIndex);
+  ui32 visit_binary_expr(NodeIndex);
+  ui32 visit_expression(NodeIndex);
+  ui32 visit_variable_assignment(NodeIndex);
+  ui32 visit_unary_expr(NodeIndex);
 };
 
 class SageCompiler {
