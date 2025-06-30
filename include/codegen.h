@@ -16,7 +16,6 @@
 #include "sage_bytecode.h"
 
 #define ui32 uint32_t
-#define bytecode vector<instruction>
 
 enum debug_level {
   NONE,
@@ -44,8 +43,10 @@ public:
 
   void add_instruction(SageOpCode, int);
   void add_instruction(SageOpCode, int, int);
-  void add_instruction(SageOpCode, int, int, int);
-  void add_instruction(SageOpCode, int, int, int, int);
+  void add_instruction(SageOpCode, int, int[4]);
+  void add_instruction(SageOpCode, int, int, int[4]);
+  void add_instruction(SageOpCode, int, int, int, int[4]);
+  void add_instruction(SageOpCode, int, int, int, int, int[4]);
   ui32 process_expression(NodeIndex);
 
   ui32 build_begin();

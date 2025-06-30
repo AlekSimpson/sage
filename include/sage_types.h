@@ -73,5 +73,6 @@ public:
   SageType valuetype;
 
   SageValue(int, value_t, SageType);
+  int load();
 };
 

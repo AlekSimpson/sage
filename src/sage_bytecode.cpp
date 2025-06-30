@@ -1,5 +1,9 @@
 #include "../include/sage_bytecode.h"
 
+command::command(SageOpCode code, uint32_t ops, int map[4]) : inst(instruction(code, ops)), map(map);
+command::command(SageOpCode code, int op1, int op2, int map[4]) : inst(instruction(code, op1, op2)), map(map);
+command::command(SageOpCode code, int op1, int op2, int op3, int map[4]) : inst(instruction(code, op1, op2, op3)), map(map);
+command::command(SageOpCode code, int op1, int op2, int op3, int op4, int map[4]) : inst(instruction(code, op1, op2, op3, op4)), map(map);
 
 instruction::instruction(SageOpCode code, uint32_t ops) : opcode(code), operands(ops) {};
 

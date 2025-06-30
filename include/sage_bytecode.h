@@ -34,6 +34,7 @@ enum SageOpCode {
   OP_AND,
   OP_OR,
   OP_NOT,
+  OP_NOP,
 
   OP_SYSCALL,
   OP_LABEL,
@@ -42,7 +43,7 @@ enum SageOpCode {
   OP_END_EXECUTION // tells the interpreter to pause execution
 };
 
-typedef vector<instruction> bytecode;
+typedef vector<command> bytecode;
 
 struct triple {
   uint8_t one;
@@ -58,6 +59,21 @@ struct instruction {
   instruction(SageOpCode, int, int);
   instruction(SageOpCode, int, int, int);
   instruction(SageOpCode, int, int, int, int);
+
+  vector<int> read();
+};
+
+struct command {
+  instruction inst;
+  int map[4];
+  // 0 - neutral, use raw
+  // 1 - deref register
+  // 2 - deref stack
+  // 3 - deref heap
+
+  command(SageOpCode, int, int, int[4]);
+  command(SageOpCode, int, int, int, int[4]);
+  command(SageOpCode, int, int, int, int, int[4]);
 };
 
 inline uint32_t dpack(uint16_t operand1, uint16 operand2);

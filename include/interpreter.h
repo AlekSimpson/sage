@@ -45,7 +45,6 @@ public:
   // sr24 = stack pointer
   //
 
-  // int program_counter;
   StackFrame stack_frame;
   int registers[31];
   int procedure_encoding; // starts at 0

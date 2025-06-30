@@ -8,17 +8,18 @@ ui32 SageCodeGenVisitor::build_store(ui32 rhs, string variable_symbol) {
     auto lifetime_info = analysis->variable_lifetimes[variable_symbol];
     SageSymbol* expression_symbol = symbol_table.lookup(rhs);
 
+    // TODO: put checks to see if this value even needs to be stored in the heap
     int expression_pointer = vm->store_in_heap(expression_symbol->get_value());
 
     if (lifetime_info.spilled) {
         // if variable is spilled then store rhs into the stack
-        add_instruction(OP_STORE, expression_pointer, lifetime_info.spill_offset);
+        add_instruction(OP_STORE, expression_pointer, lifetime_info.spill_offset, {0, 0, 0, 0});
         return -1;
 
     }
 
     // if the variable has a register assignment then move rhs into that register
-    add_instruction(OP_MOV, expression_pointer, lifetime_info.variable_assignment);
+    add_instruction(OP_MOV, expression_pointer, lifetime_info.variable_assignment, {0, 0, 0, 0});
 
     return -1;
 }
@@ -48,8 +49,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
 
         if (info.spilled) {
             // load the variable value into a volatile from the stack using the varlifetime offset
-            int stack_offset = info.spill_offset;
-            add_instruction(OP_LOAD, 6, stack_offset);
+            add_instruction(OP_LOAD, 6, info.spill_offset, {0, 0, 0, 0});
             add_instruction(OP_RET, 0);
 
             current_procedure.pop();
@@ -62,7 +62,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
         register_ = info.register_assignment;
 
         // move the value into the function return register
-        add_instruction(OP_MOV, register_, 6);
+        add_instruction(OP_MOV, register_, 6, {1, 0, 0, 0});
         add_instruction(OP_RET, 0);
 
         current_procedure.pop();
@@ -74,7 +74,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
     // temp values need the sage value moved into a volatile register
     auto sagevalue = return_search->value;
     int heap_pointer = vm->store_in_heap(sagevalue);
-    add_instruction(OP_MOV, heap_pointer, 6);
+    add_instruction(OP_MOV, heap_pointer, 6, {0, 0, 0, 0});
     add_instruction(OP_RET, 0);
 
     current_procedure.pop();
@@ -108,7 +108,7 @@ ui32 SageCodeGenVisitor::build_alloca(SageType type, string var_name) {
 
     if (lifetime_info.spilled) {
         // then we can do normal stack stuff
-        add_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1);
+        add_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1, {0, 1, 0, 0});
     }
 
     // otherwise its actually stored in a register and we dont' need to do anything
@@ -132,7 +132,7 @@ int process_operand(SageCodeGenVisitor* visitor, ui32 value) {
         if (info.spilled) {
             // load from stack into volatile
             result_value = vm->volatile_register();
-            add_instruction(OP_LOAD, result_value, info.spill_offset);
+            add_instruction(OP_LOAD, result_value, info.spill_offset, {0, 0, 0, 0});
         }
     }else {
         result_value = symbol->volatile_register;
@@ -147,7 +147,7 @@ ui32 SageCodeGenVisitor::build_operator(ui32 value1, ui32 value2, SageOpCode opc
     int value2 = process_operand(this, value2);
 
     int result_volatile = vm->volatile_register();
-    add_instruction(opcode, result_volatile, value1, value2);
+    add_instruction(opcode, result_volatile, value1, value2, {0, 1, 1, 0});
 
     ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_volatile);
     if (result_symbol_id == -1) {
@@ -194,7 +194,7 @@ ui32 SageCodeGenVisitor::build_load(SageType type, string reference_name) {
     if (info.spilled) {
         // is the variable stored on the stack then we want to load it from the stack like normal
         auto volatile_reg = vm->volatile_register();
-        add_instruction(OP_LOAD, volatile_reg, info.spill_offset);
+        add_instruction(OP_LOAD, volatile_reg, info.spill_offset, {0, 0, 0, 0});
         symbol->volatile_register = volatile_reg;
 
     }else {
@@ -215,7 +215,7 @@ ui32 SageCodeGenVisitor::build_constant_int(int value) {
     }
 
     int result_reg = vm->volatile_register();
-    add_instruction(OP_MOV, value, result_reg);
+    add_instruction(OP_MOV, value, result_reg, {0, 0, 0, 0});
 
     symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
     symbol_table[symbol_table.size()-1]->is_variable = false;
@@ -233,7 +233,7 @@ ui32 SageCodeGenVisitor::build_constant_float(float value) {
 
     int result_reg = vm->volatile_register();
     int heap_pointer = vm->store_in_heap(symbol_table.lookup(to_string(value))->value);
-    add_instruction(OP_MOV, heap_pointer, result_reg)
+    add_instruction(OP_MOV, heap_pointer, result_reg, {0, 0, 0, 0});
 
     symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
     symbol_table[symbol_table.size()-1]->is_variable = false;
@@ -249,7 +249,7 @@ ui32 SageCodeGenVisitor::build_string_pointer(string value) {
     }
     int heap_pointer = store_in_heap(symbol_table.lookup(value)->value);
     int result_reg = vm->volatile_register();
-    add_instruction(OP_MOV, heap_pointer, result_reg);
+    add_instruction(OP_MOV, heap_pointer, result_reg, {0, 0, 0, 0});
 
     symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
     symbol_table[symbol_table.size()-1]->is_variable = false;
@@ -274,7 +274,7 @@ ui32 SageCodeGenVisitor::build_function_call(
         symbol = symbol_table.lookup_id(args[i]);
         // if is variable, if is parameter, if is volatile, if value is not null
         if (!vm->volatile_is_stale(symbol->volatile_register)) {
-            add_instruction(OP_MOV, symbol->volatile_regster, i);
+            add_instruction(OP_MOV, symbol->volatile_regster, i, {1, 0, 0, 0});
 
         }else if (symbol->is_parameter) {
             // FIX: TODO; we do not properly implement parameter register stack caching yet, so this kind of function call is broken right now
@@ -284,25 +284,25 @@ ui32 SageCodeGenVisitor::build_function_call(
             // if the volatile register didn't go off
             // then that means that the variable hasn't been loaded from the stack
             info = analysis->variable_lifetimes[args[i]]
-            add_instruction(OP_LOAD, i, info.spill_offset);
+            add_instruction(OP_LOAD, i, info.spill_offset, {0, 0, 0, 0});
         }else if (!symbol->value.is_null()) {
             switch (symbol->value.valuetype) {
                 case INT:
-                    add_instruction(OP_MOV, symbol->value->value->int_value, i);
+                    add_instruction(OP_MOV, symbol->value->value->int_value, i, {0, 0, 0, 0});
                     break;
                 case FLOAT: {
                     int heap_pointer = store_in_heap(symbol->value);
-                    add_instruction(OP_MOV, heap_pointer, i);
+                    add_instruction(OP_MOV, heap_pointer, i, {0, 0, 0, 0});
                     break;
                 }
                 case BOOL:
-                    add_instruction(OP_MOV, symbol->value->value->bool_value, i);
+                    add_instruction(OP_MOV, symbol->value->value->bool_value, i, {0, 0, 0, 0});
                     break;
                 case CHAR:
-                    add_instruction(OP_MOV, symbol->value->value->char_value, i);
+                    add_instruction(OP_MOV, symbol->value->value->char_value, i, {0, 0, 0, 0});
                     break;
                 case POINTER:
-                    add_instruction(OP_MOV, symbol->value->value->int_value, i);
+                    add_instruction(OP_MOV, symbol->value->value->int_value, i, {0, 0, 0, 0});
                     break;
                 case ARRAY:
                     // TODO:
@@ -335,7 +335,6 @@ ui32 SageCodeGenVisitor::build_begin() {
 ui32 SageCodeGenVisitor::build_end() {
     add_instruction(OP_END_EXECUTION, 0);
 
-    // TODO: execute sage code at compile time
     vm->load_program(procedures[current_procedure.top()]);
     vm->execute(last_begin_program_pos);
 
@@ -344,21 +343,24 @@ ui32 SageCodeGenVisitor::build_end() {
 
 
 
-
 void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1) {
-    procedures[current_procedure.top()].push_back(instruction(opcode, op1));
+    procedures[current_procedure.top()].push_back(command(opcode, op1, {0,0,0,0}));
 }
 
-void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2) {
-    procedures[current_procedure.top()].push_back(instruction(opcode, op1, op2));
+void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int map[4]) {
+    procedures[current_procedure.top()].push_back(command(opcode, op1, map));
 }
 
-void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2, int op3) {
-    procedures[current_procedure.top()].push_back(instruction(opcode, op1, op2, op3));
+void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2, int map[4]) {
+    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, map));
 }
 
-void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4) {
-    procedures[current_procedure.top()].push_back(instruction(opcode, op1, op2, op3, op4));
+void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int map[4]) {
+    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, op3, map));
+}
+
+void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4, int map[4]) {
+    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, op3, op4, map));
 }
 
 
