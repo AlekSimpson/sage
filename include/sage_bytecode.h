@@ -1,5 +1,11 @@
 #pragma once
 
+#include <cstdint>
+#include <vector>
+#include <utility>
+
+using namespace std;
+
 // References:
 // https://claude.ai/chat/f57f3971-8aae-4fe8-bd52-fb0eb08be8d6
 // https://github.com/dannyvankooten/monkey-c-monkey-do/blob/master/src/opcode.h
@@ -43,8 +49,6 @@ enum SageOpCode {
   OP_END_EXECUTION // tells the interpreter to pause execution
 };
 
-typedef vector<command> bytecode;
-
 struct triple {
   uint8_t one;
   uint8_t two;
@@ -71,12 +75,15 @@ struct command {
   // 2 - deref stack
   // 3 - deref heap
 
+  command(SageOpCode, uint32_t, int[4]);
   command(SageOpCode, int, int, int[4]);
   command(SageOpCode, int, int, int, int[4]);
   command(SageOpCode, int, int, int, int, int[4]);
 };
 
-inline uint32_t dpack(uint16_t operand1, uint16 operand2);
+typedef vector<command> bytecode;
+
+inline uint32_t dpack(uint16_t operand1, uint16_t operand2);
 
 inline pair<uint16_t, uint16_t> dunpack(uint32_t packed);
 

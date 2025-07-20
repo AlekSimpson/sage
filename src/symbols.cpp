@@ -6,23 +6,20 @@
 #include <stack>
 #include <uuid/uuid.h>
 #include <format>
+#include <algorithm>
 
 #include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 #include "../include/sage_types.h"
 
-using namespace llvm;
+SageSymbol::SageSymbol() {}
 
-SageSymbol::SageSymbol(SageValue rawvalue, string identifier) {
-    value = rawvalue;
-
-    identifier = identifier;
-}
+SageSymbol::SageSymbol(SageValue rawvalue, string _identifier) 
+    : value(rawvalue), identifier(_identifier) {}
 
 SageSymbolTable::SageSymbolTable() {
     symbol_stack = stack<SageScope>();
-    // symbol_table = map<string, SageSymbol*>();
     current_function_has_returned = false;
 }
 
@@ -38,22 +35,20 @@ void SageSymbolTable::initialize() {
     // initialize root stack with sage built in datatypes and methods
     symbol_stack.push({});
 
-    // we'll rely on cpp printf for now but we can recreate print in bytecode i think
-    declare_symbol("printf", function_type, llvmvalue);
-
-    declare_type_symbol("bool", SageBuiltinType(BOOL));
-    declare_type_symbol("char",  SageBuiltinType(CHAR));
-    declare_type_symbol("int", SageBuiltinType(I64));
-    declare_type_symbol("i8", SageBuiltinType(I8));
-    declare_type_symbol("i32", SageBuiltinType(I32));
-    declare_type_symbol("i64", SageBuiltinType(I64));
-    declare_type_symbol("float", SageBuiltinType(F64));
-    declare_type_symbol("f32", SageBuiltinType(F32));
-    declare_type_symbol("f64", SageBuiltinType(F64));
-    declare_type_symbol("void", SageBuiltinType(VOID));
+    auto chartype = TypeRegistery::get_builtin_type(CHAR);
+    declare_type_symbol("bool", TypeRegistery::get_builtin_type(BOOL));
+    declare_type_symbol("char",  chartype);
+    declare_type_symbol("int", TypeRegistery::get_builtin_type(I64));
+    declare_type_symbol("i8", TypeRegistery::get_builtin_type(I8));
+    declare_type_symbol("i32", TypeRegistery::get_builtin_type(I32));
+    declare_type_symbol("i64", TypeRegistery::get_builtin_type(I64));
+    declare_type_symbol("float", TypeRegistery::get_builtin_type(F64));
+    declare_type_symbol("f32", TypeRegistery::get_builtin_type(F32));
+    declare_type_symbol("f64", TypeRegistery::get_builtin_type(F64));
+    declare_type_symbol("void", TypeRegistery::get_builtin_type(VOID));
 
     // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
-    declare_type_symbol("char*", SagePointerType(SageBuiltinType(CHAR)));
+    declare_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
 
     SageScope root_scope = {
         "bool", "char", "int", "i8", 
@@ -83,7 +78,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageValue value) 
     return true;
 }
 
-successful SageSymbolTable::declare_symbol(const string& name, SageType valuetype) {
+successful SageSymbolTable::declare_symbol(const string& name, SageType* valuetype) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
@@ -102,7 +97,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageType valuetyp
     return true;
 }
 
-successful SageSymbolTable::declare_type_symbol(const string& name, SageType type) {
+successful SageSymbolTable::declare_type_symbol(const string& name, SageType* type) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
@@ -123,6 +118,19 @@ successful SageSymbolTable::declare_type_symbol(const string& name, SageType typ
     return true;
 }
 
+uint32_t SageSymbolTable::declare_internal_symbol(int register_value) {
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->is_variable = false;
+    new_symbol->volatile_register = register_value;
+    new_symbol->identifier = "temp_" + to_string(symbol_table.size());
+    
+    symbol_table.push_back(new_symbol);
+    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
+    symbol_map[new_symbol->identifier] = symbol_id;
+    
+    return symbol_id;
+}
+
 void SageSymbolTable::push_scope() {
     auto topscope = symbol_stack.top();
     symbol_stack.push(topscope);
@@ -136,7 +144,7 @@ void SageSymbolTable::pop_scope() {
 
     // any symbols declared in the scope to pop should be removed from the symbol table
     for (string symbol: scope) {
-        if (!previous_scope.contains(symbol)) {
+        if (previous_scope.find(symbol) != previous_scope.end()) {
             delete symbol_table[symbol_map[symbol]];
             symbol_map.erase(symbol);
         }
@@ -148,7 +156,7 @@ uint32_t SageSymbolTable::lookup_id(string name) {
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
-        return nullptr;
+        return 0;
     }
 
     return symbol_map[name];
@@ -173,36 +181,39 @@ SageSymbol* SageSymbolTable::lookup(uint32_t id) {
     return symbol_table[id];
 }
 
-SageType SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex typenode) {
+SageType* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex typenode) {
     switch (manager->get_nodetype(typenode)) {
         case PN_NUMBER:
-            return SageBuiltinType(I64);
+            return TypeRegistery::get_builtin_type(I64);
         case PN_FLOAT:
-            return SageBuiltinType(F64);
+            return TypeRegistery::get_builtin_type(F64);
         case PN_STRING:
-            return SagePointerType(SageBuiltinType(CHAR));
+            return TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR));
         case PN_VAR_REF:
             // TODO
             break;
         default:
             break;
     }
-    return SageBuiltinType(VOID);
+    return TypeRegistery::get_builtin_type(VOID);
 }
 
-SageType SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex typenode) {
+SageType* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex typenode) {
     auto current_scope = symbol_stack.top();
     string type_name = manager->get_lexeme(typenode);
     auto search_name = type_scope.find(type_name);
     if (search_name == type_scope.end()) {
-        return SageBuiltinType(VOID);
+        return TypeRegistery::get_builtin_type(VOID);
     }
 
-    auto it = symbol_table.find(type_name);
-    if (it == symbol_table.end() || it->second == nullptr) {
-        return SageBuiltinType(VOID);
+    auto it = symbol_map.find(type_name);
+    if (it == symbol_map.end()) {
+        return TypeRegistery::get_builtin_type(VOID);
     }
 
     return symbol_table[symbol_map[type_name]]->type;
 }
 
+int SageSymbolTable::size() {
+    return symbol_table.size();
+}

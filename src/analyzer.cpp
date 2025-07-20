@@ -1,47 +1,63 @@
-#include <uuid/uuid.h>
+#include <set>
+#include <stack>
+#include <numeric>
+#include <cstring>
+
 #include "../include/analyzer.h"
 #include "../include/parse_node.h"
 #include "../include/node_manager.h"
 #include "../include/cfg.h"
 
+std::atomic<uint64_t> IDGenerator::next_id{0};
+
+#define ui64 uint64_t
+
 // Supporting Structures
 
-VariableLifetime::VariableLifetime(uuid_t id, string name, int start, bool priority) 
-    : id(id), name(name), start_line(start), end_line(INF), high_priority(priority), register_assignment(-1) {}
+VariableLifetime::VariableLifetime(ui64 id, string name, int start, bool priority) 
+: id(id), name(name), start_line(start), end_line(INF), high_priority(priority), register_assignment(-1) {}
+
+VariableLifetime::VariableLifetime(string name, int start, bool priority) 
+: name(name), start_line(start), end_line(INF), high_priority(priority), register_assignment(-1) {
+    id = IDGenerator::generate();
+}
 
 CFGNode::CFGNode(NodeIndex node, vector<string> references, InstructionType inst_type) 
-    : node(node), variable_references(references), inst_type(inst_type) {
-    generate_uuid(id);
-}
+: id(IDGenerator::generate()), node(node), variable_references(references), inst_type(inst_type) {}
 
 CFGNode::CFGNode(NodeIndex node, vector<string> references, InstructionType inst_type, int line_no) 
-    : node(node), variable_references(references), inst_type(inst_type, line_number(line_no)) {
-    generate_uuid(id);
-}
+: id(IDGenerator::generate()), line_number(line_no), node(node), variable_references(references), inst_type(inst_type) {}
 
-CFGNode::CFGNode(uuid_t id, NodeIndex node, vector<string> references, InstructionType inst_type) 
-    : id(id), node(node), variable_references(references), inst_type(inst_type) {}
+CFGNode::CFGNode(ui64 id, NodeIndex node, vector<string> references, InstructionType inst_type) 
+: id(id), node(node), variable_references(references), inst_type(inst_type) {}
 
-CFGNode::CFGNode(CFGNode node) 
-    : id(node.id), node(node.node), variable_references(node.variable_references), inst_type(node.inst_type) {}
+CFGNode::CFGNode(const CFGNode& node) 
+: id(IDGenerator::generate()), node(node.node), variable_references(node.variable_references), inst_type(node.inst_type) {}
+
+VariableLifetime::VariableLifetime() 
+    : id(IDGenerator::generate()), name(""), start_line(0), end_line(INF), 
+      high_priority(false), register_assignment(-1), spill_offset(0), spilled(false) {}
+
+CFGNode::CFGNode() 
+    : id(IDGenerator::generate()), line_number(0), node(NULL_INDEX), 
+      variable_references(), inst_type(INERT) {}
 
 SageControlFlow::SageControlFlow() {
     // create start node
-    uuid_t temp_id;
-    generate_uuid(temp_id);
+    ui64 temp_id = IDGenerator::generate();
     nodes[temp_id] = CFGNode(NULL_INDEX, vector<string>(), START_NODE);
     cursor = temp_id;
     start_node = temp_id; // should always have the starting node saved
 }
 
-SageControlFlow::add_connection(uuid_t parent, CFGNode child) {
-    connections[parent].push_back(child);
+void SageControlFlow::add_connection(ui64 parent, CFGNode child) {
+    connections[parent].push_back(child.id);
     nodes[child.id] = child;
     id_last_added = child.id;
 }
 
 void SageControlFlow::append_nested_flow(SageControlFlow* nested_cfg) {
-    uuid_t entrance_id = nested_cfg->connections[nested_cfg->start_node][0];
+    ui64 entrance_id = nested_cfg->connections[nested_cfg->start_node][0];
     CFGNode nested_entrance = nested_cfg->nodes[entrance_id];
 
     nested_cfg->nodes.erase(nested_cfg->start_node);
@@ -50,13 +66,31 @@ void SageControlFlow::append_nested_flow(SageControlFlow* nested_cfg) {
     nodes.merge(nested_cfg->nodes);
     connections.merge(nested_cfg->connections);
 
-    add_connection(cursor, nested_entrace);
+    add_connection(cursor, nested_entrance);
     delete nested_cfg;
+}
+
+void SageControlFlow::add_connection(uint64_t parent, uint64_t child) {
+    connections[parent].push_back(child);
+}
+
+vector<uint64_t> SageControlFlow::get_dangling_cursors() {
+    vector<uint64_t> dangling;
+    
+    // Find nodes that don't have outgoing connections (leaf nodes)
+    for (const auto& [node_id, node] : nodes) {
+        if (connections.find(node_id) == connections.end() || connections[node_id].empty()) {
+            dangling.push_back(node_id);
+        }
+    }
+    
+    return dangling;
 }
 
 // Sage Analyzer Begin
 
 SageAnalyzer::SageAnalyzer() {}
+
 SageAnalyzer::SageAnalyzer(NodeManager* manager) {
     this->manager = manager;
     register_range_begin = 10;
@@ -69,32 +103,32 @@ vector<string> SageAnalyzer::expression_contains_references(NodeIndex expression
     vector<string> temp_two;
     vector<string> temp_three;
 
-    switch (node_manager->get_host_nodetype()) {
+    switch (manager->get_host_nodetype(expression_root)) {
         case PN_TRINARY:
-            temp_one = expression_contains_references(node_manager->get_left(expression_root));
+            temp_one = expression_contains_references(manager->get_left(expression_root));
             return_value.insert(return_value.begin(), temp_one.begin(), temp_one.end());
 
-            temp_two = expression_contains_references(node_manager->get_middle(expression_root));
+            temp_two = expression_contains_references(manager->get_middle(expression_root));
             return_value.insert(return_value.begin(), temp_two.begin(), temp_two.end());
 
-            temp_three = expression_contains_references(node_manager->get_right(expression_root));
+            temp_three = expression_contains_references(manager->get_right(expression_root));
             return_value.insert(return_value.begin(), temp_three.begin(), temp_three.end());
             break;
 
         case PN_BINARY:
-            temp_one = expression_contains_references(node_manager->get_left(expression_root));
+            temp_one = expression_contains_references(manager->get_left(expression_root));
             return_value.insert(return_value.begin(), temp_one.begin(), temp_one.end());
 
-            temp_two = expression_contains_references(node_manager->get_right(expression_root));
+            temp_two = expression_contains_references(manager->get_right(expression_root));
             return_value.insert(return_value.begin(), temp_two.begin(), temp_two.end());
             break;
 
         case PN_UNARY:
-            if (node_manager->get_nodetype(expression_root) == PN_VAR_REF) {
-                return_value.push_back(node_manager->get_lexeme(expression_root));
+            if (manager->get_nodetype(expression_root) == PN_VAR_REF) {
+                return_value.push_back(manager->get_lexeme(expression_root));
                 return return_value;
             }
-            temp_one = expression_contains_references(node_manager->get_right(expression_root));
+            temp_one = expression_contains_references(manager->get_right(expression_root));
             return_value.insert(return_value.begin(), temp_one.begin(), temp_one.end());
             break;
 
@@ -119,30 +153,32 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
     int edge_count;
     NodeIndex current_line;
     vector<string> references;
-    vector<uuid_t> dangling_cursors;
+    vector<ui64> dangling_cursors;
     vector<NodeIndex> lines = manager->get_children(ast_pointer);
     vector<NodeIndex> branches;
     vector<string> found_references;
+    vector<ui64> nested_dangling;
+    NodeIndex inner_block;
 
     // get line from block
     current_line = lines[relative_line_index];
     while (relative_line_index < lines.size()) {
         switch (manager->get_nodetype(current_line)) {
-        case PN_VAR_DEC:
-            references->push_back(manager->get_token(manager->get_left(current_line)).lexeme);
+        case PN_VAR_DEC: {
+            references.push_back(manager->get_token(manager->get_left(current_line)).lexeme);
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INIT, real_line_index));
 
             // update cursor
             cfg->cursor = cfg->id_last_added;
-            if (!dangling_cursors->empty()) {
-                for (uuid_t dangling_cursor : dangling_cursors) {
+            if (!dangling_cursors.empty()) {
+                for (ui64 dangling_cursor : dangling_cursors) {
                     cfg->add_connection(dangling_cursor, cfg->cursor);
                 }
-                dangling_cursors->clear();
+                dangling_cursors.clear();
             }
             break;
-
-        case PN_ASSIGN:
+        }
+        case PN_ASSIGN: {
             references.push_back(manager->get_lexeme(manager->get_left(current_line)));
             found_references = expression_contains_references(manager->get_right(current_line));
             if (!found_references.empty()) {
@@ -152,14 +188,14 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
 
             cfg->cursor = cfg->id_last_added;
             if (!dangling_cursors.empty()) {
-                for (uuid_t dangling_cursor : dangling_cursors) {
+                for (ui64 dangling_cursor : dangling_cursors) {
                     cfg->add_connection(dangling_cursor, cfg->cursor);
                 }
                 dangling_cursors.clear();
             }
             break;
-
-        case PN_IF:
+        }
+        case PN_IF: {
             // add if node
             references = expression_contains_references(manager->get_left(current_line));
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, REFERENCE, real_line_index));
@@ -185,8 +221,8 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
                 dangling_cursors.push_back(cfg->cursor);
             }
             break;
-
-        case PN_WHILE:
+        }
+        case PN_WHILE: {
             references = expression_contains_references(manager->get_left(current_line));
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, WHILE, real_line_index));
             cfg->cursor = cfg->id_last_added;
@@ -196,13 +232,13 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
             dangling_cursors = nested_flow->get_dangling_cursors();
             cfg->append_nested_flow(nested_flow);
 
-            for (uuid_t dangling : dangling_cursors) {
+            for (ui64 dangling : dangling_cursors) {
                 cfg->add_connection(dangling, cfg->cursor);
             }
             dangling_cursors.clear();
             break;
-
-        case PN_FOR:
+        }
+        case PN_FOR: {
             references = expression_contains_references(manager->get_left(current_line));
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, FOR, real_line_index));
             cfg->cursor = cfg->id_last_added;
@@ -212,15 +248,15 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
             dangling_cursors = nested_flow->get_dangling_cursors();
             cfg->append_nested_flow(nested_flow);
 
-            for (uuid_t dangling : dangling_cursors) {
+            for (ui64 dangling : dangling_cursors) {
                 cfg->add_connection(dangling, cfg->cursor);
             }
             dangling_cursors.clear();
             break;
-
+        }
         // dont actively affect generation
         // but could show up as a valid line
-        case PN_KEYWORD:
+        case PN_KEYWORD: {
             if (manager->get_branch(current_line) == NULL_INDEX) {
                 cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INERT, real_line_index));
                 cfg->cursor = cfg->id_last_added;
@@ -230,12 +266,12 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, REFERENCE, real_line_index));
             cfg->cursor = cfg->id_last_added;
             break;
-
-        case PN_FUNCDEF:
+        }
+        case PN_FUNCDEF: {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, REFERENCE, real_line_index));
             cfg->cursor = cfg->id_last_added;
 
-            NodeIndex inner_block = manager->get_right(current_line);
+            inner_block = manager->get_right(current_line);
             nested_flow = generate_control_flow(inner_block);
 
             real_line_index += nested_flow->greatest_line_number;
@@ -243,10 +279,10 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
 
             cfg->append_nested_flow(nested_flow);
 
-            cursor = nested_flow->cursor;
+            cfg->cursor = nested_flow->cursor;
             break;
-
-        case PN_FUNCCALL:
+        }
+        case PN_FUNCCALL: {
             // get all parameter expressions
             NodeIndex expression_block = manager->get_branch(current_line);
             vector<NodeIndex> parameter_expressions = manager->get_children(expression_block);
@@ -265,18 +301,18 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, REFERENCE, real_line_index));
             cfg->cursor = cfg->id_last_added;
             break;
-
-        case PN_STRUCT:
+        }
+        case PN_STRUCT: {
             // TODO: when structs get the ability to set default attribute values we probably will have to change this logic
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INERT, real_line_index));
             cfg->cursor = cfg->id_last_added;
             break;
-
-        case PN_RUN_DIRECTIVE:
+        }
+        case PN_RUN_DIRECTIVE: {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INERT, real_line_index));
             cfg->cursor = cfg->id_last_added;
 
-            NodeIndex inner_block = manager->get_branch(current_line);
+            inner_block = manager->get_branch(current_line);
             nested_flow = generate_control_flow(inner_block);
 
             real_line_index += nested_flow->greatest_line_number;
@@ -284,21 +320,20 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
 
             cfg->append_nested_flow(nested_flow);
 
-            cursor = nested_flow->cursor;
+            cfg->cursor = nested_flow->cursor;
             break;
-
-        case PN_INCLUDE:
+        }
+        case PN_INCLUDE: {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INERT, real_line_index));
             cfg->cursor = cfg->id_last_added;
             break;
-
-        case PN_FUNCDEC:
+        }
+        case PN_FUNCDEC: {
             cfg->add_connection(cfg->cursor, CFGNode(current_line, references, INERT, real_line_index));
             cfg->cursor = cfg->id_last_added;
             break;
-
+        }
         default:
-            // ERROR!!
             break;
         }
 
@@ -316,23 +351,24 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
 // FIRST TEST THAT THE CFG GENERATION WORKS (IT SHOULD) AND THEN WE NEED TO TEST THAT THIS OUTPUTS GOOD LOOKING
 // LIFETIMES
 unordered_map<string, VariableLifetime> SageAnalyzer::extract_lifetimes(SageControlFlow* controlflow) {
-    set<uuid_t> explored;
-    uuid_t current_id = controlflow->start_node;
-    vector<uuid_t> neighbors;
+    set<ui64> explored;
+    ui64 current_id = controlflow->start_node;
+    vector<ui64> neighbors;
     vector<string> references;
     CFGNode current_node;
     unordered_map<string, VariableLifetime> retval;
     bool is_high_priority;
-    queue<uuid_t> fringe;
+    stack<ui64> fringe;
     fringe.push(current_id);
 
     // traverse control flow
     while (!fringe.empty()) {
-        current_id = fringe.pop();
+        current_id = fringe.top();
+        fringe.pop();
         current_node = controlflow->nodes[current_id];
         is_high_priority = (current_node.inst_type == FOR || current_node.inst_type == WHILE);
 
-        explored.push_back(current_id);
+        explored.insert(current_id);
 
         if (current_node.inst_type == START_NODE) {
             // skip past the start node
@@ -343,7 +379,7 @@ unordered_map<string, VariableLifetime> SageAnalyzer::extract_lifetimes(SageCont
         // read variable references along the way
         references = current_node.variable_references;
         for (string reference: references) {
-            if (retval.contains(reference)) {
+            if (retval.count(reference)) {
                 // if we have already found this variable then we will continue marking the 
                 // last used line number until we are finished traversing.
                 // if we traverse the graph correctly we should end with the last reference to the variable 
@@ -358,7 +394,7 @@ unordered_map<string, VariableLifetime> SageAnalyzer::extract_lifetimes(SageCont
         
         neighbors = controlflow->connections[current_id];
         for (auto neighbor : neighbors) {
-            if (explored.contains(neighbor)) {
+            if (explored.count(neighbor)) {
                 continue;
             }
 
@@ -378,16 +414,16 @@ vector<string> sort_keys_by_start(const unordered_map<string, VariableLifetime>&
         keys.push_back(key);
     }
 
-    sort(keys.begin(), keys.end(), [&map](int a, int b) {
+    sort(keys.begin(), keys.end(), [&map](const string& a, const string& b) {
         return map.at(a).start_line < map.at(b).start_line;
     });
 
     return keys;
 }
 
-std::vector<int> fill_ascending(int start, int end) {
-    std::vector<int> vec(end - start + 1);
-    std::iota(vec.begin(), vec.end(), start);
+vector<int> fill_ascending(int start, int end) {
+    vector<int> vec(end - start + 1);
+    iota(vec.begin(), vec.end(), start);
     return vec;
 }
 
@@ -397,10 +433,14 @@ void SageAnalyzer::linear_scan_register_allocation(
     struct ActiveAssignment {
         int active_register;
         int end_line;
+
+        bool operator==(const ActiveAssignment& other) const {
+            return active_register == other.active_register && end_line == other.end_line;
+        }
     };
 
     vector<ActiveAssignment> active_registers;
-    auto free_registers = fill_ascending(register_range_begin, register_range_end-1);
+    vector<int> free_registers = fill_ascending(register_range_begin, register_range_end-1);
 
     vector<string> sorted_intervals = sort_keys_by_start(*intervals);
     vector<string> expired_intervals;
@@ -416,7 +456,14 @@ void SageAnalyzer::linear_scan_register_allocation(
             if (active_interval.end_line >= intervals->at(interval).end_line)
                 continue; // if active interval ending is well after the current ending interval
 
-            active_registers.erase(active_interval);
+            active_registers.erase(
+                std::remove(
+                    active_registers.begin(), 
+                    active_registers.end(), 
+                    active_interval
+                ), 
+                active_registers.end()
+            );
             free_registers.push_back(active_interval.active_register);
             sort(free_registers.begin(), free_registers.end());
         }
@@ -427,14 +474,20 @@ void SageAnalyzer::linear_scan_register_allocation(
 
             if (spill_candidate.end_line > intervals->at(interval).end_line) {
                 intervals->at(interval).register_assignment = spill_candidate.active_register;
-                spill_candidate.spilled = true;
+                /*spill_candidate.spilled = true;*/
 
-                active_registers.erase(spill_candidate);
-                active_registers.push_back({intervals->at(interval).register_assignment, intervals->at(interval).end_line});
+                active_registers.erase(
+                    std::remove(
+                        active_registers.begin(), 
+                        active_registers.end(), 
+                        spill_candidate
+                    ), 
+                    active_registers.end()
+                );
+                active_registers.push_back(ActiveAssignment{intervals->at(interval).register_assignment, intervals->at(interval).end_line});
 
-                sort(active_registers.begin(), active_registers.end(),
-                     [&active_registers](int a, int b) {
-                    return active_registers.at(a).end_line < active_registers.at(b).end_line;
+                sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
+                    return a.end_line < b.end_line;
                 });
 
             } else {
@@ -449,11 +502,10 @@ void SageAnalyzer::linear_scan_register_allocation(
         free_registers.erase(free_registers.begin());
 
         intervals->at(interval).register_assignment = free_register;
-        active_registers.push_back(free_register);
+        active_registers.push_back(ActiveAssignment{free_register, INF});
 
-        sort(active_registers.begin(), active_registers.end(),
-             [&active_registers](int a, int b) {
-            return active_registers.at(a).end_line < active_registers.at(b).end_line;
+        sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
+            return a.end_line < b.end_line;
         });
     }
 }

@@ -1,10 +1,11 @@
 
 
 #run {
-    executable_name = "test"
-    platform = "LINUX"
-    architecture = "X86"
-    bitsize = 64
+executable_name := "test"
+platform := "LINUX"
+architecture := "X86"
+bitsize := 64
+
 }
 
 struct string {
@@ -12,7 +13,7 @@ struct string {
     length: i64
 }
 
-create_string :: (content: char*) {
+create_string :: (content: char*) -> string {
     iter: char
     length := 0
     while (iter != '\0') {
@@ -57,8 +58,9 @@ main :: () {
     print("hello world!\n")
 
     #run {
-        amount: int = 5
-        strings: string[amount]
+    amount: int = 5
+    strings: string[amount]
+
     }
 
     for 0..amount {

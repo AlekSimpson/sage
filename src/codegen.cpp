@@ -81,24 +81,27 @@ ui32 SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
     }
     NodeIndex rightnode = node_manager->get_right(node);
 
-    vector<SageType> parameter_types;
-    vector<NodeIndex> parameters = node_manager->get_children(node_manager->get_left(rightnode));
+    vector<SageType*> parameter_types;
+    const vector<NodeIndex>& parameters = node_manager->get_children(node_manager->get_left(rightnode));
+    parameter_types.reserve(parameters.size());
 
     NodeIndex temp;
+    SageType* ir_type;
     for (NodeIndex parameter : parameters) {
         temp = node_manager->get_right(parameter);
-        SageType ir_type = symbol_table.resolve_sage_type(node_manager, temp);
+        ir_type = symbol_table.resolve_sage_type(node_manager, temp);
         parameter_types.push_back(ir_type);
     }
 
-    SageType return_type = symbol_table.resolve_sage_type(node_manager, node_manager->get_right(rightnode));
+    SageType* return_type = symbol_table.resolve_sage_type(node_manager, node_manager->get_right(rightnode));
+    vector<SageType*> return_types = {return_type};
     string function_name = node_manager->get_lexeme(node_manager->get_left(node));
     bool is_vararg = (node_manager->get_nodetype(parameters.at(parameters.size()-1)) == PN_VARARG);
     if (is_vararg) {
         parameter_types.pop_back();
     }
 
-    auto function_type = SageFunctionType(return_type, parameter_types);
+    auto function_type = TypeRegistery::get_function_type(return_types, parameter_types);
 
     // add to symbol table
     if (symbol_table.declare_symbol(function_name, function_type)) {
@@ -121,26 +124,34 @@ ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
         return -1; 
     }
     
+    string function_name = node_manager->get_lexeme(node_manager->get_left(trinary_node));
+
     vector<string> parameter_names;
-    vector<SageType> parameter_types;
-    vector<NodeIndex> parameters = node_manager->get_children(node_manager->get_left(trinary_node));
+    vector<SageType*> parameter_types;
+    const vector<NodeIndex>& parameters = node_manager->get_children(node_manager->get_left(trinary_node));
+    parameter_types.reserve(parameters.size());
+    parameter_names.reserve(parameters.size());
+    string parameter_name;
+    bool already_exists;
+    NodeIndex right_side;
+    SageType* param_type;
     for (NodeIndex parameter : parameters) {
         if (node_manager->get_host_nodetype(parameter) != PN_BINARY) {
             // ERROR!! SOMETHING IS WRONG PARAMETERS SHOULD NEVER BE STORED AS ANYTHING OTHER THAN BINARY NODES
             return -1;
         }
 
-        auto right_side = node_manager->get_right(parameter);
+        right_side = node_manager->get_right(parameter);
         if (node_manager->get_host_nodetype(right_side) != PN_UNARY) {
             // ERROR!! TYPE CANNOT BE REPRESENTED BY ANYTHING OTHER THAN UNARY FOR NOW
             return -1;
         }
-        auto param_type = symbol_table.resolve_sage_type(node_manager, right_side);
+        param_type = symbol_table.resolve_sage_type(node_manager, right_side);
 
         // add to function scope
-        string parameter_name = node_manager->get_lexeme(node_manager->get_left(parameter));
+        parameter_name = node_manager->get_lexeme(node_manager->get_left(parameter));
         parameter_names.push_back(parameter_name);
-        bool already_exists = symbol_table.declare_symbol(parameter_name, param_type);
+        already_exists = symbol_table.declare_symbol(parameter_name, param_type);
         if (already_exists) {
             // ERROR!!
             return -1;
@@ -154,6 +165,9 @@ ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
         // ERROR!! TYPES ONLY REPRESENTED BY UNARY NODES RIGHT NOW
         return -1;
     }
+    SageType* return_type = symbol_table.resolve_sage_type(node_manager, return_node);
+    vector<SageType*> return_types(1);
+    return_types.push_back(return_type);
 
     auto body_node = node_manager->get_right(trinary_node);
     if (node_manager->get_host_nodetype(body_node) != PN_BLOCK) {
@@ -161,21 +175,19 @@ ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
         return -1;
     }
 
-    auto function_type = SageFunctionType(return_type, parameter_types);
+    auto function_type = TypeRegistery::get_function_type(return_types, parameter_types);
     if (symbol_table.declare_symbol(function_name, function_type)) {
         // ERROR!!!
         return -1;
     }
 
-    build_function_with_block(
-        parameter_names,
-        function_name,
-    );
+    build_function_with_block(parameter_names, function_name);
 
     visit_codeblock(body_node);
 
+    SageType* voidtype = TypeRegistery::get_builtin_type(VOID);
     if (!symbol_table.current_function_has_returned) {
-        if (return_type != VOID) {
+        if (!return_type->match(voidtype)) {
             // ERROR: function was defined with no return statement
             symbol_table.pop_scope();
             return -1;
@@ -218,7 +230,7 @@ ui32 SageCodeGenVisitor::visit_function_call(NodeIndex node) {
         args.push_back(visit_unary_expr(arg));
     }
 
-    return build_function_call(args, result_name);
+    return build_function_call(args, func_call_name);
 }
 
 ui32 SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
@@ -258,7 +270,7 @@ ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
             return build_load(symbol_value->type, node_lexeme);
 
         case PN_KEYWORD:
-            if (node_manager->get_lexeme(node).contains("ret")) {
+            if (node_manager->get_lexeme(node).find("ret") != std::string::npos) {
                 return visit_function_return(
                     visit_expression(node_manager->get_branch(node))
                 );
@@ -338,11 +350,11 @@ ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     SageSymbol* expression_symbol = symbol_table.lookup(RHS);
     auto variable_type = variable_symbol->value.valuetype;
     auto expression_type = expression_symbol->value.valuetype;
-    if (!variable_type.match(expression_type)) {
+    if (!variable_type->match(expression_type)) {
         // ERROR: type mismatch
     }
     
-    return build_store(RHS, variable_symbol);
+    return build_store(RHS, variable_symbol->identifier);
 }
 
 ui32 SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
@@ -519,3 +531,10 @@ ui32 SageCodeGenVisitor::visit_expression(NodeIndex node) {
     // ERROR!!
     return -1;
 }
+
+
+
+
+
+
+
