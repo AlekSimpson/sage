@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <memory>
+#include <algorithm>
 
 #include "../include/symbols.h"
 #include "../include/sage_types.h"

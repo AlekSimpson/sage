@@ -2,6 +2,8 @@
 #include <stack>
 #include <numeric>
 #include <cstring>
+#include <atomic>
+#include <algorithm>
 
 #include "../include/analyzer.h"
 #include "../include/parse_node.h"

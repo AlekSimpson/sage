@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <limits>
 #include "node_manager.h"
+#include <atomic>
 
 #define INF numeric_limits<int>::infinity()
 
