@@ -68,10 +68,10 @@ public:
 
   string to_string() override;
   NodeManager* get_node_manager() override;
-  void showtree(string depth);
-  Token get_token();
-  ParseNodeType get_rep_nodetype();
-  ParseNodeType get_host_nodetype();
+  void showtree(string depth) override;
+  Token get_token() override;
+  ParseNodeType get_rep_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -88,10 +88,10 @@ public:
 
   string to_string() override;
   NodeManager* get_node_manager() override;
-  void showtree(string depth);
-  Token get_token();
-  ParseNodeType get_rep_nodetype();
-  ParseNodeType get_host_nodetype();
+  void showtree(string depth) override;
+  Token get_token() override;
+  ParseNodeType get_rep_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -109,10 +109,10 @@ public:
 
   string to_string() override;
   NodeManager* get_node_manager() override;
-  void showtree(string depth);
-  Token get_token();
-  ParseNodeType get_rep_nodetype();
-  ParseNodeType get_host_nodetype();
+  void showtree(string depth) override;
+  Token get_token() override;
+  ParseNodeType get_rep_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -131,8 +131,8 @@ public:
 
   string to_string() override;
   NodeManager* get_node_manager() override;
-  void showtree(string depth);
-  Token get_token();
-  ParseNodeType get_rep_nodetype();
-  ParseNodeType get_host_nodetype();
+  void showtree(string depth) override;
+  Token get_token() override;
+  ParseNodeType get_rep_nodetype() override;
+  ParseNodeType get_host_nodetype() override;
 };

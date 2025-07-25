@@ -32,17 +32,13 @@ public:
   SageInterpreter* vm;
   SageAnalyzer* analysis;
 
-  uuid_t NULL_ID;
-
   stack<int> current_procedure;
   vector<bytecode> procedures; // global space is the first element in this arrya
-  int last_begin_program_pos;
 
   SageCodeGenVisitor();
   SageCodeGenVisitor(NodeManager*, SageInterpreter*, SageAnalyzer*);
 
   void add_instruction(SageOpCode, int);
-  void add_instruction(SageOpCode, int, int);
   void add_instruction(SageOpCode, int, int[4]);
   void add_instruction(SageOpCode, int, int, int[4]);
   void add_instruction(SageOpCode, int, int, int, int[4]);
@@ -54,18 +50,19 @@ public:
   ui32 build_store(ui32 rhs, string variable_symbol);
   ui32 build_return(ui32);
   ui32 build_function_with_block(vector<string>, string);
-  ui32 build_alloca(SageType, string);
+  ui32 build_alloca(SageType*, string);
   ui32 build_add(ui32, ui32);
   ui32 build_sub(ui32, ui32);
   ui32 build_div(ui32, ui32);
   ui32 build_mul(ui32, ui32);
   ui32 build_and(ui32, ui32);
   ui32 build_or(ui32, ui32);
-  ui32 build_load(SageType, string);
-  ui32 build_constant_int(string);
-  ui32 build_constant_float(string);
+  ui32 build_load(SageType*, string);
+  ui32 build_constant_int(int);
+  ui32 build_constant_float(float);
   ui32 build_string_pointer(string);
-  ui32 build_function_call(vector<string>, string)
+  ui32 build_function_call(vector<ui32>, string);
+  ui32 build_operator(ui32, ui32, SageOpCode);
 
   ui32 visit_function_return(ui32);
   ui32 visit_program(NodeIndex);
@@ -89,8 +86,8 @@ public:
   NodeManager* node_manager;
   SageParser parser;
   SageInterpreter* interpreter;
-  SageCodeGenVisitor visitor;
   SageAnalyzer* analyzer;
+  SageCodeGenVisitor visitor;
 
   SageCompiler();
   SageCompiler(string mainfile);
@@ -100,6 +97,6 @@ public:
   NodeIndex parse_codefile(string target_file);
 
   void begin_compilation(string mainfile);
-  llvm::Module* compile(NodeIndex ast);
-  successful emit_and_link_llvm(llvm::Module* module, const std::string& output_file);
+  /*llvm::Module* compile(NodeIndex ast);*/
+  /*successful emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 };

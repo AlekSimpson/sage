@@ -99,7 +99,7 @@ LT
 
 EQ
 - Format: EQ src1, src2
-- Description: copies truth value into dst if src1 is equal to src2, result goes to sr21
+- Description: copies truth value into dst if src1 is equal to src2, dst is sr21
 
 ...
 

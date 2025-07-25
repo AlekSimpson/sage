@@ -1,6 +1,10 @@
-#include "../include/interpeter.h"
+#include <sys/syscall.h>  // for SYS_* constants
+#include <unistd.h>
+
+#include "../include/interpreter.h"
 #include "../include/sage_types.h"
 #include "../include/node_manager.h"
+#include "../include/registers.h"
 
 
 // StackFrame
@@ -8,35 +12,41 @@
 StackFrame::StackFrame(
     StackFrame* previous, map<int, int> caller_cache, int ret_addr, int sp
 ) : return_address(ret_addr), stack_pointer(sp), previous_frame(previous), 
-    saved_caller_values(register_cache) {}
+    saved_caller_values(caller_cache) {}
+
+StackFrame::StackFrame()
+    : return_address(-1), stack_pointer(0), previous_frame(nullptr) {}
 
 // Interpreter
 
-SageInterpreter::SageInterpreter();
+SageInterpreter::SageInterpreter() {}
 
-SageInterpreter::SageInterpreter(int stack_size) 
-    : stack_frame(StackFrame()) {
+SageInterpreter::SageInterpreter(int stack_size) {
     stack.reserve(stack_size);
+
+    frame_pointer = new StackFrame();
+    available_volatiles = {24, 25, 26, 27, 28, 29, 30};
 }
 
 void SageInterpreter::push_stack_scope() {
-    if (registers[STACK_POINTER]+1 == stack.size()) {
+    int32_t return_address = unpack_int(registers[STACK_POINTER]); 
+    if (return_address + 1 == stack.size()) {
 	// ERROR: STACKOVERFLOW !!!!
         return;
     }
 
     // make new current stack frame
-    int return_address = registers[STACK_POINTER];
-    registers[STACK_POINTER]++;
+    registers[STACK_POINTER] = int_reg_inc(registers[STACK_POINTER], 1);
+    int start_address = unpack_int(registers[STACK_POINTER]);
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer, 
 		    	           cached_registers, 
 				   return_address,
-				   regsters[STACK_POINTER]);
+				   start_address);
 }
 
 void SageInterpreter::pop_stack_scope() {
-    registers[STACK_POINTER] = frame_pointer->stack_pointer-1;
+    registers[STACK_POINTER] = pack_int(frame_pointer->stack_pointer-1);
     StackFrame* previous = frame_pointer->previous_frame;
     delete frame_pointer;
     frame_pointer = previous;
@@ -46,53 +56,59 @@ void SageInterpreter::load_program(bytecode _program) {
     program = _program;
 }
 
-vector<int> SageInterpreter::dereference_map(instruction* inst, int map[4]) {
-    vector<int> return_value = inst->read();
+vector<ui64> SageInterpreter::dereference_map(instruction* inst, int map[4]) {
+    vector<int> raw_operands = inst->read();
+    vector<ui64> return_values;
 
     int counter = -1;
-    for (auto value : values) {
+    for (int value : raw_operands) {
         counter++;
         if (map[counter] == 0) {
-            continue
+            return_values.push_back(pack_int(value));
+            continue;
         }
 
         // otherwise dereference register
-        return_value[counter] = registers[value];
+        return_values[counter] = registers[value];
     }
 
     return return_values;
 }
 
-void SageInterpreter::execute_add(vector<int> operands) {
+void SageInterpreter::execute_add(vector<ui64> operands) {
     if (operands.size() < 3) {
         printf("PANIC(SageInterpreter/execute_add) : execution requires 3 operands but less were found!\n");
+        return;
     }
 
-    int target_register = operands[0];
-    registers[target_register] = operands[1] + operands[2];
+    int target_register = unpack_int(operands[0]);
+    registers[target_register] = pack_int(unpack_int(operands[1]) + unpack_int(operands[2]));
 }
 
-void SageInterpreter::execute_sub(vector<int> operands) {
+void SageInterpreter::execute_sub(vector<ui64> operands) {
     if (operands.size() < 3) {
         printf("PANIC(SageInterpreter/execute_sub) : execution requires 3 operands but less were found!\n");
+        return;
     }
 
-    int target_register = operands[0];
-    registers[target_register] = operands[1] - operands[2];
+    int target_register = unpack_int(operands[0]);
+    registers[target_register] = pack_int(unpack_int(operands[1]) - unpack_int(operands[2]));
 }
 
-void SageInterpreter::execute_mul(vector<int> operands) {
+void SageInterpreter::execute_mul(vector<ui64> operands) {
     if (operands.size() < 3) {
         printf("PANIC(SageInterpreter/execute_mul) : execution requires 3 operands but less were found!\n");
+        return;
     }
 
-    int target_register = operands[0];
-    registers[target_register] = operands[1] * operands[2];
+    int target_register = unpack_int(operands[0]);
+    registers[target_register] = pack_int(unpack_int(operands[1]) * unpack_int(operands[2]));
 }
 
-void SageInterpreter::execute_div(vector<int> operands) {
+void SageInterpreter::execute_div(vector<ui64> operands) {
     if (operands.size() < 3) {
         printf("PANIC(SageInterpreter/execute_div) : execution requires 3 operands but less were found!\n");
+        return;
     }
 
     if (operands[2] == 0) {
@@ -100,61 +116,119 @@ void SageInterpreter::execute_div(vector<int> operands) {
         return;
     }
 
-    int target_register = operands[0];
-
-    if (operands[1] % operands[2] != 0) {
-        float float_value = operands[1] / operands[2];
-        int heap_pointer = store_in_heap(float_value);
-        registers[target_register] = heap_pointer;
-        return;
-    } 
-    registers[target_register] = operands[1] / operands[2];
+    int target_register = unpack_int(operands[0]);
+    registers[target_register] = pack_float(unpack_int(operands[1]) / unpack_int(operands[2]));
 }
 
-void SageInterpreter::execute_load(vector<int> operands) {
+void SageInterpreter::execute_load(vector<ui64> operands) {
     if (operands.size() < 2) {
         printf("PANIC(SageInterpreter/execute_load): execution expects 2 operands but found less!\n");
+        return;
     }
 
-    int load_address = registers[STACK_POINTER] + operands[1];
-    registers[operand[0]] = stack.at(load_address).load();
+    int load_address = unpack_int(registers[STACK_POINTER]) + unpack_int(operands[1]);
+    registers[unpack_int(operands[0])] = stack.at(load_address).load();
 }
 
-void SageInterpreter::execute_store(vector<int> operands) {
+void SageInterpreter::execute_store(vector<ui64> operands) {
     if (operands.size() < 2) {
         printf("PANIC(SageInterpreter/execute_store): execution expects 2 operands but found less!\n");
+        return;
     }
 
-    int store_address = registers[STACK_POINTER] + operands[1];
-    stack[store_address] = operands[0]; // TODO: probably should make this a function to store into the stack so that the value to store is stored as SageValue
+    int offset = unpack_int(operands[1]);
+    int store_address = unpack_int(int_reg_inc(registers[STACK_POINTER], offset));
+    stack[store_address] = register_to_value(operands[0]);
 }
 
-void SageInterpreter::execute_mov(vector<int> operands) {
+void SageInterpreter::execute_mov(vector<ui64> operands) {
     if (operands.size() < 2) {
         printf("PANIC(SageInterpreter/execute_mov): execution expects 2 operands but found less!\n");
+        return;
     }
 
-    registers[operands[1]] = operands[0];
+    int dest = unpack_int(operands[1]);
+    registers[dest] = operands[0];
 }
 
-void SageInterpreter::execute_call(vector<int> operands) {
-    // program pointer needs to be saved
-    // the stack_pointer needs to be saved
+void SageInterpreter::execute_call(vector<ui64> operands) {
+    push_stack_scope();
+    int caller_id_pointer = unpack_int(operands[0]);
+    string* caller_id_string = heap[caller_id_pointer].value.string_value;
+    program_pointer = procedure_label_encoding[*caller_id_string];
 }
 
-void SageInterpreter::execute(int begin_program_counter) {
-    registers[PROGRAM_POINTER] = begin_program_counter;
-    registers[STACK_POINTER] = stack_frame.function_scopes[stack_frame.current_scope_stack.top()];
+void SageInterpreter::execute_return() {
+    int callback_addr = frame_pointer->return_address;
+    program_pointer = callback_addr;
+    pop_stack_scope();
+}
 
-    command current_command = program[begin_program_counter];
-    instruction current_instruction = current_command.instruction;
-    int inst_map[4] = current_command.map;
+void SageInterpreter::execute_eqcomp(vector<ui64> operands) {
+    int value_a = unpack_int(operands[0]);
+    int value_b = unpack_int(operands[1]);
+
+    registers[21] = pack_int(value_a == value_b);
+}
+
+void SageInterpreter::execute_ltcomp(vector<ui64> operands) {
+    int value_a = unpack_int(operands[0]);
+    int value_b = unpack_int(operands[1]);
+
+    registers[21] = pack_int(value_a < value_b);
+}
+
+void SageInterpreter::execute_gtcomp(vector<ui64> operands) {
+    int value_a = unpack_int(operands[0]);
+    int value_b = unpack_int(operands[1]);
+
+    registers[21] = pack_int(value_a > value_b);
+}
+
+void SageInterpreter::execute_and(vector<ui64> operands) {
+    int value_a = unpack_int(operands[0]);
+    int value_b = unpack_int(operands[1]);
+    registers[21] = pack_int((value_a && value_b) == 1);
+}
+
+void SageInterpreter::execute_or(vector<ui64> operands) {
+    int value_a = unpack_int(operands[0]);
+    int value_b = unpack_int(operands[1]);
+    registers[21] = pack_int((value_a || value_b) == 1);
+}
+
+void SageInterpreter::execute_not(vector<ui64> operands) {
+    int value = unpack_int(operands[0]);
+    registers[21] = pack_int(!value);
+}
+
+void SageInterpreter::execute_syscall() {
+    /*int callcode = unpack_int(registers[22]);*/
+    // TODO:
+    // syscall(long(callcode),
+    //         registers[0],
+    //         registers[1],
+    //         registers[2],
+    //         registers[3],
+    //         registers[4],
+    //         registers[5]);
+}
+
+void SageInterpreter::execute() {
+    registers[program_pointer] = pack_int(0);
+    registers[STACK_POINTER] = pack_int(0);
+
+    command current_command = program[0];
+    instruction current_instruction = current_command.inst;
+    /*int inst_map[4] = current_command.map;*/
 
     bool reached_end = false;
-    vector<int> operands;
+    vector<ui64> operands;
+
+    int superfluous_runtime_comp = 0;
 
     while (!reached_end) {
-        operands = dereference_map(&current_instruction, inst_map);
+        operands = dereference_map(&current_instruction, current_command.map);
         switch (current_instruction.opcode) {
             case OP_ADD:
                 execute_add(operands);
@@ -191,27 +265,40 @@ void SageInterpreter::execute(int begin_program_counter) {
                 execute_call(operands);
                 break;
             case OP_RET:
+                execute_return();
                 break;
             case OP_EQ:
+                execute_eqcomp(operands);
                 break;
             case OP_LT:
+                execute_ltcomp(operands);
                 break;
             case OP_GT:
+                execute_gtcomp(operands);
                 break;
             case OP_AND:
+                execute_and(operands);
                 break;
             case OP_OR:
+                execute_or(operands);
                 break;
             case OP_NOT:
+                execute_not(operands);
                 break;
             case OP_SYSCALL:
+                execute_syscall();
                 break;
             case OP_LABEL:
                 break;
             case OP_END_EXECUTION:
-                reached_end = true;
+                if (superfluous_runtime_comp == 0) {
+                    reached_end = true;
+                }
+                superfluous_runtime_comp--;
                 break;
             case OP_BEGIN_EXECUTION:
+                superfluous_runtime_comp++;
+                break;
             case OP_NOP:
                 break;
             default:
@@ -220,18 +307,110 @@ void SageInterpreter::execute(int begin_program_counter) {
         }
 
 	program_pointer++;
-        current_instruction = program[program_pointer].instruction;
-        inst_map = program[program_pointer].map;
+        current_instruction = program[program_pointer].inst;
+        /*inst_map = program[program_pointer].map;*/
     }
 }
 
-int store_in_heap(SageValue value) {
+int SageInterpreter::store_in_heap(SageValue value) {
     int pointer = heap.size();
     heap[pointer] = value;
     return pointer;
 }
 
+void SageInterpreter::close() {
+    // deinit stackframe when done with interpreter
+    if (frame_pointer != nullptr) {
+        if (frame_pointer->previous_frame == nullptr) {
+            delete frame_pointer;
+        }
 
+        StackFrame* above = nullptr;
+        StackFrame* walk = frame_pointer;
+        while (walk->previous_frame != nullptr) {
+            above = walk;
+            walk = walk->previous_frame;
+            delete above;
+        }
+    }
+}
+
+bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_register) {
+    // this checks if the value at the volatile register spot is the same as the value that this symbol represents
+
+    switch (symbol->value.valuetype->identify()) {
+        case BOOL: {
+            int contents = unpack_int(registers[volatile_register]);
+            if (symbol->value.value.bool_value != contents) {
+                // is stale
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        case CHAR: {
+            int contents = unpack_int(registers[volatile_register]);
+            if (int(symbol->value.value.char_value) != contents) {
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        case I8:
+        case I32:
+        case I64: {
+            int contents = unpack_int(registers[volatile_register]);
+            if (symbol->value.value.int_value != contents) {
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        case F32:
+        case F64: {
+            float contents = unpack_float(registers[volatile_register]);
+            if (symbol->value.value.float_value != contents) {
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        case ARRAY: {
+            // might need to check if sub type is char first then we can do string compare
+            int contents = unpack_int(registers[volatile_register]);
+            if (symbol->value.value.int_value != contents) {
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        case VOID:
+        case FUNC:
+        case POINTER: {
+            void* contents = unpack_pointer(registers[volatile_register]);
+            if (symbol->value.value.complex_type != contents) {
+                available_volatiles.insert(volatile_register);
+                return true;
+            }
+
+            return false;
+        }
+        default:
+            return true;
+    }
+}
+
+int SageInterpreter::get_volatile_register() {
+    // this finds a stale volatile register, and returns it to be used
+    int available_volatile = *available_volatiles.begin();
+    available_volatiles.erase(available_volatile);
+    return available_volatile;
+}
 
 
 

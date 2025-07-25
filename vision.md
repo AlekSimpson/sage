@@ -19,11 +19,16 @@ Car :: struct {
     next_car:      Car* = --,
 }
 
-// the 'compact' keyword makes it so that this data structure will be stored in memory as a structure of arrays
-// no special indexing is required to work with NumberCache objects, the syntax stays the same
-// the only thing that changes is how the memory is laid out under the hood
-// Note: when a heap NumberCache is allocated this creates another NumberCache SOA container on the heap
-//       this way there is no weird edge cases that come up with mixed allocations types for the same SOA container
+---
+the 'compact' keyword makes it so that this data structure will be stored in memory as a structure of arrays
+no special indexing is required to work with NumberCache objects, the syntax stays the same
+the only thing that changes is how the memory is laid out under the hood
+Note: when a heap NumberCache is allocated this creates another NumberCache SOA container on the heap
+      this way there is no weird edge cases that come up with mixed allocations types for the same SOA container
+
+*anything surrounded in triple dash is a multiline comment
+---
+
 NumberCache :: compact struct {
    float_value: float,
    int_value: int,
