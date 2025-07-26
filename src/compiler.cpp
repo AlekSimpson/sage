@@ -27,6 +27,7 @@ SageCompiler::SageCompiler() {}
 
 SageCompiler::SageCompiler(string mainfile)
     : ast(NULL_INDEX),
+      debug(NONE),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
       interpreter(new SageInterpreter(4046)),
