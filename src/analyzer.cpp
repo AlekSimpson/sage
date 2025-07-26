@@ -24,6 +24,10 @@ VariableLifetime::VariableLifetime(string name, int start, bool priority)
     id = IDGenerator::generate();
 }
 
+void VariableLifetime::print_self() {
+    printf("VarLifetime{%d, %s, %d, %d, reg: %d, offset: %d, spilled: %d}\n", id, name, start_line, end_line, high_priority, register_assignment, spill_offset, spilled);
+}
+
 CFGNode::CFGNode(NodeIndex node, vector<string> references, InstructionType inst_type) 
 : id(IDGenerator::generate()), node(node), variable_references(references), inst_type(inst_type) {}
 

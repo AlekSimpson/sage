@@ -30,6 +30,8 @@ struct VariableLifetime {
   VariableLifetime();
   VariableLifetime(uint64_t id, string name, int start, bool priority);
   VariableLifetime(string name, int start, bool priority);
+
+  void print_self();
 };
 
 
