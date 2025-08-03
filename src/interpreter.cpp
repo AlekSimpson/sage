@@ -219,8 +219,6 @@ void SageInterpreter::execute() {
     registers[STACK_POINTER] = pack_int(0);
 
     command current_command = program[0];
-    instruction current_instruction = current_command.inst;
-    /*int inst_map[4] = current_command.map;*/
 
     bool reached_end = false;
     vector<ui64> operands;
@@ -228,8 +226,8 @@ void SageInterpreter::execute() {
     int superfluous_runtime_comp = 0;
 
     while (!reached_end) {
-        operands = dereference_map(&current_instruction, current_command.map);
-        switch (current_instruction.opcode) {
+        operands = dereference_map(&current_command.inst, current_command.map);
+        switch (current_command.inst.opcode) {
             case OP_ADD:
                 execute_add(operands);
                 break;
@@ -291,10 +289,10 @@ void SageInterpreter::execute() {
             case OP_LABEL:
                 break;
             case OP_END_EXECUTION:
+                superfluous_runtime_comp--;
                 if (superfluous_runtime_comp == 0) {
                     reached_end = true;
                 }
-                superfluous_runtime_comp--;
                 break;
             case OP_BEGIN_EXECUTION:
                 superfluous_runtime_comp++;
@@ -306,9 +304,8 @@ void SageInterpreter::execute() {
                 break;
         }
 
-	program_pointer++;
-        current_instruction = program[program_pointer].inst;
-        /*inst_map = program[program_pointer].map;*/
+        program_pointer++;
+        current_command = program[program_pointer];
     }
 }
 

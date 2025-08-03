@@ -124,7 +124,7 @@ NodeIndex SageParser::parse_statement() {
 NodeIndex SageParser::parse_run_directive() {
     consume(TT_POUND, "Expected 'run' directive to begin with '#' symbol");
 
-    if (current_token->token_type != TT_IDENT || current_token->lexeme != "run") {
+    if (current_token->token_type != TT_KEYWORD || current_token->lexeme != "run") {
         raise_error("Expected 'run' keyword in run directive statement.\n");
         return NULL_INDEX;
     }

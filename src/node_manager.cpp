@@ -8,7 +8,7 @@ NodeManager::NodeManager() {
     box_count = 0;
     capacity = 500;
     container = new nodebox[500];
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < 500; ++i) {
         container[i] = nodebox{nullptr, PN_UNARY};
         free_spaces.push_back(i);
     }
@@ -36,8 +36,7 @@ nodebox NodeManager::get_node(NodeIndex node) {
         return nodebox{};
     }
     
-    nodebox box = container[node];
-    return box;
+    return container[node];
 }
 
 string NodeManager::to_string(NodeIndex index) {
@@ -50,8 +49,7 @@ string NodeManager::to_string(NodeIndex index) {
 }
 
 void NodeManager::showtree(NodeIndex index) {
-    nodebox box = get_node(index);
-    auto node = box.node;
+    auto node = get_node(index).node;
     if (node == nullptr) {
         return;
     }
@@ -138,7 +136,7 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
 NodeIndex NodeManager::get_left(NodeIndex index) {
     auto box = get_node(index);
     if (box.node == nullptr) {
-        printf("WARNING | get_children: OUT OF RANGE NODE INDEX GIVE %d\n", index);
+        printf("WARNING | get_left: OUT OF RANGE NODE INDEX GIVE %d\n", index);
         return NULL_INDEX;
     }
 
@@ -160,7 +158,7 @@ NodeIndex NodeManager::get_left(NodeIndex index) {
 NodeIndex NodeManager::get_right(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_children: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        printf("WARNING | get_right: OUT OF RANGE NODE INDEX GIVE %d\n", node);
         return NULL_INDEX;
     }
 
@@ -182,7 +180,7 @@ NodeIndex NodeManager::get_right(NodeIndex node) {
 NodeIndex NodeManager::get_middle(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_children: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        printf("WARNING | get_middle: OUT OF RANGE NODE INDEX GIVE %d\n", node);
         return NULL_INDEX;
     }
 
@@ -200,7 +198,7 @@ NodeIndex NodeManager::get_middle(NodeIndex node) {
 NodeIndex NodeManager::get_branch(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_children: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        printf("WARNING | get_branch: OUT OF RANGE NODE INDEX GIVE %d\n", node);
         return NULL_INDEX;
     }
 
@@ -213,6 +211,23 @@ NodeIndex NodeManager::get_branch(NodeIndex node) {
     }
     
     return NULL_INDEX;
+}
+
+NodeIndex NodeManager::reach_right(NodeIndex node, int reach_depth) {
+    if (reach_depth <= 0) {
+        return node;
+    }
+
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        return NULL_INDEX;
+    }
+
+    AbstractParseNode* parsenode = box.node;
+    auto hosttype = box.host_type;
+    if (hosttype == PN_BINARY || hosttype == PN_TRINARY) {
+        return reach_right(get_right(node), reach_depth-1);
+    }
 }
 
 vector<NodeIndex> NodeManager::get_children(NodeIndex node) {

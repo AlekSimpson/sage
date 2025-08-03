@@ -16,12 +16,14 @@ bool SageBuiltinType::match(SageType* other) {
 
 
 SagePointerType::SagePointerType(SageType* pointee) : pointer_type(pointee) {}
+
 CanonicalType SagePointerType::identify() {
     return POINTER;
 }
 
 bool SagePointerType::match(SageType* other) {
-    if (other->identify() != POINTER) {
+    auto otherident = other->identify();
+    if (otherident != POINTER) {
         return false;
     }
 
@@ -31,12 +33,14 @@ bool SagePointerType::match(SageType* other) {
 
 
 SageArrayType::SageArrayType(SageType* element_type, int size) : array_type(element_type), size(size) {}
+
 CanonicalType SageArrayType::identify() {
     return ARRAY;
 }
 
 bool SageArrayType::match(SageType* other) {
-    if (other->identify() != ARRAY) {
+    auto otherident = other->identify();
+    if (otherident != ARRAY) {
         return false;
     }
 
@@ -93,9 +97,10 @@ SageValue::SageValue(int size, bool _value, SageType* valuetype) : bitsize(size)
     value.bool_value = _value;
 }
 
-SageValue::SageValue(int size, string _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
-    string* value_string = new string(_value);
-    value.string_value = value_string;
+SageValue::SageValue(int size, string* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
+    // string* value_string = new string(_value);
+    // value.string_value = value_string;
+    value.string_value = _value;
 }
 
 SageValue::SageValue(int size, void* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
@@ -105,9 +110,9 @@ SageValue::SageValue(int size, void* _value, SageType* valuetype) : bitsize(size
 SageValue::SageValue() {}
 
 SageValue::~SageValue() {
-    if (value.string_value != nullptr) {
-        delete value.string_value;
-    }
+    //if (value.string_value != nullptr) {
+    //    delete value.string_value;
+    //}
 }
 
 uint64_t SageValue::load() {

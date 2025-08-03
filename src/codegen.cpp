@@ -16,14 +16,19 @@ SageCodeGenVisitor::SageCodeGenVisitor() {}
 
 SageCodeGenVisitor::SageCodeGenVisitor(
     NodeManager* node_man, SageInterpreter* _vm, SageAnalyzer* analysis
-) : symbol_table(SageSymbolTable()) {
+) : symbol_table(SageSymbolTable()), analysis(analysis) {
     symbol_table.initialize();
     node_manager = node_man;
     vm = _vm;
+
+    // add first start procedure
+    current_procedure.push(0);
+    procedures.push_back(vector<command>());
 }
 
 // this is the first visitor called to compile a whole code module
 ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
+    ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
         switch(node_manager->get_nodetype(child)){
             case PN_FUNCDEF:
@@ -31,14 +36,16 @@ ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
                     // ERROR!! CHILD SHOULD BE A BINARY NODE
                     return -1;
                 }
-                return visit_function_definition(child);
+                retval = visit_function_definition(child);
+                break;
 
             case PN_FUNCDEC:
                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
                     // ERROR!! CHILD SHOULD BE A BINARY NODE
                     return -1;
                 }
-                return visit_function_declaration(child);
+                retval = visit_function_declaration(child);
+                break;
 
             case PN_STRUCT:
                 break;
@@ -56,8 +63,7 @@ ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
         }
     }
 
-    // ERROR
-    return -1;
+    return retval;
 }
 
 ui32 SageCodeGenVisitor::visit_function_return(ui32 value) {
@@ -235,24 +241,28 @@ ui32 SageCodeGenVisitor::visit_function_call(NodeIndex node) {
 }
 
 ui32 SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
+    ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
         switch (node_manager->get_host_nodetype(child)) {
             case PN_UNARY:
-                return visit_unary_expr(child);
+                retval = visit_unary_expr(child);
+                break;
 
             case PN_BINARY:
-                return visit_binary_expr(child);
+                retval = visit_binary_expr(child);
+                break;
 
             case PN_TRINARY:
-                return visit_trinary_expr(child);
+                retval = visit_trinary_expr(child);
+                break;
 
             default:
                 printf("unrecognized expression node: %s\n", nodetype_to_string(node_manager->get_nodetype(child)).c_str());
-                break;
+                return -1;
         }
     }
 
-    return -1;
+    return retval;
 }
 
 ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
@@ -317,21 +327,25 @@ ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
 }
 
 ui32 SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
+    ui32 retval = -1;
     switch(node_manager->get_nodetype(node)) {
         case PN_FOR:
             break;
 
         case PN_ASSIGN:
-            return visit_variable_decl(node);
+            retval = visit_variable_decl(node);
+            break;
 
         case PN_FUNCDEF:
-            return visit_function_definition(node);
+            retval = visit_function_definition(node);
+            break;
 
         default:
-            break;
+            printf("Found unrecognized node when visiting trinary.\n");
+            return -1;
     }
     
-    return -1;
+    return retval;
 }
 
 ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
@@ -344,15 +358,23 @@ ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
         // ERROR!!
         return -1;
     }
-    
-    ui32 RHS = visit_expression(node);
+
+    NodeIndex RHS_idx = node_manager->get_right(node);
+    ui32 RHS = visit_expression(RHS_idx);
 
     // check expression type against variable type
     SageSymbol* expression_symbol = symbol_table.lookup(RHS);
-    auto variable_type = variable_symbol->value.valuetype;
+    if (expression_symbol == nullptr) {
+        // ERROR!! USE OF UNDEFINED SYMBOL
+        printf("Found undefined symbol");
+        return -1;
+    }
+
+    auto variable_type = variable_symbol->type;
     auto expression_type = expression_symbol->value.valuetype;
     if (!variable_type->match(expression_type)) {
         // ERROR: type mismatch
+        return -1;
     }
     
     return build_store(RHS, variable_symbol->identifier);
@@ -515,7 +537,7 @@ ui32 SageCodeGenVisitor::process_expression(NodeIndex node) {
 }
 
 ui32 SageCodeGenVisitor::visit_expression(NodeIndex node) {
-    switch (node_manager->get_nodetype(node)) {
+    switch (node_manager->get_host_nodetype(node)) {
         case PN_BINARY:
             return process_expression(node);
 

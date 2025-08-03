@@ -47,7 +47,7 @@ public:
   SageType* derive_sage_type(NodeManager*, NodeIndex);
   SageType* resolve_sage_type(NodeManager*, NodeIndex);
 
-  uint32_t lookup_id(string name);
+  uint32_t lookup_id(string name); // lookup identifier
   SageSymbol* lookup(const string& name);
   SageSymbol* lookup(uint32_t id);
 

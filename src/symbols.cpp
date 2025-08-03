@@ -50,19 +50,26 @@ void SageSymbolTable::initialize() {
     // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
     declare_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
 
-    SageScope root_scope = {
+    declare_symbol("executable_name", TypeRegistery::get_pointer_type(chartype));
+    declare_symbol("platform", TypeRegistery::get_pointer_type(chartype));
+    declare_symbol("architecture", TypeRegistery::get_pointer_type(chartype));
+    declare_symbol("bitsize", TypeRegistery::get_pointer_type(chartype));
+
+    // SageScope root_scope = {
+    type_scope = {
         "bool", "char", "int", "i8", 
         "i32", "i64", "float", "f32", "f64", "void",
         "char*"
     };
-    type_scope = root_scope;
+    // type_scope = root_scope;
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, SageValue value) {
-    auto current_scope = symbol_stack.top();
+    unordered_set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
+        // element exists
         return false;
     }
 
@@ -79,7 +86,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageValue value) 
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, SageType* valuetype) {
-    auto current_scope = symbol_stack.top();
+    unordered_set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
@@ -98,7 +105,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageType* valuety
 }
 
 successful SageSymbolTable::declare_type_symbol(const string& name, SageType* type) {
-    auto current_scope = symbol_stack.top();
+    unordered_set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
@@ -155,7 +162,7 @@ uint32_t SageSymbolTable::lookup_id(string name) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
-    if (search != current_scope.end()) {
+    if (search == current_scope.end()) {
         return 0;
     }
 
@@ -166,7 +173,7 @@ SageSymbol* SageSymbolTable::lookup(const string& name) {
     auto current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
-    if (search != current_scope.end()) {
+    if (search == current_scope.end()) {
         return nullptr;
     }
 

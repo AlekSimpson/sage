@@ -98,9 +98,18 @@ BlockParseNode::BlockParseNode(NodeManager* man, Token token, ParseNodeType repr
 void BlockParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
 
-    BlockParseNode* child;
     for (int i = 0; i < (int)children.size(); ++i) {
-        child = dynamic_cast<BlockParseNode*>(node_manager->get_node(children[i]).node);
+        if (children[i] < 0) {
+            printf("invalid child ptr: %d\n", children[i]);
+            continue;
+        }
+
+        auto child = node_manager->get_node(children[i]).node;
+        if (child == nullptr) {
+            printf("boxchild ptr was null\n");
+            continue;
+        }
+
         child->showtree(depth + "\t");
     }
 }
@@ -139,14 +148,14 @@ BinaryParseNode::BinaryParseNode(NodeManager* man, Token token, ParseNodeType re
 void BinaryParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
 
-    BinaryParseNode* child;
+    AbstractParseNode* child;
     if (left != NULL_INDEX) {
-        child = dynamic_cast<BinaryParseNode*>(node_manager->get_node(left).node);
+        child = node_manager->get_node(left).node;
         child->showtree(depth + "\t");
     }
 
     if (right != NULL_INDEX) {
-        child = dynamic_cast<BinaryParseNode*>(node_manager->get_node(right).node);
+        child = node_manager->get_node(right).node;
         child->showtree(depth + "\t");
     }
 }
@@ -202,19 +211,19 @@ TrinaryParseNode::TrinaryParseNode(NodeManager* man, Token token, ParseNodeType 
 void TrinaryParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
 
-    TrinaryParseNode* child;
+    AbstractParseNode* child;
     if (left != NULL_INDEX) {
-        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(left).node);
+        child = node_manager->get_node(left).node;
         child->showtree(depth + "\t");
     }
 
     if (middle != NULL_INDEX) {
-        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(middle).node);
+        child = node_manager->get_node(middle).node;
         child->showtree(depth + "\t");
     }
 
     if (right != NULL_INDEX) {
-        child = dynamic_cast<TrinaryParseNode*>(node_manager->get_node(right).node);
+        child = node_manager->get_node(right).node;
         child->showtree(depth + "\t");
     }
 }
@@ -288,9 +297,10 @@ UnaryParseNode::UnaryParseNode(NodeManager* man, Token token, ParseNodeType repr
 void UnaryParseNode::showtree(string depth) {
     printf("%s- %s\n", depth.c_str(), this->to_string().c_str());
 
-    UnaryParseNode* child;
+    //UnaryParseNode* child;
     if (branch != NULL_INDEX) {
-        child = dynamic_cast<UnaryParseNode*>(node_manager->get_node(branch).node);
+        auto child = node_manager->get_node(branch).node;
+        //child = dynamic_cast<UnaryParseNode*>(node_manager->get_node(branch).node);
         child->showtree(depth + "\t");
     }
 }

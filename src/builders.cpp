@@ -21,14 +21,14 @@ ui32 SageCodeGenVisitor::build_store(ui32 rhs, string variable_symbol) {
     if (lifetime_info.spilled) {
         // if variable is spilled then store rhs into the stack
         add_instruction(OP_STORE, expression_pointer, lifetime_info.spill_offset, encoding);
-        return -1;
+        return 0;
 
     }
 
     // if the variable has a register assignment then move rhs into that register
     add_instruction(OP_MOV, expression_pointer, lifetime_info.register_assignment, encoding);
 
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
@@ -42,7 +42,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
         add_instruction(OP_RET, 0);
         current_procedure.pop();
         /*vm->frame_pointer->pop_stack_scope();*/
-        return -1;
+        return 0;
     }
 
     // otherwise there is a return value
@@ -63,7 +63,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
             current_procedure.pop();
             /*vm->frame_pointer->pop_stack_scope();*/
 
-            return -1;
+            return 0;
         }
 
         // otherwise the register is not spilled the value should be located at the assigned register
@@ -77,7 +77,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
         current_procedure.pop();
         /*vm->frame_pointer->pop_stack_scope();*/
 
-        return -1;
+        return 0;
     }
 
     // temp values need the sage value moved into a volatile register
@@ -89,7 +89,7 @@ ui32 SageCodeGenVisitor::build_return(ui32 return_value) {
     current_procedure.pop();
     /*vm->frame_pointer->pop_stack_scope();*/
 
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_function_with_block(
@@ -109,7 +109,7 @@ ui32 SageCodeGenVisitor::build_function_with_block(
     current_procedure.push(procedures.size()-1);
     /*vm->frame_pointer->push_stack_scope(function_name);*/
 
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_alloca(SageType* type, string var_name) {
@@ -123,7 +123,7 @@ ui32 SageCodeGenVisitor::build_alloca(SageType* type, string var_name) {
     }
 
     // otherwise its actually stored in a register and we dont' need to do anything
-    return -1;
+    return 0;
 }
 
 int process_operand(SageCodeGenVisitor* visitor, ui32 value) {
@@ -164,7 +164,7 @@ ui32 SageCodeGenVisitor::build_operator(ui32 _value1, ui32 _value2, SageOpCode o
     ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_volatile);
     if (result_symbol_id == -1) {
         // ERROR??
-        return -1;
+        return 0;
     }
 
     return result_symbol_id;
@@ -200,7 +200,7 @@ ui32 SageCodeGenVisitor::build_load(SageType* type, string reference_name) {
 
     if (!vm->volatile_is_stale(symbol, symbol->volatile_register)) {
         // if the value has already been loaded into a volatile that hasn't gone stale then we can just forgo this
-        return -1;
+        return 0;
     }
 
     if (info.spilled) {
@@ -218,7 +218,7 @@ ui32 SageCodeGenVisitor::build_load(SageType* type, string reference_name) {
         symbol->volatile_register = info.register_assignment;
     }
 
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_constant_int(int value) {
@@ -236,7 +236,8 @@ ui32 SageCodeGenVisitor::build_constant_int(int value) {
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
 
     // if value was successfully added to the symbol table then it was pushed back to the symbol table in the last spot
-    return static_cast<ui32>(symbol_table.size()-1);
+    // return static_cast<ui32>(symbol_table.size()-1);
+    return symbol_table.lookup_id(to_string(value));
 }
 
 ui32 SageCodeGenVisitor::build_constant_float(float value) {
@@ -254,17 +255,19 @@ ui32 SageCodeGenVisitor::build_constant_float(float value) {
     symbol_table.symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
 
-    return static_cast<ui32>(symbol_table.size()-1);
+    return symbol_table.lookup_id(to_string(value));
 }
 
 ui32 SageCodeGenVisitor::build_string_pointer(string value) {
     auto* char_type = TypeRegistery::get_builtin_type(CHAR);
-    auto* array_type = TypeRegistery::get_array_type(char_type, 64);
-    auto success = symbol_table.declare_symbol(value, SageValue(64, value, array_type));
+    auto* array_type = TypeRegistery::get_pointer_type(char_type);
+    string* strcopy = new string(value);
+    auto success = symbol_table.declare_symbol(value, SageValue(64, strcopy, array_type));
     if (!success) {
         return symbol_table.lookup_id(value);
     }
-    int heap_pointer = vm->store_in_heap(symbol_table.lookup(value)->value);
+    SageValue& symbol =  symbol_table.lookup(value)->value;
+    int heap_pointer = vm->store_in_heap(symbol);
     int result_reg = vm->get_volatile_register();
     int encoding[4] = {0, 0, 0, 0};
     add_instruction(OP_MOV, heap_pointer, result_reg, encoding);
@@ -272,7 +275,7 @@ ui32 SageCodeGenVisitor::build_string_pointer(string value) {
     symbol_table.symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
 
-    return static_cast<ui32>(symbol_table.size()-1);
+    return symbol_table.lookup_id(value);
 }
 
 ui32 SageCodeGenVisitor::build_function_call(
@@ -281,7 +284,7 @@ ui32 SageCodeGenVisitor::build_function_call(
     // if there are more than 6 args then throw and unimplemented error
     if (args.size() > 6) {
         // ERROR: MORE THAN 6 FUNCTION PARAMETERS UNIMPLEMENTED 
-        return -1;
+        return 0;
     }
     // TODO: need to add check for recursive calls so we can make sure to generate bytecode for that case
 
@@ -335,7 +338,7 @@ ui32 SageCodeGenVisitor::build_function_call(
 
         }else {
             // ERROR: i think this would indicate a compiler bug??
-            return -1;
+            return 0;
         }
     }
 
@@ -343,12 +346,12 @@ ui32 SageCodeGenVisitor::build_function_call(
     int procedure_encoding = vm->procedure_label_encoding[function_name];
     add_instruction(OP_CALL, procedure_encoding);
 
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_begin() {
     add_instruction(OP_BEGIN_EXECUTION, 0);
-    return -1;
+    return 0;
 }
 
 ui32 SageCodeGenVisitor::build_end() {
@@ -357,7 +360,7 @@ ui32 SageCodeGenVisitor::build_end() {
     vm->load_program(procedures[current_procedure.top()]);
     vm->execute();
 
-    return -1;
+    return 0;
 }
 
 void SageCodeGenVisitor::add_instruction(SageOpCode opcode, int op1) {

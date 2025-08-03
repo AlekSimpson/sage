@@ -18,16 +18,16 @@
 #include "../include/parser.h"
 #include "../include/node_manager.h"
 #include "../include/symbols.h"
+#include "../include/sage_bytecode.h"
 
 using namespace std;
 /*using namespace llvm;*/
 
-// void SageCompiler::optimize(llvm::Module* module, int level) {} // TODO:
 SageCompiler::SageCompiler() {}
 
 SageCompiler::SageCompiler(string mainfile)
     : ast(NULL_INDEX),
-      debug(NONE),
+      debug(COMPILATION),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
       interpreter(new SageInterpreter(4046)),
@@ -51,42 +51,37 @@ NodeIndex SageCompiler::parse_codefile(string target_file) {
     return parsetree;
 }
 
-// llvm::Module* SageCompiler::compile(NodeIndex ast) {
-//     if (ast == NULL_INDEX) {
-//         printf("Cannot compiler module, root was null.\n");
-//         return nullptr;
-//     }
-// 
-//     if (node_manager->get_host_nodetype(ast) == PN_BLOCK) {
-//         vector<string> filenames;
-// 
-//         // find all included code
-//         for (NodeIndex child : node_manager->get_children(ast)) {
-//             if (node_manager->get_nodetype(child) == PN_INCLUDE) {
-//                 string codefile = node_manager->get_lexeme(child);
-//                 codefile.erase(std::remove(codefile.begin(), codefile.end(), '"'), codefile.end());
-//                 codefile = codefile + ".sage";
-//                 filenames.push_back(codefile);
-//             }
-//         }
-// 
-//         // compile it first
-//         for (string filename : filenames) {
-//             string file = "sage_modules/" + filename;
-//             NodeIndex file_ast = parse_codefile(file);
-// 
-//             this->visitor.visit_program(file_ast);
-//         }
-// 
-//         // then compile the main program
-//         this->visitor.visit_program(ast);
-// 
-//         return this->visitor.get_module();
-//     }
-// 
-//     // ERROR!! AST root must be a PN BLOCK node
-//     return nullptr;
-// }
+bool SageCompiler::compile(NodeIndex ast) {
+    if (ast == NULL_INDEX || node_manager->get_host_nodetype(ast) != PN_BLOCK) {
+        return false;
+    }
+
+    // TODO: need to figure out eventually how to work with packages and have the linker link previously compiled sage object files to the current project
+    for (auto child : node_manager->get_children(ast)) {
+        if (node_manager->get_nodetype(child) == PN_INCLUDE) {
+            string codefile = node_manager->get_lexeme(child);
+            codefile.erase(std::remove(codefile.begin(), codefile.end(), '"'), codefile.end());
+            codefile = codefile + ".sage";
+            codefile = "sage_modules/" + codefile;
+            NodeIndex file_ast = parse_codefile(codefile);
+            this->visitor.visit_program(file_ast);
+        }
+    }
+
+    this->visitor.visit_program(ast);
+
+    size_t total_size = 0;
+    for (const auto& vec : visitor.procedures) {
+        total_size += vec.size();
+    }
+    visitor.total_bytecode.reserve(total_size);
+
+    for (const auto& vec : visitor.procedures) {
+        visitor.total_bytecode.insert(visitor.total_bytecode.end(), vec.begin(), vec.end());
+    }
+
+    return true;
+}
 
 // successful SageCompiler::emit_and_link_llvm(llvm::Module* module, const std::string& output_file) {
 //     llvm::InitializeAllTargetInfos();
@@ -176,11 +171,18 @@ void SageCompiler::begin_compilation(string mainfile) {
     analyzer->perform_static_analysis(program_parsetree);
 
     // 2. program compilation
-    /*auto module = compile(program_parsetree);*/
+    bool success = compile(program_parsetree);
+    if (!success) {
+        printf("Compilation failed.\n");
+        return;
+    }
+
+    interpreter->load_program(visitor.total_bytecode);
+    interpreter->execute();
+    interpreter->close();
 
     // 3. Linking
     /*bool success = emit_and_link_llvm(module, "sage.out"); */
-    bool success = false;
 
     if (success) {
         printf("Compilation finished successfully.\n");

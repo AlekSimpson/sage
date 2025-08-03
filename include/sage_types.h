@@ -87,7 +87,7 @@ public:
   SageValue(int, float, SageType*);
   SageValue(int, char, SageType*);
   SageValue(int, bool, SageType*);
-  SageValue(int, string, SageType*);
+  SageValue(int, string*, SageType*);
   SageValue(int, void*, SageType*);
   ~SageValue();
   uint64_t load();

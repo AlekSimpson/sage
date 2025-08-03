@@ -11,7 +11,7 @@ using namespace std;
 
 SageLexer::SageLexer(string fname) {
     filename = fname;
-    linenum = 0;
+    linenum = 1;
     linedepth = 0;
     current_token = new Token();
     char_buffer.open(fname);

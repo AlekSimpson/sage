@@ -40,6 +40,7 @@ public:
     NodeIndex get_right(NodeIndex);
     NodeIndex get_middle(NodeIndex);
     NodeIndex get_branch(NodeIndex);
+    NodeIndex reach_right(NodeIndex, int);
     vector<NodeIndex> get_children(NodeIndex);
 
     void add_child(NodeIndex self, NodeIndex new_child);

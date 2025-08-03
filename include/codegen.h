@@ -33,7 +33,8 @@ public:
   SageAnalyzer* analysis;
 
   stack<int> current_procedure;
-  vector<bytecode> procedures; // global space is the first element in this arrya
+  vector<bytecode> procedures; // global space is the first element in this array
+  bytecode total_bytecode;
 
   SageCodeGenVisitor();
   SageCodeGenVisitor(NodeManager*, SageInterpreter*, SageAnalyzer*);
@@ -97,6 +98,6 @@ public:
   NodeIndex parse_codefile(string target_file);
 
   void begin_compilation(string mainfile);
-  /*llvm::Module* compile(NodeIndex ast);*/
+  bool compile(NodeIndex ast);
   /*successful emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 };

@@ -31,7 +31,7 @@ struct VariableLifetime {
   VariableLifetime(uint64_t id, string name, int start, bool priority);
   VariableLifetime(string name, int start, bool priority);
 
-  void print_self();
+  void print_self() const;
 };
 
 
@@ -69,7 +69,7 @@ public:
 
   SageControlFlow();
 
-  void add_connection(uint64_t parent, CFGNode child);
+  void add_new_node_connected(CFGNode child);
   void add_connection(uint64_t parent, uint64_t child);
   void append_nested_flow(SageControlFlow* nested_cfg);
   vector<uint64_t> get_dangling_cursors();
