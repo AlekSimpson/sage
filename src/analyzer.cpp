@@ -4,6 +4,7 @@
 #include <cstring>
 #include <atomic>
 #include <algorithm>
+#include <cmath>
 
 #include "../include/analyzer.h"
 #include "../include/parse_node.h"
@@ -413,133 +414,180 @@ unordered_map<string, VariableLifetime> SageAnalyzer::extract_lifetimes(SageCont
 }
 
 void SageAnalyzer::linear_scan_register_allocation(int register_count) {
-    struct ActiveAssignment {
-        int active_register;
-        int end_line;
-
-        bool operator==(const ActiveAssignment& other) const {
-            return active_register == other.active_register && end_line == other.end_line;
-        }
-    };
+    if (variable_lifetimes.size() <= 0) {
+        return;
+    }
 
     auto fill_ascending = [](int start, int end) {
-        set<int> value(end - start + 1);
-        iota(value.begin(), value.end(), start);
-        return value;
-    }
+        set<int> value;
 
-    auto sort_by_startline = [](const unordered_map<string, VariableLifetime>& map) {
-        vector<string> keys;
-        keys.reserve(map.size());
-
-        for (const auto& [key,value] : map) {
-            keys.push_back(key);
+        for (int i = start; i < end; ++i) {
+            value.insert(i);
         }
+        return value;
+    };
 
-        sort(keys.begin(), keys.end(), [&map](const string& a, const string& b) {
-            return map.at(a).start_line < map.at(b).start_line;
-        });
-
-        return keys;
-    }
-
-    vector<ActiveAssignment> active_registers;
+    vector<VariableLifetime*> active_registers;
     set<int> free_registers = fill_ascending(register_range_begin, register_range_end-1);
+    unordered_map<string, int> register_map;
+    vector<string> spilled;
 
-    
+    auto expire_old_intervals = [this](vector<VariableLifetime*>& active_registers, string current_name) {
+        for (auto it = active_registers.begin(); it != active_registers.end();) {
+            if ((*it)->end_line >= variable_lifetimes[current_name].start_line) {
+                break;
+            }
 
-
-}
-
-void SageAnalyzer::linear_scan_register_allocation(
-    unordered_map<string, VariableLifetime>& intervals, int register_count
-) {
-    struct ActiveAssignment {
-        int active_register;
-        int end_line;
-
-        bool operator==(const ActiveAssignment& other) const {
-            return active_register == other.active_register && end_line == other.end_line;
+            it = active_registers.erase(it);
         }
     };
 
-    vector<ActiveAssignment> active_registers;
-    vector<int> free_registers = fill_ascending(register_range_begin, register_range_end-1);
+    auto spill_at_interval = [this](vector<string>& spilled, unordered_map<string, int>& register_map, vector<VariableLifetime*>& active_registers, string current_name) {
+        auto last_active = active_registers[active_registers.size()-1];
+        // current_name is interval
 
-    vector<string> sorted_intervals = sort_keys_by_start(intervals);
-    vector<string> expired_intervals;
+        if (last_active->end_line > variable_lifetimes[current_name].end_line) {
+            register_map[current_name] = register_map[last_active->name];
+            register_map.erase(last_active->name);
 
-    int free_register;
-    vector<ActiveAssignment> temp_active;
-    ActiveAssignment spill_candidate;
-    for (string interval : sorted_intervals) {
-        temp_active = active_registers;
-
-        // expire the old intervals
-        for (auto active_interval : temp_active) {
-            if (active_interval.end_line >= intervals.at(interval).end_line)
-                continue; // if active interval ending is well after the current ending interval
-
-            active_registers.erase(
-                std::remove(
-                    active_registers.begin(), 
-                    active_registers.end(), 
-                    active_interval
-                ), 
-                active_registers.end()
-            );
-            free_registers.push_back(active_interval.active_register);
-            sort(free_registers.begin(), free_registers.end());
+            spilled.push_back(last_active->name);
+            active_registers.pop_back();
+            active_registers.push_back(&variable_lifetimes[current_name]);
+        }else {
+            spilled.push_back(current_name);
         }
+    };
+
+    int left, right, mid;
+    for (auto& [current_var, interval] : variable_lifetimes) {
+        expire_old_intervals(active_registers, interval.name);
 
         if (active_registers.size() == register_count) {
-            // spill register onto the stack
-            spill_candidate = active_registers.at(active_registers.size()-1);
+            spill_at_interval(spilled, register_map, active_registers, interval.name);
+        }else {
+            // pop random free register
+            auto reg_it = free_registers.begin();
+            int reg = *reg_it;
+            free_registers.erase(reg_it);
 
-            if (spill_candidate.end_line > intervals.at(interval).end_line) {
-                intervals.at(interval).register_assignment = spill_candidate.active_register;
-                /*spill_candidate.spilled = true;*/
+            register_map[interval.name] = reg;
 
-                active_registers.erase(
-                    std::remove(
-                        active_registers.begin(), 
-                        active_registers.end(), 
-                        spill_candidate
-                    ), 
-                    active_registers.end()
-                );
-                active_registers.push_back(ActiveAssignment{intervals.at(interval).register_assignment, intervals.at(interval).end_line});
+            left = 0;
+            right = active_registers.size();
 
-                sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
-                    return a.end_line < b.end_line;
-                });
-
-            } else {
-                intervals.at(interval).spilled = true;
+            while (left < right) {
+                mid = floor((left + right) / 2);
+                if (active_registers[mid]->end_line < interval.end_line) {
+                    left = mid + 1;
+                }else {
+                    right = mid;
+                }
             }
- 
+            active_registers.insert(active_registers.begin() + left, &variable_lifetimes[current_var]);
+        }
+
+        auto search = register_map.find(interval.name);
+        if (search == register_map.end()) {
+            // spilled
+            interval.spilled = true;
+            interval.spill_offset = spilled;
             continue;
         }
 
-        // otherwise assign a free register
-        free_register = free_registers[0];
-        free_registers.erase(free_registers.begin());
-
-        intervals.at(interval).register_assignment = free_register;
-        active_registers.push_back(ActiveAssignment{free_register, INF});
-
-        sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
-            return a.end_line < b.end_line;
-        });
+        interval.register_assignment = register_map[interval.name];
+        interval.spilled = false;
+        interval.spill_offset = -1;
     }
 }
 
+// void SageAnalyzer::linear_scan_register_allocation(
+//     unordered_map<string, VariableLifetime>& intervals, int register_count
+// ) {
+//     struct ActiveAssignment {
+//         int active_register;
+//         int end_line;
+// 
+//         bool operator==(const ActiveAssignment& other) const {
+//             return active_register == other.active_register && end_line == other.end_line;
+//         }
+//     };
+// 
+//     vector<ActiveAssignment> active_registers;
+//     vector<int> free_registers = fill_ascending(register_range_begin, register_range_end-1);
+// 
+//     vector<string> sorted_intervals = sort_keys_by_start(intervals);
+//     vector<string> expired_intervals;
+// 
+//     int free_register;
+//     vector<ActiveAssignment> temp_active;
+//     ActiveAssignment spill_candidate;
+//     for (string interval : sorted_intervals) {
+//         temp_active = active_registers;
+// 
+//         // expire the old intervals
+//         for (auto active_interval : temp_active) {
+//             if (active_interval.end_line >= intervals.at(interval).end_line)
+//                 continue; // if active interval ending is well after the current ending interval
+// 
+//             active_registers.erase(
+//                 std::remove(
+//                     active_registers.begin(), 
+//                     active_registers.end(), 
+//                     active_interval
+//                 ), 
+//                 active_registers.end()
+//             );
+//             free_registers.push_back(active_interval.active_register);
+//             sort(free_registers.begin(), free_registers.end());
+//         }
+// 
+//         if (active_registers.size() == register_count) {
+//             // spill register onto the stack
+//             spill_candidate = active_registers.at(active_registers.size()-1);
+// 
+//             if (spill_candidate.end_line > intervals.at(interval).end_line) {
+//                 intervals.at(interval).register_assignment = spill_candidate.active_register;
+//                 /*spill_candidate.spilled = true;*/
+// 
+//                 active_registers.erase(
+//                     std::remove(
+//                         active_registers.begin(), 
+//                         active_registers.end(), 
+//                         spill_candidate
+//                     ), 
+//                     active_registers.end()
+//                 );
+//                 active_registers.push_back(ActiveAssignment{intervals.at(interval).register_assignment, intervals.at(interval).end_line});
+// 
+//                 sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
+//                     return a.end_line < b.end_line;
+//                 });
+// 
+//             } else {
+//                 intervals.at(interval).spilled = true;
+//             }
+//  
+//             continue;
+//         }
+// 
+//         // otherwise assign a free register
+//         free_register = free_registers[0];
+//         free_registers.erase(free_registers.begin());
+// 
+//         intervals.at(interval).register_assignment = free_register;
+//         active_registers.push_back(ActiveAssignment{free_register, INF});
+// 
+//         sort(active_registers.begin(), active_registers.end(), [](const ActiveAssignment& a, const ActiveAssignment& b) {
+//             return a.end_line < b.end_line;
+//         });
+//     }
+// }
+
 void SageAnalyzer::perform_static_analysis(NodeIndex root) {
     auto controlflow = generate_control_flow(root); // heap memory
-    // unordered_map<string, VariableLifetime> lifetimes = extract_lifetimes(controlflow);
     variable_lifetimes = extract_lifetimes(controlflow);
 
-    linear_scan_register_allocation(variable_lifetimes, 10);
+    linear_scan_register_allocation(10);
 
     delete controlflow;
     // variable_lifetimes = lifetimes;

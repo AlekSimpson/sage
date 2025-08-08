@@ -223,8 +223,6 @@ void SageInterpreter::execute() {
     bool reached_end = false;
     vector<ui64> operands;
 
-    int superfluous_runtime_comp = 0;
-
     while (!reached_end) {
         operands = dereference_map(&current_command.inst, current_command.map);
         switch (current_command.inst.opcode) {
@@ -287,16 +285,8 @@ void SageInterpreter::execute() {
                 execute_syscall();
                 break;
             case OP_LABEL:
-                break;
             case OP_END_EXECUTION:
-                superfluous_runtime_comp--;
-                if (superfluous_runtime_comp == 0) {
-                    reached_end = true;
-                }
-                break;
             case OP_BEGIN_EXECUTION:
-                superfluous_runtime_comp++;
-                break;
             case OP_NOP:
                 break;
             default:

@@ -144,13 +144,17 @@ void SageSymbolTable::push_scope() {
 }
 
 void SageSymbolTable::pop_scope() {
-    auto scope = symbol_stack.top();
+    auto current_scope = symbol_stack.top();
     symbol_stack.pop();
-
     auto previous_scope = symbol_stack.top();
 
+    set<string> scopediff;
+    set_difference(current_scope.begin(), current_scope.end(),
+                   previous_scope.begin(), previous_scope.end(),
+                   std::inserter(scopediff, scopediff.begin()));
+
     // any symbols declared in the scope to pop should be removed from the symbol table
-    for (string symbol: scope) {
+    for (string symbol: scopediff) {
         if (previous_scope.find(symbol) != previous_scope.end()) {
             delete symbol_table[symbol_map[symbol]];
             symbol_map.erase(symbol);

@@ -2,7 +2,6 @@
 
 #include "sage_types.h"
 #include "node_manager.h"
-/*#include "codegen.h"*/
 #include "sage_bytecode.h"
 #include "symbols.h"
 #include <set>

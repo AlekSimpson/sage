@@ -12,22 +12,22 @@ using namespace std;
 // TODO: MAKE SURE TYPE CHECKING IS DONE EVERYWHERE THATS NEEDED HERE 
 // DO THIS BEFORE WE INTRODUCE THE ERROR SYSTEM
 
-SageCodeGenVisitor::SageCodeGenVisitor() {}
-
-SageCodeGenVisitor::SageCodeGenVisitor(
-    NodeManager* node_man, SageInterpreter* _vm, SageAnalyzer* analysis
-) : symbol_table(SageSymbolTable()), analysis(analysis) {
-    symbol_table.initialize();
-    node_manager = node_man;
-    vm = _vm;
-
-    // add first start procedure
-    current_procedure.push(0);
-    procedures.push_back(vector<command>());
-}
+// SageCodeGenVisitor::SageCodeGenVisitor() {}
+// 
+// SageCodeGenVisitor::SageCodeGenVisitor(
+//     NodeManager* node_man, SageInterpreter* _vm, SageAnalyzer* analysis
+// ) : symbol_table(SageSymbolTable()), analysis(analysis) {
+//     symbol_table.initialize();
+//     node_manager = node_man;
+//     vm = _vm;
+// 
+//     // add first start procedure
+//     current_procedure.push(0);
+//     procedures.push_back(vector<command>());
+// }
 
 // this is the first visitor called to compile a whole code module
-ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
+ui32 SageCompiler::visit_program(NodeIndex node) {
     ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
         switch(node_manager->get_nodetype(child)){
@@ -66,7 +66,7 @@ ui32 SageCodeGenVisitor::visit_program(NodeIndex node) {
     return retval;
 }
 
-ui32 SageCodeGenVisitor::visit_function_return(ui32 value) {
+ui32 SageCompiler::visit_function_return(ui32 value) {
     symbol_table.current_function_has_returned = true;
     if (value != -1) {
         return build_return(value);
@@ -75,7 +75,7 @@ ui32 SageCodeGenVisitor::visit_function_return(ui32 value) {
     return build_return(-1);
 }
 
-ui32 SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
+ui32 SageCompiler::visit_function_declaration(NodeIndex node) {
     // binary node
     //  - unary     <-- function name
     //  - binary
@@ -119,7 +119,7 @@ ui32 SageCodeGenVisitor::visit_function_declaration(NodeIndex node) {
     return -1; 
 }
 
-ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
+ui32 SageCompiler::visit_function_definition(NodeIndex node) {
     symbol_table.push_scope();
     symbol_table.current_function_has_returned = false;
 
@@ -208,7 +208,7 @@ ui32 SageCodeGenVisitor::visit_function_definition(NodeIndex node) {
     return -1;
 }
 
-ui32 SageCodeGenVisitor::visit_function_call(NodeIndex node) {
+ui32 SageCompiler::visit_function_call(NodeIndex node) {
     NodeIndex args_node = node_manager->get_branch(node);
     string func_call_name = node_manager->get_lexeme(node);
     vector<ui32> args;
@@ -240,7 +240,7 @@ ui32 SageCodeGenVisitor::visit_function_call(NodeIndex node) {
     return build_function_call(args, func_call_name);
 }
 
-ui32 SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
+ui32 SageCompiler::visit_codeblock(NodeIndex node) {
     ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
         switch (node_manager->get_host_nodetype(child)) {
@@ -265,7 +265,7 @@ ui32 SageCodeGenVisitor::visit_codeblock(NodeIndex node) {
     return retval;
 }
 
-ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
     SageSymbol* symbol_value;
     string node_lexeme = node_manager->get_lexeme(node);
     
@@ -326,7 +326,7 @@ ui32 SageCodeGenVisitor::visit_unary_expr(NodeIndex node) {
     return -1;
 }
 
-ui32 SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_trinary_expr(NodeIndex node) {
     ui32 retval = -1;
     switch(node_manager->get_nodetype(node)) {
         case PN_FOR:
@@ -348,7 +348,7 @@ ui32 SageCodeGenVisitor::visit_trinary_expr(NodeIndex node) {
     return retval;
 }
 
-ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
+ui32 SageCompiler::visit_variable_assignment(NodeIndex node) {
     // NOTE: in the future to support heap memory reassignment we should maybe have something in the symbol table that indicates whether a value lives on the heap or not
     // so that we can inform this code section with what IR generation to use
 
@@ -380,7 +380,7 @@ ui32 SageCodeGenVisitor::visit_variable_assignment(NodeIndex node) {
     return build_store(RHS, variable_symbol->identifier);
 }
 
-ui32 SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_binary_expr(NodeIndex node) {
     switch(node_manager->get_nodetype(node)) {
         case PN_BINARY:
             return visit_expression(node);
@@ -415,7 +415,7 @@ ui32 SageCodeGenVisitor::visit_binary_expr(NodeIndex node) {
 }
 
 // TODO: split this into two functions trinary_decl and binary_decl
-ui32 SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
+ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
     if (concrete_node_type == PN_BINARY) {
         // left is variable identifier
@@ -469,7 +469,7 @@ ui32 SageCodeGenVisitor::visit_variable_decl(NodeIndex node) {
     return -1;
 }
 
-ui32 SageCodeGenVisitor::process_expression(NodeIndex node) {
+ui32 SageCompiler::process_expression(NodeIndex node) {
     auto LHS_node = node_manager->get_left(node);
     auto RHS_node = node_manager->get_right(node);
 
@@ -536,7 +536,7 @@ ui32 SageCodeGenVisitor::process_expression(NodeIndex node) {
     return -1;
 }
 
-ui32 SageCodeGenVisitor::visit_expression(NodeIndex node) {
+ui32 SageCompiler::visit_expression(NodeIndex node) {
     switch (node_manager->get_host_nodetype(node)) {
         case PN_BINARY:
             return process_expression(node);

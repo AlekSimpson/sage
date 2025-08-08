@@ -22,7 +22,7 @@ struct SageSymbol {
   SageSymbol(SageValue, string);
 };
 
-typedef unordered_set<string> SageScope;
+typedef set<string> SageScope;
 typedef bool successful;
 
 class SageSymbolTable {

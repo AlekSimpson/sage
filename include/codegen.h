@@ -25,19 +25,34 @@ enum debug_level {
   ALL
 };
 
-class SageCodeGenVisitor {
+class SageCompiler {
 public:
-  SageSymbolTable symbol_table;
+  NodeIndex ast;
+  debug_level debug;
+
   NodeManager* node_manager;
-  SageInterpreter* vm;
-  SageAnalyzer* analysis;
+  SageParser parser;
+  SageInterpreter* interpreter;
+  SageAnalyzer* analyzer;
+  SageSymbolTable symbol_table;
 
   stack<int> current_procedure;
   vector<bytecode> procedures; // global space is the first element in this array
-  bytecode total_bytecode;
 
-  SageCodeGenVisitor();
-  SageCodeGenVisitor(NodeManager*, SageInterpreter*, SageAnalyzer*);
+  bytecode runtime_bytecode;
+
+  SageCompiler();
+  SageCompiler(string mainfile);
+  ~SageCompiler();
+
+  bool check_filename_valid(string filename);
+  NodeIndex parse_codefile(string target_file);
+
+  void begin_compilation(string mainfile);
+  bool compile(NodeIndex ast);
+  /*bool emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
+
+  IdentNode* resolve_identifier_dependencies(NodeIndex node);
 
   void add_instruction(SageOpCode, int);
   void add_instruction(SageOpCode, int, int[4]);
@@ -77,27 +92,4 @@ public:
   ui32 visit_expression(NodeIndex);
   ui32 visit_variable_assignment(NodeIndex);
   ui32 visit_unary_expr(NodeIndex);
-};
-
-class SageCompiler {
-public:
-  NodeIndex ast;
-  debug_level debug;
-
-  NodeManager* node_manager;
-  SageParser parser;
-  SageInterpreter* interpreter;
-  SageAnalyzer* analyzer;
-  SageCodeGenVisitor visitor;
-
-  SageCompiler();
-  SageCompiler(string mainfile);
-  ~SageCompiler();
-
-  bool check_filename_valid(string filename);
-  NodeIndex parse_codefile(string target_file);
-
-  void begin_compilation(string mainfile);
-  bool compile(NodeIndex ast);
-  /*successful emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 };

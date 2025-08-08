@@ -32,7 +32,14 @@ SageCompiler::SageCompiler(string mainfile)
       parser(SageParser(node_manager, mainfile)),
       interpreter(new SageInterpreter(4046)),
       analyzer(new SageAnalyzer(node_manager)),
-      visitor(SageCodeGenVisitor(node_manager, interpreter, analyzer)) {}
+      symbol_table(SageSymbolTable()) {
+    // visitor(SageCodeGenVisitor(node_manager, interpreter, analyzer)) {
+
+    symbol_table.initialize();
+
+    current_procedure.push(0);
+    procedures.push_back(vector<command>());
+}
 
 SageCompiler::~SageCompiler() {
     delete node_manager;
