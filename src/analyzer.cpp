@@ -166,6 +166,7 @@ SageControlFlow* SageAnalyzer::generate_control_flow(NodeIndex ast_pointer) {
     if (nodetype != PN_BLOCK) {
         return nullptr;
     }
+    // TODO: modify this to work with dependency graph to output a CFG that is the accurate for the real execution order
 
     SageControlFlow* cfg = new SageControlFlow();
     SageControlFlow* nested_flow;
@@ -351,6 +352,7 @@ unordered_map<string, VariableLifetime> SageAnalyzer::extract_lifetimes(SageCont
     if (controlflow == nullptr) {
         return unordered_map<string, VariableLifetime>();
     }
+    // TODO: going to need to rework this to work with a virtual instructions ordering instead of literal line by line because line by line reference isn't actually always going to be "valid"
 
     set<ui64> explored;
     ui64 current_id = controlflow->start_node;

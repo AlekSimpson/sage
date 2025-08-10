@@ -174,21 +174,35 @@ void SageCompiler::begin_compilation(string mainfile) {
         node_manager->showtree(program_parsetree);
     }
 
-    // 1. program static analysis
+    // 1. generate program identifier dependencies
+    auto dependencies = analyzer->detect_identifier_dependencies();
+    for (const auto& [scopename, dep]: dependencies) {
+        if (!dep->dependencies_are_valid()) {
+            // REPORT ERROR!!!!
+            // TODO: add way for missing dependencies to be named in the err messages
+            printf("undefined variable reference was found.\n");
+        }
+    }
+
+    // 2. program static analysis
     analyzer->perform_static_analysis(program_parsetree);
 
-    // 2. program compilation
+    // 3. program compilation
     bool success = compile(program_parsetree);
     if (!success) {
         printf("Compilation failed.\n");
         return;
     }
 
-    interpreter->load_program(visitor.total_bytecode);
+    ///////////////
+    interpreter->load_program(runtime_bytecode);
     interpreter->execute();
     interpreter->close();
+    // ^^^^^^^^TEMP!!!
 
-    // 3. Linking
+    // 4. Compiling to target instructions (if sagevm not the target)
+
+    // 5. Linking
     /*bool success = emit_and_link_llvm(module, "sage.out"); */
 
     if (success) {
