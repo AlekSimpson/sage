@@ -25,7 +25,7 @@ SageInterpreter::SageInterpreter(int stack_size) {
     stack.reserve(stack_size);
 
     frame_pointer = new StackFrame();
-    available_volatiles = {24, 25, 26, 27, 28, 29, 30};
+    available_volatiles = {10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
 }
 
 void SageInterpreter::push_stack_scope() {
@@ -322,24 +322,24 @@ void SageInterpreter::close() {
     }
 }
 
-bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_register) {
+bool SageInterpreter::register_is_stale(SageSymbol* symbol, int reg) {
     // this checks if the value at the volatile register spot is the same as the value that this symbol represents
 
     switch (symbol->value.valuetype->identify()) {
         case BOOL: {
-            int contents = unpack_int(registers[volatile_register]);
+            int contents = unpack_int(registers[reg]);
             if (symbol->value.value.bool_value != contents) {
                 // is stale
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
             return false;
         }
         case CHAR: {
-            int contents = unpack_int(registers[volatile_register]);
+            int contents = unpack_int(registers[reg]);
             if (int(symbol->value.value.char_value) != contents) {
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
@@ -348,9 +348,9 @@ bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_registe
         case I8:
         case I32:
         case I64: {
-            int contents = unpack_int(registers[volatile_register]);
+            int contents = unpack_int(registers[reg]);
             if (symbol->value.value.int_value != contents) {
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
@@ -358,9 +358,9 @@ bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_registe
         }
         case F32:
         case F64: {
-            float contents = unpack_float(registers[volatile_register]);
+            float contents = unpack_float(registers[reg]);
             if (symbol->value.value.float_value != contents) {
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
@@ -368,9 +368,9 @@ bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_registe
         }
         case ARRAY: {
             // might need to check if sub type is char first then we can do string compare
-            int contents = unpack_int(registers[volatile_register]);
+            int contents = unpack_int(registers[reg]);
             if (symbol->value.value.int_value != contents) {
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
@@ -379,9 +379,9 @@ bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_registe
         case VOID:
         case FUNC:
         case POINTER: {
-            void* contents = unpack_pointer(registers[volatile_register]);
+            void* contents = unpack_pointer(registers[reg]);
             if (symbol->value.value.complex_type != contents) {
-                available_volatiles.insert(volatile_register);
+                available_volatiles.insert(reg);
                 return true;
             }
 
@@ -394,6 +394,7 @@ bool SageInterpreter::volatile_is_stale(SageSymbol* symbol, int volatile_registe
 
 int SageInterpreter::get_volatile_register() {
     // this finds a stale volatile register, and returns it to be used
+    // FIX: this model of volatile register access won't work for codegen
     int available_volatile = *available_volatiles.begin();
     available_volatiles.erase(available_volatile);
     return available_volatile;

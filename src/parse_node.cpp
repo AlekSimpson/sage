@@ -45,8 +45,6 @@ string nodetype_to_string(ParseNodeType nodetype) {
     	return "ASSIGN";
     case PN_FOR:
     	return "FOR";
-    case PN_PROGRAM:
-    	return "PROGRAM";
     case PN_RANGE:
     	return "RANGE";
     case PN_VAR_DEC:

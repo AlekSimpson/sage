@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stack>
 /*#include <llvm/IR/Module.h>*/
 #include <boost/algorithm/string.hpp>
 // #include "llvm/IR/LLVMContext.h"
@@ -19,6 +20,7 @@
 #include "../include/node_manager.h"
 #include "../include/symbols.h"
 #include "../include/sage_bytecode.h"
+#include "../include/depgraph.h"
 
 using namespace std;
 /*using namespace llvm;*/
@@ -31,9 +33,7 @@ SageCompiler::SageCompiler(string mainfile)
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
       interpreter(new SageInterpreter(4046)),
-      analyzer(new SageAnalyzer(node_manager)),
       symbol_table(SageSymbolTable()) {
-    // visitor(SageCodeGenVisitor(node_manager, interpreter, analyzer)) {
 
     symbol_table.initialize();
 
@@ -44,8 +44,6 @@ SageCompiler::SageCompiler(string mainfile)
 SageCompiler::~SageCompiler() {
     delete node_manager;
     delete interpreter;
-    delete analyzer;
-    /*llvm::llvm_shutdown();*/
 }
 
 NodeIndex SageCompiler::parse_codefile(string target_file) {
@@ -174,22 +172,31 @@ void SageCompiler::begin_compilation(string mainfile) {
         node_manager->showtree(program_parsetree);
     }
 
-    // 1. generate program identifier dependencies
-    auto dependencies = analyzer->detect_identifier_dependencies();
-    for (const auto& [scopename, dep]: dependencies) {
-        if (!dep->dependencies_are_valid()) {
-            // REPORT ERROR!!!!
-            // TODO: add way for missing dependencies to be named in the err messages
-            printf("undefined variable reference was found.\n");
-        }
+    // 1. program static analysis
+    auto dep_graph = generate_ident_dependencies(root, "global", 0);
+    if (!dep_graph->dependencies_are_valid()) {
+        // report compiler errors
+        return;
     }
 
-    // 2. program static analysis
-    analyzer->perform_static_analysis(program_parsetree);
+    register_allocation(dep_graph, root);
 
-    // 3. program compilation
+    // TODO: Type checking
+
+    // 2. program compilation
+    // TODO: Run run directives
+    for (auto start_node : dep_graph->get_comptime_exec_order()) {
+        bool success = compile(start_node);
+        if (!success) {
+            printf("Compilation failed.\n");
+            return;
+        }
+        interpreter->load_program(runtime_)
+    }
+
     bool success = compile(program_parsetree);
     if (!success) {
+        // report compiler errors
         printf("Compilation failed.\n");
         return;
     }
@@ -200,9 +207,9 @@ void SageCompiler::begin_compilation(string mainfile) {
     interpreter->close();
     // ^^^^^^^^TEMP!!!
 
-    // 4. Compiling to target instructions (if sagevm not the target)
+    // 3. Compiling to target instructions (if sagevm not the target)
 
-    // 5. Linking
+    // 4. Linking
     /*bool success = emit_and_link_llvm(module, "sage.out"); */
 
     if (success) {
@@ -230,3 +237,200 @@ bool SageCompiler::check_filename_valid(string filename) {
     return true;
 }
 
+DependencyGraph* SageCompiler::generate_ident_dependencies(NodeIndex cursor, string scopename, int scopelevel, set<string>* parent_scope) {
+    if (cursor != NULL_INDEX && manager->get_host_nodetype(cursor) != PN_BLOCK) {
+        return nullptr;
+    }
+
+    DependencyGraph* dependencies = new DependencyGraph(scopename, scopelevel, parent_scope);
+    ParseNodeType reptype;
+    DependencyGraph* nested_dependency;
+
+    // auto parse_sub_dependencies = [this, dependencies, nested_dependency](NodeIndex cursor, string name, int scope) mutable {
+    //     nested_dependency = generate_ident_dependencies(cursor, name, scope, &dependencies->local_scope);
+    //     dependencies->merge_with(*nested_dependency);
+    // };
+
+    auto get_expression_identifiers = [&, this] (NodeIndex root) -> vector<string> {
+        vector<string> identifiers;
+        switch (manager->get_host_nodetype(root)) {
+            case PN_UNARY:
+                identifiers.push_back(manager->get_lexeme(root));
+                break;
+            case PN_BINARY: {
+                auto left_idents = get_expression_identifiers(manager->get_left(root));
+                auto right_idents = get_expression_identifiers(manager->get_right(root));
+                identifiers.insert(identifiers.begin(), left_idents.begin(), left_idents.end());
+                identifiers.insert(identifiers.begin(), right_idents.begin(), right_idents.end());
+                break;
+            }
+            case PN_TRINARY: {
+                auto left_idents = get_expression_identifiers(manager->get_left(root));
+                auto middle_idents = get_expression_identifiers(manager->get_middle(root));
+                auto right_idents = get_expression_identifiers(manager->get_right(root));
+                identifiers.insert(identifiers.begin(), left_idents.begin(), left_idents.end());
+                identifiers.insert(identifiers.begin(), middle_idents.begin(), middle_idents.end());
+                identifiers.insert(identifiers.begin(), right_idents.begin(), right_idents.end());
+                break;
+            }
+            default:
+                break;
+        }
+
+        return identifiers;
+    };
+
+    dependencies->local_scope = set<string>();
+
+    for (auto child : manager->get_children(cursor)) {
+        reptype = manager->get_nodetype(cursor);
+        switch (reptype) {
+            case PN_FUNCDEF:
+            case PN_STRUCT:
+                nested_dependency = generate_ident_dependencies(manager->get_right(cursor), manager->get_lexeme(cursor), scopelevel++, &dependencies->local_scope);
+                dependencies->add_scope_node(manager->get_lexeme(cursor), INI, cursor, nested_dependency);
+                continue;
+            case PN_WHILE:
+                // parse_sub_dependencies(manager->get_right(cursor), "", scopelevel++);
+                nested_dependency = generate_ident_dependencies(manager->get_right(cursor), "", scopelevel++, &dependencies->local_scope);
+                dependencies->merge_with(*nested_dependency);
+                continue;
+            case PN_FOR:
+                // parse_sub_dependencies(manager->get_right(cursor), "", scopelevel++);
+                nested_dependency = generate_ident_dependencies(manager->get_right(cursor), "", scopelevel++, &dependencies->local_scope);
+                dependencies->merge_with(*nested_dependency);
+                continue;
+            case PN_RUN_DIRECTIVE:
+                // parse_sub_dependencies(manager->get_branch(cursor), "", scopelevel--);
+                nested_dependency = generate_ident_dependencies(manager->get_branch(cursor), "", scopelevel--, &dependencies->local_scope);
+                dependencies->add_scope_node("", INI, cursor, nested_dependency);
+                continue;
+            case PN_IF: {
+                for (auto child : manager->get_children(cursor)) {
+                    nested_dependency = generate_ident_dependencies(
+                        child,
+                        "",
+                        scopelevel++,
+                        &dependencies->local_scope
+                    );
+                    if (nested_dependency->nodes.size() == 0) {
+                        continue;
+                    }
+
+                    dependencies->merge_with(*nested_dependency);
+                }
+                continue;
+            }
+            case PN_FUNCCALL: {
+                // caller depends on its parameters
+                string function_name = manager->get_lexeme(cursor);
+                for (auto child_index : manager->get_children(manager->get_right(cursor))) {
+                    dependencies->add_connection(function_name, manager->get_lexeme(child_index));
+                }
+
+                continue;
+            }
+            case PN_ASSIGN: {
+                // assigned depends on its assignees
+                string assigned_var_name = manager->get_lexeme(cursor);
+
+                // rhs is a tree of unary, binary and trinary nodes representing operations and operands (or just a single value)
+                auto referenced_identifiers = get_expression_identifiers(manager->get_right(cursor));
+
+                for (string ident : referenced_identifiers) {
+                    dependencies->add_connection(assigned_var_name, ident);
+                }
+                
+                continue;
+            }
+
+            case PN_VAR_DEC:
+                dependencies->add_node(manager->get_lexeme(cursor), INI, cursor);
+                continue;
+            // NOTE: case PN_VAR_REF: won't occurr on the statement level but will be found on the expression level, look for these in the three above
+            default:
+                printf("DEPENDENCY RESOLUTION SCAN MISSING: %s\n", nodetype_to_string(reptype).c_str());
+                break;
+        }
+    }
+
+    return dependencies;
+}
+
+void SageCompiler::register_allocation(DependencyGraph* dependencies) {
+    // Factors to consider for variable-register mapping sorting order
+    // 1. Usage amount throughout scope
+    // 2. Local to scope means higher priority
+    // 3. Is it used in a loop?
+
+    // need to track current scope to expire old intervals, the scopes lifetime essentially is the variable lifetime for all vars
+
+    // while loop: stack not empty
+    //  1. pop stack -> walk var
+    //  2. expire old intervals
+    //  3. get values declared in current scope
+    //  4. sort them and allocate them, allocations written to symbol table
+    //  5. add next branches to stack
+
+    set<int> available_general_regs;
+    for (int r = GENERAL_REG_RANGE_BEGIN; r <= GENERAL_REG_RANGE_END; ++r) {
+        available_general_regs.insert(r);
+    }
+
+    auto allocate_registers = [this, &](DependencyGraph* graph, vector<u64>* prioritized_vars) {
+        for (auto var : *prioritize_vars) {
+            if (available_general_regs.size() == 0) {
+                symbol_table.declare_symbol(graph->nodes[var].name, -1); // -1 register_alloc indicates spilled
+                continue;
+            }
+            auto chosen = available_general_regs.begin();
+            available_general_regs.erase(chosen);
+            symbol_table.declare_symbol(graph->nodes[var].name, chosen); 
+        }
+    };
+
+    set<string> currently_allocated;
+
+    auto expire_old_interval = [this, &](DependencyGraph* walk) {
+        set<string> fullscope;
+        fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
+        fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
+
+        set<string> expired_values;
+        set_difference(currently_allocated.begin(), currently_allocated.end(),
+                       fullscope.begin(), fullscope.end(),
+                       inserter(expired_values, expired_values.begin()));
+        for (string value : expired_values) {
+            int value_register = symbol_table.lookup(value)->assigned_register;
+            available_general_regs.insert(value_register);
+        }
+
+        set_difference(fullscope.begin(), fullscope.end(),
+                       expired_values.begin(), expired_values.end(),
+                       inserter(currently_allocated, currently_allocated.begin()));
+    };
+
+    stack<DependencyGraph*> fringe;
+    DependencyGraph* walk;
+    fringe.push(dependencies);
+    while (!fringe.empty()) {
+        walk = fringe.top();
+        fringe.pop();
+
+        vector<u64> buffer;
+        buffer.reserve(walk->nodes.size());
+
+        expire_old_intervals(walk);
+
+        for (auto [key, node] : walk->nodes) {
+            if (node.owned_scope != nullptr) {
+                fringe.push(node.owned_scope);
+                continue;
+            }
+
+            buffer.push_back(key);
+        }
+        walk->quicksort(&buffer);
+        allocate_registers(walk, &buffer);
+    }
+}

@@ -1,13 +1,8 @@
-#execute {
+#run {
     executable_name = "output"
     platform = "LINUX"
     architecture = "X86"
     bitsize = 64
-
-    include_files = [
-	"some_package", 
-	"some_other_package",
-    ]
 }
 
 // '--' symbol means keep the value uninitialized
@@ -162,7 +157,6 @@ VISION:
 - ternary expressions
 - Automated AST Manipulation / Refactoring
 - the ':=' operator
-- infix array initialization, ex: ages [int:5] = [50, 20, 1, 17, 80]
 - 'fallthrough' keyword
 - keyword 'using' before function parameters means that the scope of that value is injected into the scope of the function
 
@@ -263,18 +257,18 @@ not confirmed ideas:
 
 =============================================
 
-#execute {
+#run {
      executable_name = "output"
      platform = "LINUX"
      architecture = "X86"
      bitsize = 64
 }
 
-add:: (x: int, y: int) -> int {
+add :: (x: int, y: int) -> int {
     return x + y
 }
 
-main:: () -> void {
+main :: () -> void {
     result: i64 = add(2, 2) * 10
     printf("this result is : %d\n", result)
 }

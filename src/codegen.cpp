@@ -9,58 +9,83 @@
 
 using namespace std;
 
-// TODO: MAKE SURE TYPE CHECKING IS DONE EVERYWHERE THATS NEEDED HERE 
-// DO THIS BEFORE WE INTRODUCE THE ERROR SYSTEM
-
-// SageCodeGenVisitor::SageCodeGenVisitor() {}
+// ui32 SageCompiler::visit_program(NodeIndex node) {
+//     ui32 retval = -1;
+//     for (NodeIndex child : node_manager->get_children(node)) {
+//         switch(node_manager->get_nodetype(child)){
+//             case PN_FUNCDEF:
+//                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
+//                     // ERROR!! CHILD SHOULD BE A BINARY NODE
+//                     return -1;
+//                 }
+//                 retval = visit_function_definition(child);
+//                 break;
 // 
-// SageCodeGenVisitor::SageCodeGenVisitor(
-//     NodeManager* node_man, SageInterpreter* _vm, SageAnalyzer* analysis
-// ) : symbol_table(SageSymbolTable()), analysis(analysis) {
-//     symbol_table.initialize();
-//     node_manager = node_man;
-//     vm = _vm;
+//             case PN_FUNCDEC:
+//                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
+//                     // ERROR!! CHILD SHOULD BE A BINARY NODE
+//                     return -1;
+//                 }
+//                 retval = visit_function_declaration(child);
+//                 break;
 // 
-//     // add first start procedure
-//     current_procedure.push(0);
-//     procedures.push_back(vector<command>());
+//             case PN_STRUCT:
+//                 break;
+//             case PN_INCLUDE:
+//                 break;
+//             case PN_RUN_DIRECTIVE: {
+//                 if (node_is_precompiled(child)) {
+//                     continue;
+//                 }
+// 
+//                 visit_codeblock(node_manager->get_branch(child));
+//                 break;
+//             }
+//             default:
+//                 // ERROR
+//                 break;
+//         }
+//     }
+// 
+//     return retval;
 // }
 
-// this is the first visitor called to compile a whole code module
-ui32 SageCompiler::visit_program(NodeIndex node) {
+ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* depgraph) {
+    auto visit = [this](NodeIndex child) {
+        switch (node_manager->get_host_nodetype(child)) {
+            case PN_UNARY:
+                return visit_unary_expr(child);
+
+            case PN_BINARY:
+                return visit_binary_expr(child);
+
+            case PN_TRINARY:
+                return visit_trinary_expr(child);
+
+            default:
+                // TODO: the error system should have builtin logging capabilities for internal stuff like this to help ourself debug internal compiler issues
+                printf("unrecognized expression node: %s\n", nodetype_to_string(node_manager->get_nodetype(child)).c_str());
+                return 0;
+        }
+    };
+
+    if (depgraph != nullptr) {
+        auto ident_exec_order = depgraph->get_exec_order();
+        NodeIndex ast_node;
+        for (u64 identifier : ident_exec_order) {
+            ast_node = depgraph->nodes[identifier].ast_pos;
+            visit(ast_node);
+            precompiled.insert(ast_node);
+        }
+    }
+
     ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
-        switch(node_manager->get_nodetype(child)){
-            case PN_FUNCDEF:
-                if (node_manager->get_host_nodetype(child) != PN_BINARY) {
-                    // ERROR!! CHILD SHOULD BE A BINARY NODE
-                    return -1;
-                }
-                retval = visit_function_definition(child);
-                break;
-
-            case PN_FUNCDEC:
-                if (node_manager->get_host_nodetype(child) != PN_BINARY) {
-                    // ERROR!! CHILD SHOULD BE A BINARY NODE
-                    return -1;
-                }
-                retval = visit_function_declaration(child);
-                break;
-
-            case PN_STRUCT:
-                break;
-            case PN_INCLUDE:
-                break;
-            case PN_RUN_DIRECTIVE: {
-                build_begin();
-                visit_codeblock(node_manager->get_branch(child));
-                build_end();
-                break;
-            }
-            default:
-                // ERROR
-                break;
+        if (node_is_precompiled(child)) {
+            continue;
         }
+
+        retval = visit(child);
     }
 
     return retval;
@@ -238,31 +263,6 @@ ui32 SageCompiler::visit_function_call(NodeIndex node) {
     }
 
     return build_function_call(args, func_call_name);
-}
-
-ui32 SageCompiler::visit_codeblock(NodeIndex node) {
-    ui32 retval = -1;
-    for (NodeIndex child : node_manager->get_children(node)) {
-        switch (node_manager->get_host_nodetype(child)) {
-            case PN_UNARY:
-                retval = visit_unary_expr(child);
-                break;
-
-            case PN_BINARY:
-                retval = visit_binary_expr(child);
-                break;
-
-            case PN_TRINARY:
-                retval = visit_trinary_expr(child);
-                break;
-
-            default:
-                printf("unrecognized expression node: %s\n", nodetype_to_string(node_manager->get_nodetype(child)).c_str());
-                return -1;
-        }
-    }
-
-    return retval;
 }
 
 ui32 SageCompiler::visit_unary_expr(NodeIndex node) {

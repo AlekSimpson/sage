@@ -34,16 +34,16 @@ public:
   // sage argument registers
   // - 0-5  = function parameter registers
   // - 6-9  = return value registers
-  // - 10-20 = general registers
+  // - 10-20 = volatile registers (hold results of temp values and stuff)
   // - 21-23 = system registers
-  // - 24-30 = volatile registers (hold results of temp values and stuff)
+  // - 24-124 = general
   //
   // sr21 = bool logical result register
   // sr22 = syscall register
   // sr23 = stack pointer
   //
 
-  ui64 registers[31];
+  ui64 registers[125];
   int program_pointer;
   int procedure_encoding; // starts at 0
   map<string, int> procedure_label_encoding;
@@ -61,7 +61,7 @@ public:
 
   int store_in_heap(SageValue value);
   void load_program(bytecode program);
-  bool volatile_is_stale(SageSymbol* symbol, int volatile_register);
+  bool register_is_stale(SageSymbol* symbol, int reg);
   int get_volatile_register();
   void execute();
 

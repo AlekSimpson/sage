@@ -13,10 +13,11 @@
 #include "../include/codegen.h"
 #include "../include/sage_types.h"
 
-SageSymbol::SageSymbol() {}
+SageSymbol::SageSymbol()
+: value(SageValue()), type(nullptr), identifier(""), is_variable(false), is_parameter(false), assigned_register(-1), spilled(false), spill_offset(0) {}
 
 SageSymbol::SageSymbol(SageValue rawvalue, string _identifier) 
-    : value(rawvalue), identifier(_identifier) {}
+: value(rawvalue), type(rawvalue.valuetype), identifier(_identifier), is_variable(false), is_parameter(false), assigned_register(-1), spilled(false), spill_offset(0) {}
 
 SageSymbolTable::SageSymbolTable() {
     symbol_stack = stack<SageScope>();

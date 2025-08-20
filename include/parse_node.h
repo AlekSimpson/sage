@@ -9,9 +9,9 @@ using namespace std;
 class NodeManager;
 
 typedef enum {
-  PN_BINARY,
-  PN_TRINARY,
-  PN_UNARY,
+  PN_BINARY, //
+  PN_TRINARY, //
+  PN_UNARY, // 
   PN_NUMBER,
   PN_FLOAT,
   PN_STRING,
@@ -19,21 +19,20 @@ typedef enum {
   PN_KEYWORD,
   PN_BLOCK,
   PN_PARAM_LIST,
-  PN_FUNCDEF,
+  PN_FUNCDEF, //
   PN_FUNCCALL,
   PN_TYPE,
-  PN_STRUCT,
-  PN_IF,
+  PN_STRUCT, // 
+  PN_IF, //
   PN_IF_BRANCH,
   PN_ELSE_BRANCH,
-  PN_WHILE,
+  PN_WHILE, //
   PN_ASSIGN,
-  PN_FOR,
-  PN_PROGRAM,
+  PN_FOR, //
   PN_RANGE,
   PN_VAR_DEC,
   PN_VAR_REF,
-  PN_RUN_DIRECTIVE,
+  PN_RUN_DIRECTIVE, // 
   PN_LIST,
   PN_INCLUDE,
   PN_VARARG,

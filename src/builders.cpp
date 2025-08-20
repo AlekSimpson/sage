@@ -3,35 +3,90 @@
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 #include "../include/sage_bytecode.h"
+#include "../include/bytecode_builder.h"
 
 std::unordered_map<CanonicalType, std::unique_ptr<SageType>> TypeRegistery::builtin_types;
 std::unordered_map<SageType*, std::unique_ptr<SageType>> TypeRegistery::pointer_types;
 std::unordered_map<std::pair<SageType*, int>, std::unique_ptr<SageType>> TypeRegistery::array_types;
 std::unordered_map<std::pair<std::vector<SageType*>, std::vector<SageType*>>, std::unique_ptr<SageType>> TypeRegistery::function_types;
 
+BytecodeBuilder::BytecodeBuilder() {
+    procedures[0] = procedure_frame("global");
+    procedure_stack.push(0);
+}
+
+void BytecodeBuilder::new_frame(string name) {
+    auto frame = procedure_frame(name);
+    int id = procedures.size();
+    procedures[id] = frame;
+    procedure_stack.push(id);
+}
+
+void BytecodeBuilder::exit_frame() {
+    procedure_stack.pop();
+}
+
+void BytecodeBuilder::reset() {
+    procedures.clear();
+    procedure_stack = stack<int>();
+
+    procedures[0] = procedure_frame("global", bytecode());
+    procedure_stack.push(0);
+}
+
+int BytecodeBuilder::current_id() {
+    return procedure_stack.top();
+}
+
+bytecode BytecodeBuilder::final() {
+    // TODO:
+}
+
+void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1) {
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, blank_encoding));
+}
+
+void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int (&map)[4]) {
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, map));
+}
+
+void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int (&map)[4]) {
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, map));
+}
+
+void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int (&map)[4]) {
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, map));
+}
+
+void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4, int (&map)[4]) {
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, op4, map));
+}
+
+
+
 ui32 SageCompiler::build_store(ui32 rhs, string variable_symbol) {
     // find where variable_symbol is stored
-    auto lifetime_info = analysis->variable_lifetimes[variable_symbol];
-    SageSymbol* expression_symbol = symbol_table.lookup(rhs);
+    SageSymbol* expr_symbol = symbol_table.lookup(rhs);
+    SageSymbol* var_symbol = symbol_table.lookup(variable_symbol);
 
-    // TODO: put checks to see if this value even needs to be stored in the heap
-    int expression_pointer = interpreter->store_in_heap(expression_symbol->value);
-
-    int encoding[4] = {0, 0, 0, 0};
-    if (lifetime_info.spilled) {
-        // if variable is spilled then store rhs into the stack
-        add_instruction(OP_STORE, expression_pointer, lifetime_info.spill_offset, encoding);
-        return 0;
-
+    int stored_value = expr_symbol->assigned_register;
+    if (expr_symbol->assigned_register == -1) {
+        stored_value = 0;
+        // ERROR!!: GOOD SPOT FOR LOGGING MONITORING, THIS SHOULDNT TRIGGER EVER
     }
 
-    // if the variable has a register assignment then move rhs into that register
-    add_instruction(OP_MOV, expression_pointer, lifetime_info.register_assignment, encoding);
+    if (var_symbol->spilled) {
+        builder.add_instruction(OP_STORE, stored_value, var_symbol->spill_offset, builder.first_encoding);
+        return 0;
+    }
+
+    // otherwise the variable is stored in a register
+    builder.add_instruction(OP_MOV, stored_value, var_symbol->assigned_register, builder.first_encoding)
 
     return 0;
 }
 
-ui32 SageCompiler::build_return(ui32 return_value) {
+ui32 SageCompiler::build_return(ui32 return_value_id) {
     // TODO: doesn't yet support multiple return values
     // this is why we are just by default loading the 
     // return value into sr6 because sr6 is the first 
@@ -39,51 +94,39 @@ ui32 SageCompiler::build_return(ui32 return_value) {
 
     if (return_value == -1) {
         // there is no value to return
-        add_instruction(OP_RET, 0);
-        current_procedure.pop();
+        builder.add_instruction(OP_RET, 0);
+        builder.exit_frame();
         return 0;
     }
 
     // otherwise there is a return value
-    SageSymbol* return_search = symbol_table.lookup(return_value);
+    SageSymbol* return_value = symbol_table.lookup(return_value_id);
 
-    // assigned upon symbol creation in the visitor (if it is a temp value)
-    int register_ = return_search->volatile_register; 
+    // literal expr
+    //   in register
+    // variable
+    //   on stack
+    //   in register
+    // parameter
+    //   in register
 
-    int encoding[4] = {0, 0, 0, 0};
-    if (return_search->is_variable) {
-        auto info = analysis->variable_lifetimes[return_search->identifier];
+    if (return_value->is_variable && return_value->spilled) {
+        // load the variable value into a volatile from the stack using the varlifetime offset
+        builder.add_instruction(OP_LOAD, 6, return_value->spill_offset, builder.blank_encoding);
+        builder.add_instruction(OP_RET, 0);
 
-        if (info.spilled) {
-            // load the variable value into a volatile from the stack using the varlifetime offset
-            add_instruction(OP_LOAD, 6, info.spill_offset, encoding);
-            add_instruction(OP_RET, 0);
-
-            current_procedure.pop();
-
-            return 0;
-        }
-
-        // otherwise the register is not spilled the value should be located at the assigned register
-        register_ = info.register_assignment;
-
-        // move the value into the function return register
-        int digit_encoding[4] = {1, 0, 0, 0};
-        add_instruction(OP_MOV, register_, 6, digit_encoding);
-        add_instruction(OP_RET, 0);
-
-        current_procedure.pop();
+        builder.exit_frame();
 
         return 0;
     }
 
-    // temp values need the sage value moved into a volatile register
-    auto sagevalue = return_search->value;
-    int heap_pointer = interpreter->store_in_heap(sagevalue);
-    add_instruction(OP_MOV, heap_pointer, 6, encoding);
-    add_instruction(OP_RET, 0);
+    // TODO: once we support more than 4 return values then we will need to add logic that checks if the parameter is spilled
 
-    current_procedure.pop();
+    // move the value into the function return register
+    builder.add_instruction(OP_MOV, return_value->assigned_register, 6, builder.first_encoding);
+    builder.add_instruction(OP_RET, 0);
+
+    builder.exit_frame();
 
     return 0;
 }
@@ -91,72 +134,51 @@ ui32 SageCompiler::build_return(ui32 return_value) {
 ui32 SageCompiler::build_function_with_block(
     vector<string> argument_names, string function_name
 ) {
+    // FIX: do we need to merge this with the bytecode builder?
     interpreter->procedure_label_encoding[function_name] = interpreter->procedure_encoding;
     interpreter->procedure_encoding++;
 
-    bytecode code;
+    ui32 symbol_id = symbol_table.lookup_id(function_name);
+    // command procedure_label = command(OP_LABEL, symbol_id, encoding);
 
-    uint32_t symbol_index = symbol_table.symbol_map[function_name];
-    int encoding[4] = {0, 0, 0, 0};
-    command procedure_label = command(OP_LABEL, symbol_index, encoding);
-    code.push_back(procedure_label);
-
-    procedures.push_back(code);
-    current_procedure.push(procedures.size()-1);
+    builder.new_frame(function_name);
+    builder.add_instruction(OP_LABEL, symbol_id, builder.blank_encoding)
 
     return 0;
 }
 
 ui32 SageCompiler::build_alloca(SageType* type, string var_name) {
-    // NOTE: honestly not sure if we need the type variable or not but I think we may need it in the future
-    VariableLifetime lifetime_info = analysis->variable_lifetimes[var_name];
+    SageSymbol* variable = symbol_table.lookup(var_name);
 
-    int encoding[4] = {0, 0, 0, 0};
-    if (lifetime_info.spilled) {
+    if (variable->spilled) {
         // then we can do normal stack stuff
-        add_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1, encoding);
+        builder.add_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1, builder.blank_encoding);
     }
 
     // otherwise its actually stored in a register and we dont' need to do anything
     return 0;
 }
 
-ui32 SageCompiler::build_operator(ui32 _value1, ui32 _value2, SageOpCode opcode) {
-    auto process_operand = [this](ui32 value) {
-        auto symbol = symbol_table.lookup(value);
-        int result_value = symbol->volatile_register;
-        int encoding[4] = {0, 0, 0, 0};
-        if (symbol->is_variable) {
-            // if its a variable then 
-            // find out where variable is stored
-            VariableLifetime info = analyzer->variable_lifetimes[symbol->identifier];
+ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
+    SageSymbol* value1 = symbol_table.lookup(value1_id);
+    SageSymbol* value2 = symbol_table.lookup(value2_id);
+    int value1_register;
+    int value2_register;
 
-            if (!interpreter->volatile_is_stale(symbol, symbol->volatile_register)) {
-                // if the variable has already been loaded into a volatile register that hasn't gone stale
-                // then just use that register
-                return symbol->volatile_register;
-            }
-
-            if (info.spilled) {
-                // load from stack into volatile
-                result_value = interpreter->get_volatile_register();
-                add_instruction(OP_LOAD, result_value, info.spill_offset, encoding);
-            }
-        }
-
-        return result_value;
+    if (value1->spilled) {
+        value1_register = interpreter->get_volatile_register();
+        builder.add_instruction(OP_LOAD, value1_register, value1->spill_offset, builder.blank_encoding);
     }
 
-    // we need to check if the values are variables or temp expression values
-    int value1 = process_operand(_value1);
-    int value2 = process_operand(_value2);
+    if (value2->spilled) {
+        value2_register = interpreter->get_volatile_register();
+        builder.add_instruction(OP_LOAD, value2_register, value2->spill_offset, builder.blank_encoding);
+    }
 
-    int result_volatile = interpreter->get_volatile_register();
+    int result_register = interpreter->get_volatile_register();
+    builder.add_instruction(opcode, result_register, value1_register, value2_register, builder.blank_encoding);
 
-    int encoding[4] = {0, 1, 1, 0};
-    add_instruction(opcode, result_volatile, value1, value2, encoding);
-
-    ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_volatile);
+    ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_register);
     if (result_symbol_id == -1) {
         // ERROR??
         return 0;
@@ -190,27 +212,16 @@ ui32 SageCompiler::build_or(ui32 value1, ui32 value2) {
 }
 
 ui32 SageCompiler::build_load(SageType* type, string reference_name) {
-    VariableLifetime info = analysis->variable_lifetimes[reference_name];
     SageSymbol* symbol = symbol_table.lookup(reference_name);
 
-    if (!interpreter->volatile_is_stale(symbol, symbol->volatile_register)) {
-        // if the value has already been loaded into a volatile that hasn't gone stale then we can just forgo this
-        return 0;
+    if (symbol->spilled) {
+        int volatile_reg = interpreter->get_volatile_register();
+        builder.add_instruction(OP_LOAD, volatile_reg, symbol->spill_offset, builder.blank_encoding);
+        symbol->assigned_regster = volatile_reg;
+        return symbol_table.lookup_id(reference_name);
     }
 
-    if (info.spilled) {
-        // if the variable stored on the stack then we want to load it from the stack like normal
-        auto volatile_reg = interpreter->get_volatile_register();
-        int encoding[4] = {0, 0, 0, 0};
-        add_instruction(OP_LOAD, volatile_reg, info.spill_offset, encoding);
-        symbol->volatile_register = volatile_reg;
-
-    }else {
-        // if the variable stored in a register then we want to do nothing and just return the register
-        symbol->volatile_register = info.register_assignment;
-    }
-
-    return 0;
+    return symbol_table.lookup_id(reference_name);
 }
 
 ui32 SageCompiler::build_constant_int(int value) {
@@ -221,11 +232,11 @@ ui32 SageCompiler::build_constant_int(int value) {
     }
 
     int result_reg = interpreter->get_volatile_register();
-    int encoding[4] = {0, 0, 0, 0};
-    add_instruction(OP_MOV, value, result_reg, encoding);
+    builder.add_instruction(OP_MOV, value, result_reg, builder.blank_encoding);
 
-    symbol_table.symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
+    symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
     // if value was successfully added to the symbol table then it was pushed back to the symbol table in the last spot
     // return static_cast<ui32>(symbol_table.size()-1);
@@ -240,12 +251,12 @@ ui32 SageCompiler::build_constant_float(float value) {
     }
 
     int result_reg = interpreter->get_volatile_register();
-    int heap_pointer = interpreter->store_in_heap(symbol_table.lookup(to_string(value))->value);
-    int encoding[4] = {0, 0, 0, 0};
-    add_instruction(OP_MOV, heap_pointer, result_reg, encoding);
+    int heap_pointer = interpreter->store_in_heap(symbol_table.lookup(to_string(value))->value); // FIX: should use stack instead, but its not majorly important for now
+    builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
 
-    symbol_table.symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
+    symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
     return symbol_table.lookup_id(to_string(value));
 }
@@ -259,122 +270,45 @@ ui32 SageCompiler::build_string_pointer(string value) {
         return symbol_table.lookup_id(value);
     }
     SageValue& symbol =  symbol_table.lookup(value)->value;
-    int heap_pointer = interpreter->store_in_heap(symbol);
+    int heap_pointer = interpreter->store_in_heap(symbol); // FIX: should use stack instead but its not majorly important for now
     int result_reg = interpreter->get_volatile_register();
-    int encoding[4] = {0, 0, 0, 0};
-    add_instruction(OP_MOV, heap_pointer, result_reg, encoding);
+    builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
 
-    symbol_table.symbol_table[symbol_table.size()-1]->volatile_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
+    symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
     return symbol_table.lookup_id(value);
 }
 
-ui32 SageCompiler::build_function_call(
-    vector<ui32> args, string function_name
-) {
-    // if there are more than 6 args then throw and unimplemented error
+ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) {
     if (args.size() > 6) {
-        // ERROR: MORE THAN 6 FUNCTION PARAMETERS UNIMPLEMENTED 
+        // ERROR: MORE THAN 6 FUNCTION PARAMETERS UNIMPLEMENTED
         return 0;
     }
-    // TODO: need to add check for recursive calls so we can make sure to generate bytecode for that case
 
-    // move all args into the argument registers
     SageSymbol* symbol;
-    VariableLifetime info;
-    /*int digit_encoding[4] = {1, 0, 0, 0};*/
-    int encoding[4] = {0, 0, 0, 0};
     for (int i = 0; i < 6; ++i) {
         symbol = symbol_table.lookup(args[i]);
-        // if is variable, if is parameter, if is volatile, if value is not null
-        if (!interpreter->volatile_is_stale(symbol, symbol->volatile_register)) {
-            add_instruction(OP_MOV, symbol->volatile_register, i, encoding);
 
-        }else if (symbol->is_parameter) {
-            // FIX: TODO; we do not properly implement parameter register stack caching yet, so this kind of function call is broken right now
-            // need to save previous function registers onto the stack before calling the next function
-
-        }else if (symbol->is_variable) {
-            // if the volatile register didn't go off
-            // then that means that the variable hasn't been loaded from the stack
-            info = analysis->variable_lifetimes[symbol->identifier];
-            add_instruction(OP_LOAD, i, info.spill_offset, encoding);
-        }else if (!symbol->value.is_null()) {
-            switch (symbol->value.valuetype->identify()) {
-                case I64:
-                    add_instruction(OP_MOV, symbol->value.value.int_value, i, encoding);
-                    break;
-                case F64: {
-                    int heap_pointer = interpreter->store_in_heap(symbol->value);
-                    add_instruction(OP_MOV, heap_pointer, i, encoding);
-                    break;
-                }
-                case BOOL:
-                    add_instruction(OP_MOV, symbol->value.value.bool_value, i, encoding);
-                    break;
-                case CHAR:
-                    add_instruction(OP_MOV, symbol->value.value.char_value, i, encoding);
-                    break;
-                case POINTER:
-                    add_instruction(OP_MOV, symbol->value.value.int_value, i, encoding);
-                    break;
-                case ARRAY:
-                    // TODO:
-                case FUNC:
-                    // TODO:
-                default:
-                    // ERROR: prob a compiler bug
-                    break;
-            }
-
-        }else {
-            // ERROR: i think this would indicate a compiler bug??
-            return 0;
+        if (symbol->spilled) {
+            // is either a parameter or variable
+            int vol_register = interpreter->get_volatile_register();
+            builder.add_instruction(OP_LOAD, vol_register, symbol->spill_offset, builder.blank_encoding);
+            builder.add_instruction(OP_MOV, vol_register, i, builder.blank_encoding);
+            continue;
         }
+
+        builder.add_instruction(OP_MOV, symbol->assigned_register, i, builder.blank_encoding);
     }
 
-    // create call instruction to bytecode procedure
     int procedure_encoding = interpreter->procedure_label_encoding[function_name];
-    add_instruction(OP_CALL, procedure_encoding);
-
+    builder.add_instruction(OP_CALL, procedure_encoding);
     return 0;
 }
 
-ui32 SageCompiler::build_begin() {
-    add_instruction(OP_BEGIN_EXECUTION, 0);
-    return 0;
-}
 
-ui32 SageCompiler::build_end() {
-    add_instruction(OP_END_EXECUTION, 0);
 
-    interpreter->load_program(procedures[current_procedure.top()]);
-    interpreter->execute();
-
-    return 0;
-}
-
-void SageCompiler::add_instruction(SageOpCode opcode, int op1) {
-    int encoding[4] = {0, 0, 0, 0};
-    procedures[current_procedure.top()].push_back(command(opcode, op1, encoding));
-}
-
-void SageCompiler::add_instruction(SageOpCode opcode, int op1, int map[4]) {
-    procedures[current_procedure.top()].push_back(command(opcode, op1, map));
-}
-
-void SageCompiler::add_instruction(SageOpCode opcode, int op1, int op2, int map[4]) {
-    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, map));
-}
-
-void SageCompiler::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int map[4]) {
-    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, op3, map));
-}
-
-void SageCompiler::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4, int map[4]) {
-    procedures[current_procedure.top()].push_back(command(opcode, op1, op2, op3, op4, map));
-}
 
 
 

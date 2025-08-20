@@ -12,10 +12,15 @@
 #include "interpreter.h"
 #include "node_manager.h"
 #include "symbols.h"
-#include "analyzer.h"
+#include "bytecode_builder.h"
 #include "sage_bytecode.h"
 
 #define ui32 uint32_t
+#define ui64 uint64_t
+
+#define GENERAL_REGISTER_COUNT 100
+#define GENERAL_REG_RANGE_BEGIN 24
+#define GENERAL_REG_RANGE_END 124
 
 enum debug_level {
   NONE,
@@ -33,13 +38,9 @@ public:
   NodeManager* node_manager;
   SageParser parser;
   SageInterpreter* interpreter;
-  SageAnalyzer* analyzer;
   SageSymbolTable symbol_table;
-
-  stack<int> current_procedure;
-  vector<bytecode> procedures; // global space is the first element in this array
-
-  bytecode runtime_bytecode;
+  BytecodeBuilder builder;
+  set<NodeIndex> precompiled;
 
   SageCompiler();
   SageCompiler(string mainfile);
@@ -49,20 +50,14 @@ public:
   NodeIndex parse_codefile(string target_file);
 
   void begin_compilation(string mainfile);
-  bool compile(NodeIndex ast);
+  bytecode compile(bool& success, NodeIndex ast);
   /*bool emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 
-  IdentNode* resolve_identifier_dependencies(NodeIndex node);
-
-  void add_instruction(SageOpCode, int);
-  void add_instruction(SageOpCode, int, int[4]);
-  void add_instruction(SageOpCode, int, int, int[4]);
-  void add_instruction(SageOpCode, int, int, int, int[4]);
-  void add_instruction(SageOpCode, int, int, int, int, int[4]);
+  DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int);
+  void register_allocation(DependencyGraph*);
+  bool node_is_precompiled(NodeIndex);
   ui32 process_expression(NodeIndex);
 
-  ui32 build_begin();
-  ui32 build_end();
   ui32 build_store(ui32 rhs, string variable_symbol);
   ui32 build_return(ui32);
   ui32 build_function_with_block(vector<string>, string);
@@ -81,12 +76,12 @@ public:
   ui32 build_operator(ui32, ui32, SageOpCode);
 
   ui32 visit_function_return(ui32);
-  ui32 visit_program(NodeIndex);
+  // ui32 visit_program(NodeIndex);
   ui32 visit_variable_decl(NodeIndex);
   ui32 visit_function_declaration(NodeIndex);
   ui32 visit_function_definition(NodeIndex);
   ui32 visit_function_call(NodeIndex);
-  ui32 visit_codeblock(NodeIndex);
+  ui32 visit_codeblock(NodeIndex, DependencyGraph* depgraph = nullptr);
   ui32 visit_trinary_expr(NodeIndex);
   ui32 visit_binary_expr(NodeIndex);
   ui32 visit_expression(NodeIndex);
