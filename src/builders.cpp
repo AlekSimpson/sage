@@ -30,7 +30,7 @@ void BytecodeBuilder::reset() {
     procedures.clear();
     procedure_stack = stack<int>();
 
-    procedures[0] = procedure_frame("global", bytecode());
+    procedures[0] = procedure_frame("global");
     procedure_stack.push(0);
 }
 
@@ -39,27 +39,41 @@ int BytecodeBuilder::current_id() {
 }
 
 bytecode BytecodeBuilder::final() {
-    // TODO:
+    bytecode result;
+    result.reserve(total_instruction_count);
+    bytecode current_instructions;
+    for (int i = 0; i < procedures.size(); ++i) {
+        current_instructions = procedures[i].procedure_instructions;
+        result.insert(
+            result.end(),
+            current_instructions.begin(), current_instructions.end());
+    }
+    return result;
 }
 
 void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1) {
     procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, blank_encoding));
+    total_instruction_count++;
 }
 
 void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int (&map)[4]) {
     procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, map));
+    total_instruction_count++;
 }
 
 void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int (&map)[4]) {
     procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, map));
+    total_instruction_count++;
 }
 
 void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int (&map)[4]) {
     procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, map));
+    total_instruction_count++;
 }
 
 void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4, int (&map)[4]) {
     procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, op4, map));
+    total_instruction_count++;
 }
 
 
@@ -72,7 +86,7 @@ ui32 SageCompiler::build_store(ui32 rhs, string variable_symbol) {
     int stored_value = expr_symbol->assigned_register;
     if (expr_symbol->assigned_register == -1) {
         stored_value = 0;
-        // ERROR!!: GOOD SPOT FOR LOGGING MONITORING, THIS SHOULDNT TRIGGER EVER
+        logger.log_internal_error("builders.cpp", 89, "this statement should never be triggered!!");
     }
 
     if (var_symbol->spilled) {
@@ -81,7 +95,7 @@ ui32 SageCompiler::build_store(ui32 rhs, string variable_symbol) {
     }
 
     // otherwise the variable is stored in a register
-    builder.add_instruction(OP_MOV, stored_value, var_symbol->assigned_register, builder.first_encoding)
+    builder.add_instruction(OP_MOV, stored_value, var_symbol->assigned_register, builder.first_encoding);
 
     return 0;
 }
@@ -92,7 +106,7 @@ ui32 SageCompiler::build_return(ui32 return_value_id) {
     // return value into sr6 because sr6 is the first 
     // return register.
 
-    if (return_value == -1) {
+    if (return_value_id == -1) {
         // there is no value to return
         builder.add_instruction(OP_RET, 0);
         builder.exit_frame();
@@ -142,7 +156,7 @@ ui32 SageCompiler::build_function_with_block(
     // command procedure_label = command(OP_LABEL, symbol_id, encoding);
 
     builder.new_frame(function_name);
-    builder.add_instruction(OP_LABEL, symbol_id, builder.blank_encoding)
+    builder.add_instruction(OP_LABEL, symbol_id, builder.blank_encoding);
 
     return 0;
 }
@@ -162,8 +176,8 @@ ui32 SageCompiler::build_alloca(SageType* type, string var_name) {
 ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
     SageSymbol* value1 = symbol_table.lookup(value1_id);
     SageSymbol* value2 = symbol_table.lookup(value2_id);
-    int value1_register;
-    int value2_register;
+    int value1_register = value1->assigned_register;
+    int value2_register = value2->assigned_register;
 
     if (value1->spilled) {
         value1_register = interpreter->get_volatile_register();
@@ -179,11 +193,6 @@ ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opc
     builder.add_instruction(opcode, result_register, value1_register, value2_register, builder.blank_encoding);
 
     ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_register);
-    if (result_symbol_id == -1) {
-        // ERROR??
-        return 0;
-    }
-
     return result_symbol_id;
 }
 
@@ -217,7 +226,7 @@ ui32 SageCompiler::build_load(SageType* type, string reference_name) {
     if (symbol->spilled) {
         int volatile_reg = interpreter->get_volatile_register();
         builder.add_instruction(OP_LOAD, volatile_reg, symbol->spill_offset, builder.blank_encoding);
-        symbol->assigned_regster = volatile_reg;
+        symbol->assigned_register = volatile_reg;
         return symbol_table.lookup_id(reference_name);
     }
 
@@ -283,7 +292,7 @@ ui32 SageCompiler::build_string_pointer(string value) {
 
 ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) {
     if (args.size() > 6) {
-        // ERROR: MORE THAN 6 FUNCTION PARAMETERS UNIMPLEMENTED
+        logger.log_internal_error("builders.cpp", 295, str(function_name, " with more than 6 arguments is unimplemented."));
         return 0;
     }
 

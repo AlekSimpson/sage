@@ -1,3 +1,5 @@
+#pragma once
+
 #include "sage_types.h"
 
 #define ui64 uint64_t

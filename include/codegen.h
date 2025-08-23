@@ -8,12 +8,15 @@
 // #include <llvm/IR/Module.h>
 // #include <llvm/IR/IRBuilder.h>
 
+#include "error_logger.h"
 #include "parser.h"
 #include "interpreter.h"
 #include "node_manager.h"
 #include "symbols.h"
 #include "bytecode_builder.h"
 #include "sage_bytecode.h"
+#include "depgraph.h"
+#include "ascending_list.h"
 
 #define ui32 uint32_t
 #define ui64 uint64_t
@@ -24,11 +27,18 @@
 
 enum debug_level {
   NONE,
-  LEXING, // TODO: still no way to get lexer debug output
   PARSING,
   COMPILATION,
   ALL
 };
+
+struct comptime_ast_bookmark {
+  DependencyGraph* graph;
+  NodeIndex ast_position;
+  int scope_level;
+};
+
+int ast_bookmark_sorter(comptime_ast_bookmark mark);
 
 class SageCompiler {
 public:
@@ -36,11 +46,13 @@ public:
   debug_level debug;
 
   NodeManager* node_manager;
+  ErrorLogger& logger = ErrorLogger::get();
   SageParser parser;
   SageInterpreter* interpreter;
   SageSymbolTable symbol_table;
   BytecodeBuilder builder;
   set<NodeIndex> precompiled;
+  ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
 
   SageCompiler();
   SageCompiler(string mainfile);
@@ -50,10 +62,11 @@ public:
   NodeIndex parse_codefile(string target_file);
 
   void begin_compilation(string mainfile);
-  bytecode compile(bool& success, NodeIndex ast);
+  bytecode compile(NodeIndex ast, DependencyGraph* graph);
   /*bool emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 
-  DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int);
+  vector<string> get_expression_identifiers(NodeIndex root);
+  DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
   void register_allocation(DependencyGraph*);
   bool node_is_precompiled(NodeIndex);
   ui32 process_expression(NodeIndex);

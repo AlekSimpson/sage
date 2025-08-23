@@ -1,11 +1,8 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <unordered_set>
-#include <memory>
+#include <set>
 #include <stack>
-#include <uuid/uuid.h>
-// #include <format>
 #include <algorithm>
 
 #include "../include/symbols.h"
@@ -66,7 +63,7 @@ void SageSymbolTable::initialize() {
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, SageValue value) {
-    unordered_set<string>& current_scope = symbol_stack.top();
+    set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
@@ -87,7 +84,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageValue value) 
 }
 
 successful SageSymbolTable::declare_symbol(const string& name, SageType* valuetype) {
-    unordered_set<string>& current_scope = symbol_stack.top();
+    set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
@@ -105,8 +102,28 @@ successful SageSymbolTable::declare_symbol(const string& name, SageType* valuety
     return true;
 }
 
+bool SageSymbolTable::declare_symbol(const string& name, int reg) {
+    set<string>& current_scope = symbol_stack.top();
+
+    auto search = current_scope.find(name);
+    if (search != current_scope.end()) {
+        return false;
+    }
+
+    current_scope.insert(name);
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->type = nullptr;
+    new_symbol->assigned_register = reg;
+    new_symbol->identifier = name;
+
+    symbol_table.push_back(new_symbol);
+    symbol_map[name] = symbol_table.size() - 1;
+
+    return true;
+}
+
 successful SageSymbolTable::declare_type_symbol(const string& name, SageType* type) {
-    unordered_set<string>& current_scope = symbol_stack.top();
+    set<string>& current_scope = symbol_stack.top();
 
     auto search = current_scope.find(name);
     if (search != current_scope.end()) {
@@ -129,7 +146,7 @@ successful SageSymbolTable::declare_type_symbol(const string& name, SageType* ty
 uint32_t SageSymbolTable::declare_internal_symbol(int register_value) {
     SageSymbol* new_symbol = new SageSymbol;
     new_symbol->is_variable = false;
-    new_symbol->volatile_register = register_value;
+    new_symbol->assigned_register = register_value;
     new_symbol->identifier = "temp_" + to_string(symbol_table.size());
     
     symbol_table.push_back(new_symbol);
@@ -186,7 +203,7 @@ SageSymbol* SageSymbolTable::lookup(const string& name) {
 }
 
 SageSymbol* SageSymbolTable::lookup(uint32_t id) {
-    if (id < 0 || id >= symbol_table.size()) {
+    if (id >= symbol_table.size()) {
         return nullptr;
     }
 
@@ -229,3 +246,4 @@ SageType* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex typ
 int SageSymbolTable::size() {
     return symbol_table.size();
 }
+

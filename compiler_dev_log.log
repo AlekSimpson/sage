@@ -1,0 +1,4 @@
+[31m[1minternal error: [0m[1mAST root was null. Parsing failed.[0m
+[34m --> [0mcompiler.cpp:75:0
+[31m[1minternal error: [0m[1mgenerate_ident_dependencies recieved null cursor or cursor was a BLOCK type.[0m
+[34m --> [0mcompiler.cpp:160:0

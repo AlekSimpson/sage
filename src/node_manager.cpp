@@ -223,11 +223,12 @@ NodeIndex NodeManager::reach_right(NodeIndex node, int reach_depth) {
         return NULL_INDEX;
     }
 
-    AbstractParseNode* parsenode = box.node;
     auto hosttype = box.host_type;
     if (hosttype == PN_BINARY || hosttype == PN_TRINARY) {
         return reach_right(get_right(node), reach_depth-1);
     }
+
+    return NULL_INDEX;
 }
 
 vector<NodeIndex> NodeManager::get_children(NodeIndex node) {

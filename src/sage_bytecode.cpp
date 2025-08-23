@@ -1,6 +1,5 @@
 #include <cstdint>
 #include <vector>
-#include <utility>
 
 #include "../include/sage_bytecode.h"
 

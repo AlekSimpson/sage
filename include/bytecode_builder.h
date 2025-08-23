@@ -7,6 +7,7 @@ struct procedure_frame {
   string name;
   bytecode procedure_instructions;
 
+  procedure_frame() : name("") {}
   procedure_frame(string name) : name(name) {}
 };
 
@@ -15,6 +16,7 @@ struct BytecodeBuilder {
   stack<int> procedure_stack;
   int blank_encoding[4] = {0, 0, 0, 0};
   int first_encoding[4] = {1, 0, 0, 0};
+  int total_instruction_count = 0;
 
   BytecodeBuilder();
 

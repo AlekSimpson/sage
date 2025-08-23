@@ -1,13 +1,16 @@
 #include "../include/depgraph.h"
-#include "../include/asending_list.h"
+#include "../include/ascending_list.h"
+#include "../include/error_logger.h"
 #include <map>
 #include <string>
 #include <set>
 #include <stack>
 #include <queue>
 
-DependencyGraph::DependencyGraph() : scopename("none"), scope_level(0), errors_exist(false) {}
-DependencyGraph::DependencyGraph(string scopename, int scope_level) : scopename(scopename), scope_level(scope_level), errors_exist(false) {}
+DependencyGraph::DependencyGraph() : man(nullptr), parent_scope(nullptr), scopename("none"), scope_level(0), errors_exist(false) {}
+
+DependencyGraph::DependencyGraph(NodeManager* man, string scopename, int scope_level, set<string>* parent_scope)
+: man(man), parent_scope(parent_scope), scopename(scopename), scope_level(scope_level), errors_exist(false) {}
 
 DependencyGraph::~DependencyGraph() {
     for (auto [key, value] : nodes) {
@@ -21,8 +24,11 @@ u64 DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
     if (nodename_map.find(name) == nodename_map.end()) {
         auto id = nodename_map[name];
         if (type == INI && nodes[id].type == INI) {
-            errors_exist = true;
-            // ERROR!! LOG ERROR
+            auto token = man->get_token(ast_pos);
+            ErrorLogger::get().log_error(
+                token,
+                str("redefinition of ", name, " is not allowed"), 
+                GENERAL);
         }
 
         nodes[id].type = type;
@@ -45,8 +51,11 @@ u64 DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
         auto id = nodename_map[name];
         // if we are initializing a new node and the existing node is not just a reference
         if (type == INI && nodes[id].type == INI) {
-            errors_exist = true;
-            // ERROR!! LOG ERROR
+            auto token = man->get_token(ast_pos);
+            ErrorLogger::get().log_error(
+                token,
+                str("redefinition of ", name, " is not allowed"), 
+                GENERAL);
         }
 
         local_scope.insert(name);
@@ -63,8 +72,8 @@ u64 DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
     nodes[new_id] = info;
     connections[new_id] = set<u64>();
     nodename_map[name] = new_id;
-    if (owned_scope.scope_level < 0) {
-        comptime_nodes.insert(id);
+    if (owned_scope->scope_level < 0) {
+        comptime_nodes.insert(new_id);
     }
 
     return new_id;
@@ -107,26 +116,14 @@ int DependencyGraph::get_in_degree(const u64 id) {
 }
 
 bool DependencyGraph::dependencies_are_valid() {
-    bool result = true;
-    
-    auto found_error = [this, result]() {
-        // lets us continue to scan for all errors in a graph instead of returning the result on the first error found
-        if (result) {
-            result = false;
-        }
-    }
-
-    if (errors_exist) {
-        // ERROR!!
-        // an initialization of the same variable occurred twice
-        found_error();
-    }
-
     for (const auto& [key, value] : nodes) {
         // all in degree 0 nodes are of type INI
         if (get_in_degree(key) == 0 && value.type == REF) {
-            // ERROR!!
-            found_error();
+            auto token = man->get_token(value.ast_pos);
+            ErrorLogger::get().log_error(
+                token,
+                str("undefined reference, ", value.name),
+                GENERAL);
         }
     }
 
@@ -141,23 +138,22 @@ bool DependencyGraph::dependencies_are_valid() {
         fringe.pop();
 
         explored.insert(walk);
-        if (nodes[walk].owned_scope != nullptr && !nodes[walk].owned_scope.dependencies_are_valid()) {
-            found_error();
-        }
 
         set<u64>& neighbors = get_dependents(walk);
         for (u64 id : neighbors) {
             if (explored.find(id) != explored.end()) {
-                // FOUND A CYCLE
-                // ERROR!!
-                found_error();
+                auto token = man->get_token(nodes[id].ast_pos);
+                ErrorLogger::get().log_error(
+                    token,
+                    str(nodes[id].name, " is a circular defintion. Circular defintions are not allowed."),
+                    GENERAL);
                 continue;
             }
             fringe.push(id);
         }
     }
 
-    return result;
+    return ErrorLogger::get().has_errors();
 }
 
 void DependencyGraph::merge_with(DependencyGraph& subscope) {
@@ -181,7 +177,7 @@ void DependencyGraph::merge_with(DependencyGraph& subscope) {
                 auto nodevalue = subscope.nodes[dependent];
                 add_connection(walknode.name, nodevalue.name);
             }
-            nodes[walknode.name].merge(walknode);
+            nodes[nodename_map[walknode.name]].merge(walknode);
         }else {
             add_node(walknode.name, walknode.type, walknode.ast_pos);
         }
@@ -196,7 +192,7 @@ void DependencyGraph::merge_with(DependencyGraph& subscope) {
 }
 
 vector<u64> DependencyGraph::get_exec_order() {
-    auto order = ascending_list<u64>(nodes.size());
+    ascending_list<u64> order = ascending_list<u64>(nodes.size());
     set<u64> explored;
     stack<u64> indeg_zero;
     queue<u64> fringe;
@@ -207,6 +203,10 @@ vector<u64> DependencyGraph::get_exec_order() {
             indeg_zero.push(id);
         }
     }
+
+    auto node_sorter = [this](u64 id) {
+        return this->get_in_degree(id);
+    };
 
     while (explored.size() < nodes.size()) {
         if (fringe.size() == 0) {
@@ -221,8 +221,7 @@ vector<u64> DependencyGraph::get_exec_order() {
         walk = fringe.front();
         fringe.pop();
 
-        // sorted_insert(order, walk);
-        order.insert(walk, this->get_in_degree);
+        order.insert(walk, node_sorter);
 
         set<u64>& neighbors = get_dependents(walk);
         for (u64 id : neighbors) {
@@ -237,12 +236,12 @@ vector<u64> DependencyGraph::get_exec_order() {
 }
 
 int DependencyGraph::partition(vector<u64>* buffer, int low, int high) {
-    u64 pivot = buffer[high];
+    u64 pivot = (*buffer)[high];
     int pivot_priority = nodes[pivot].get_sort_value();
     int i = low - 1;
 
     for (int j = low; j < high; ++j) {
-        if (nodes[buffer[j]].get_sort_value() <= pivot_priority) {
+        if (nodes[(*buffer)[j]].get_sort_value() <= pivot_priority) {
             i++;
             std::swap(buffer[i], buffer[j]);
         }
@@ -254,30 +253,13 @@ int DependencyGraph::partition(vector<u64>* buffer, int low, int high) {
 void DependencyGraph::quicksort(vector<u64>* buffer, int low, int high) {
     if (low < high) {
         int pivot_index = partition(buffer, low, high);
-        quicksort(arr, low, pivot_index - 1);
-        quicksort(arr, pivot_index + 1, high);
+        quicksort(buffer, low, pivot_index - 1);
+        quicksort(buffer, pivot_index + 1, high);
     }
 }
 
 void DependencyGraph::quicksort(vector<u64>* buffer) {
     quicksort(buffer, 0, buffer->size()-1);
-}
-
-vector<NodeIndex> DependencyGraph::get_comptime_exec_order() {
-    vector<NodeIndex> output;
-    vector<NodeIndex> next_lower_scope;
-
-    for (const auto [id, node] : nodes) {
-        if (comptime_nodes.find(id) == comptime_nodes.end()) {
-            output.push_back(node.ast_pos);
-        }
-        if (node.owned_scope != nullptr) {
-            next_lower_scope = node.owned_scope->get_comptime_exec_order(); 
-            output.insert(output.end(), next_lower_scope.begin(), next_lower_scope.end());
-        }
-    }
-
-    return output;
 }
 
 u64 IdentNode::get_id() {
@@ -288,8 +270,12 @@ void IdentNode::merge(IdentNode& node) {
     high_priority = node.high_priority;
     reference_count = reference_count + node.reference_count;
     if (type == REF && node.type == INI) {
-        // (report)ERROR: variable declared in child scope referenced in the parent scope
-        return;
+        auto astnode = node.ast_pos;
+        auto token = man->get_token(astnode);
+        ErrorLogger::get().log_error(
+            token,
+            str("Variable (",node.name,") declared in child scope, referenced in parent scope."),
+            GENERAL);
     }
 }
 

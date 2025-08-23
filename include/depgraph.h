@@ -2,7 +2,6 @@
 
 #include <map>
 #include <string>
-#include "cfg.h"
 #include "node_manager.h"
 #include <set>
 #include <stack>
@@ -19,23 +18,11 @@ enum dep_type {
   REF
 };
 
-struct IdentNode {
-  string name;
-  dep_type type;
-  NodeIndex ast_pos = -1;
-  int degree = 0;
-  DependencyGraph* owned_scope = nullptr;
-  int reference_count = 1;
-  int sort_value = -1;
-  int instruction_freq = 0;
-
-  u64 get_id();
-  void merge(IdentNode& node);
-  int get_sort_value();
-};
+struct IdentNode;
 
 // root of this tree represents the runtime portion of the code
 struct DependencyGraph {
+  NodeManager* man;
   set<string>* parent_scope;
   set<string> local_scope;
   set<u64> comptime_nodes;
@@ -46,7 +33,7 @@ struct DependencyGraph {
   int scope_level;
   bool errors_exist; // used to flip when errors are reported during the graph build process
 
-  DependencyGraph(string, int, set<string>*);
+  DependencyGraph(NodeManager*, string, int, set<string>*);
   DependencyGraph();
   ~DependencyGraph();
 
@@ -54,13 +41,29 @@ struct DependencyGraph {
   u64 add_node(string ident_name, dep_type type, NodeIndex ast_pos);
   void add_connection(const string& dependency, const string& dependent);
   vector<u64> get_exec_order();
-  vector<DependencyGraph*> get_comptime_exec_order();
   set<u64>& get_dependents(u64);
   bool dependencies_are_valid();
   int get_in_degree(u64);
   void load_fringe(stack<u64>& fringe);
-
   void merge_with(DependencyGraph& related_graph); // used to merge graphs that depend on each other for identifiers
-
+  void quicksort(vector<u64>*, int, int);
+  void quicksort(vector<u64>*);
+  int partition(vector<u64>*, int, int);
 };
 
+struct IdentNode {
+  string name;
+  dep_type type;
+  NodeIndex ast_pos = -1;
+  int degree = 0;
+  DependencyGraph* owned_scope = nullptr;
+  int reference_count = 1;
+  int sort_value = -1;
+  int instruction_freq = 0;
+  bool high_priority = false;
+  NodeManager* man = nullptr;
+
+  u64 get_id();
+  void merge(IdentNode& node);
+  int get_sort_value();
+};

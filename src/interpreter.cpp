@@ -3,8 +3,8 @@
 
 #include "../include/interpreter.h"
 #include "../include/sage_types.h"
-#include "../include/node_manager.h"
 #include "../include/registers.h"
+#include "../include/error_logger.h"
 
 
 // StackFrame
@@ -19,7 +19,7 @@ StackFrame::StackFrame()
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() {}
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
 
 SageInterpreter::SageInterpreter(int stack_size) {
     stack.reserve(stack_size);
@@ -31,7 +31,7 @@ SageInterpreter::SageInterpreter(int stack_size) {
 void SageInterpreter::push_stack_scope() {
     int32_t return_address = unpack_int(registers[STACK_POINTER]); 
     if (return_address + 1 == stack.size()) {
-	// ERROR: STACKOVERFLOW !!!!
+        ErrorLogger::get().log_error("", -1, "stackoverflow (todo: make this error better)", GENERAL);
         return;
     }
 
@@ -215,7 +215,7 @@ void SageInterpreter::execute_syscall() {
 }
 
 void SageInterpreter::execute() {
-    registers[program_pointer] = pack_int(0);
+    program_pointer = pack_int(0);
     registers[STACK_POINTER] = pack_int(0);
 
     command current_command = program[0];
@@ -290,7 +290,8 @@ void SageInterpreter::execute() {
             case OP_NOP:
                 break;
             default:
-                // ERROR
+                ErrorLogger::get().log_internal_error("interpreter.cpp", 293, "VM tried to execute unrecognized bytecode"); 
+                reached_end = true;
                 break;
         }
 
@@ -310,6 +311,7 @@ void SageInterpreter::close() {
     if (frame_pointer != nullptr) {
         if (frame_pointer->previous_frame == nullptr) {
             delete frame_pointer;
+            return;
         }
 
         StackFrame* above = nullptr;

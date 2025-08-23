@@ -6,52 +6,12 @@
 #include "../include/sage_types.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
+#include "../include/depgraph.h"
 
 using namespace std;
 
-// ui32 SageCompiler::visit_program(NodeIndex node) {
-//     ui32 retval = -1;
-//     for (NodeIndex child : node_manager->get_children(node)) {
-//         switch(node_manager->get_nodetype(child)){
-//             case PN_FUNCDEF:
-//                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
-//                     // ERROR!! CHILD SHOULD BE A BINARY NODE
-//                     return -1;
-//                 }
-//                 retval = visit_function_definition(child);
-//                 break;
-// 
-//             case PN_FUNCDEC:
-//                 if (node_manager->get_host_nodetype(child) != PN_BINARY) {
-//                     // ERROR!! CHILD SHOULD BE A BINARY NODE
-//                     return -1;
-//                 }
-//                 retval = visit_function_declaration(child);
-//                 break;
-// 
-//             case PN_STRUCT:
-//                 break;
-//             case PN_INCLUDE:
-//                 break;
-//             case PN_RUN_DIRECTIVE: {
-//                 if (node_is_precompiled(child)) {
-//                     continue;
-//                 }
-// 
-//                 visit_codeblock(node_manager->get_branch(child));
-//                 break;
-//             }
-//             default:
-//                 // ERROR
-//                 break;
-//         }
-//     }
-// 
-//     return retval;
-// }
-
 ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* depgraph) {
-    auto visit = [this](NodeIndex child) {
+    auto visit = [this](NodeIndex child) -> ui32 {
         switch (node_manager->get_host_nodetype(child)) {
             case PN_UNARY:
                 return visit_unary_expr(child);
@@ -63,8 +23,6 @@ ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* depgraph) {
                 return visit_trinary_expr(child);
 
             default:
-                // TODO: the error system should have builtin logging capabilities for internal stuff like this to help ourself debug internal compiler issues
-                printf("unrecognized expression node: %s\n", nodetype_to_string(node_manager->get_nodetype(child)).c_str());
                 return 0;
         }
     };
@@ -108,7 +66,8 @@ ui32 SageCompiler::visit_function_declaration(NodeIndex node) {
     //      - unary <-- function return type
 
     if (node_manager->get_host_nodetype(node_manager->get_right(node)) != PN_BINARY) {
-        // ERROR!!
+        string message = str("Node: ", node, " was found to not be a BINARY node when visit_function_declaration requires it");
+        logger.log_internal_error("codegen.cpp", 113, message);
         return -1;
     }
     NodeIndex rightnode = node_manager->get_right(node);
@@ -137,7 +96,8 @@ ui32 SageCompiler::visit_function_declaration(NodeIndex node) {
 
     // add to symbol table
     if (symbol_table.declare_symbol(function_name, function_type)) {
-        // ERROR!!
+        string message = str("visit_function_declaration tried to declare a function symbol (", function_name,") that already existed.");
+        logger.log_internal_error("codegen.cpp", 143, message);
         return -1;
     }
 
@@ -152,7 +112,7 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
     NodeIndex trinary_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(trinary_node);
     if (right_host != PN_TRINARY) {
-        // ERROR!!
+        logger.log_internal_error("codegen.cpp", 158, str("visitor expected node (",node,") to be TRINARY, instead was: ", right_host));
         return -1; 
     }
     
@@ -169,13 +129,13 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
     SageType* param_type;
     for (NodeIndex parameter : parameters) {
         if (node_manager->get_host_nodetype(parameter) != PN_BINARY) {
-            // ERROR!! SOMETHING IS WRONG PARAMETERS SHOULD NEVER BE STORED AS ANYTHING OTHER THAN BINARY NODES
+            logger.log_internal_error("codegen.cpp", 175, str("expected param node to be BINARY"));
             return -1;
         }
 
         right_side = node_manager->get_right(parameter);
         if (node_manager->get_host_nodetype(right_side) != PN_UNARY) {
-            // ERROR!! TYPE CANNOT BE REPRESENTED BY ANYTHING OTHER THAN UNARY FOR NOW
+            logger.log_internal_error("codegen.cpp", 181, str("expected type node to be UNARY"));
             return -1;
         }
         param_type = symbol_table.resolve_sage_type(node_manager, right_side);
@@ -185,7 +145,7 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
         parameter_names.push_back(parameter_name);
         already_exists = symbol_table.declare_symbol(parameter_name, param_type);
         if (already_exists) {
-            // ERROR!!
+            logger.log_internal_error("codegen.cpp", 191, str("tried to declare parameter that already existed: ", parameter_name));
             return -1;
         }
 
@@ -194,7 +154,7 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
 
     auto return_node = node_manager->get_middle(trinary_node);
     if (node_manager->get_host_nodetype(return_node) != PN_UNARY) {
-        // ERROR!! TYPES ONLY REPRESENTED BY UNARY NODES RIGHT NOW
+        logger.log_internal_error("codegen.cpp", 200, str("expected type node to be UNARY"));
         return -1;
     }
     SageType* return_type = symbol_table.resolve_sage_type(node_manager, return_node);
@@ -203,13 +163,13 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
 
     auto body_node = node_manager->get_right(trinary_node);
     if (node_manager->get_host_nodetype(body_node) != PN_BLOCK) {
-        // ERROR!! RIGHT NODE OF FUNC DEF NODE SHOULD ONLY EVER BE A BLOCK NODE
+        logger.log_internal_error("codegen.cpp", 209, str("right of FUNCDEF was not BLOCK"));
         return -1;
     }
 
     auto function_type = TypeRegistery::get_function_type(return_types, parameter_types);
     if (symbol_table.declare_symbol(function_name, function_type)) {
-        // ERROR!!!
+        logger.log_internal_error("codegen.cpp", 215, str("tried to declare function that already exists: ", function_name));
         return -1;
     }
 
@@ -220,7 +180,11 @@ ui32 SageCompiler::visit_function_definition(NodeIndex node) {
     SageType* voidtype = TypeRegistery::get_builtin_type(VOID);
     if (!symbol_table.current_function_has_returned) {
         if (!return_type->match(voidtype)) {
-            // ERROR: function was defined with no return statement
+            auto token = node_manager->get_token(node);
+            logger.log_error(
+                token,
+                str("function (",function_name,") missing return statement"),
+                GENERAL);
             symbol_table.pop_scope();
             return -1;
         }else {
@@ -241,21 +205,19 @@ ui32 SageCompiler::visit_function_call(NodeIndex node) {
     // retrieve function from symbol table
     SageSymbol* symbol = symbol_table.lookup(func_call_name);
     if (symbol == nullptr) {
-        // ERROR!!
+        logger.log_internal_error("codegen.cpp", 247, str(func_call_name, " was already defined"));
         return -1;
     }
 
     for (NodeIndex arg : node_manager->get_children(args_node)) {
         // TODO:varargs breaks this kinda, fix later
         //if (index >= args_node->children.size()) {
-        //    // ERROR!!
         //    return nullptr;
         //}
 
         // TODO: varargs breaks this kinda, fix later
         // auto irtype = symbol_table.derive_sage_type(unaryarg);
         //if (irtype != symbol->type->getParamType(index)) {
-        //    // ERROR!!
         //    return;
         //}
 
@@ -274,7 +236,7 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
         case PN_IDENTIFIER:
             symbol_value = symbol_table.lookup(node_lexeme);
             if (symbol_value == nullptr) {
-                // ERROR!!
+                logger.log_internal_error("codegen.cpp", 281, str("symbol_value was nullptr"));
                 return -1;
             }
 
@@ -286,7 +248,7 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
                     visit_expression(node_manager->get_branch(node))
                 );
             }
-            // ERROR: NOT IMPLEMENTED YET
+            logger.log_internal_error("codegen.cpp", 293, str("keyword unimplemented: ", node_manager->get_lexeme(node)));
             break;
 
         case PN_ELSE_BRANCH:
@@ -297,7 +259,7 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
 
         case PN_STRUCT:
             // leaving this print statement here to see if we even actually need this case, it might never actually be called in practice
-            printf("VISITING UNARY PN_STRUCT TYPE; UNIMPLEMENTED!!\n");
+            logger.log_internal_error("codegen.cpp", 304, str("unimplemented: visiting unary STRUCT type"));
             break;
 
         case PN_FUNCCALL:
@@ -316,13 +278,12 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
             return build_string_pointer(node_lexeme);
 
         case PN_LIST:
-            // TODO: later
+            logger.log_internal_error("codegen.cpp", 323, str("LIST type unimplemented"));
             break;
         default:
             break;
     }
 
-    // ERROR
     return -1;
 }
 
@@ -341,7 +302,6 @@ ui32 SageCompiler::visit_trinary_expr(NodeIndex node) {
             break;
 
         default:
-            printf("Found unrecognized node when visiting trinary.\n");
             return -1;
     }
     
@@ -355,7 +315,7 @@ ui32 SageCompiler::visit_variable_assignment(NodeIndex node) {
     NodeIndex LHS = node_manager->get_left(node);
     SageSymbol* variable_symbol = symbol_table.lookup(node_manager->get_lexeme(LHS));
     if (variable_symbol == nullptr) {
-        // ERROR!!
+        logger.log_internal_error("codegen.cpp", 361, str("variable_symbol was nullptr"));
         return -1;
     }
 
@@ -365,18 +325,13 @@ ui32 SageCompiler::visit_variable_assignment(NodeIndex node) {
     // check expression type against variable type
     SageSymbol* expression_symbol = symbol_table.lookup(RHS);
     if (expression_symbol == nullptr) {
-        // ERROR!! USE OF UNDEFINED SYMBOL
-        printf("Found undefined symbol");
+        logger.log_internal_error("codegen.cpp", 371, str("unrecognized symbol: ", RHS_idx));
         return -1;
     }
 
-    auto variable_type = variable_symbol->type;
-    auto expression_type = expression_symbol->value.valuetype;
-    if (!variable_type->match(expression_type)) {
-        // ERROR: type mismatch
-        return -1;
-    }
-    
+    // auto variable_type = variable_symbol->type;
+    // auto expression_type = expression_symbol->value.valuetype;
+
     return build_store(RHS, variable_symbol->identifier);
 }
 
@@ -405,12 +360,11 @@ ui32 SageCompiler::visit_binary_expr(NodeIndex node) {
         case PN_RANGE:
             break;
         case PN_TYPE:
-            break; // ERROR!! COMPLEX REPRESENTED TYPES DONT EXIST YET
+            break;
         default:
             break;
     }
 
-    // ERROR
     return -1;
 }
 
@@ -424,7 +378,7 @@ ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
         // right is type identifier
         auto rightside = node_manager->get_right(node);
         if (node_manager->get_host_nodetype(rightside) != PN_UNARY) {
-            // ERROR!! FOR NOW NON UNARY REPRESENTED TYPES DONT EXIST
+            logger.log_internal_error("codegen.cpp", 425, str("found type node that is not UNARY (expected to be UNARY)"));
             return -1;
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, rightside);
@@ -432,27 +386,28 @@ ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
         // update symbol table
         successful success = symbol_table.declare_symbol(variable_name, type_ident);
         if (!success) {
-            // ERROR!!
+            logger.log_internal_error("codegen.cpp", 432, str("variable name already declared: ", variable_name));
             return -1;
         }
 
         return build_alloca(type_ident, variable_name);
 
-    }else if (concrete_node_type == PN_TRINARY) {
+    }
+    if (concrete_node_type == PN_TRINARY) {
         // left is variable identifier
         string variable_name = node_manager->get_lexeme(node_manager->get_left(node));
         
         // middle is type identifier
         auto middle = node_manager->get_middle(node);
         if (node_manager->get_host_nodetype(middle) != PN_UNARY) {
-            // ERROR!! FOR NOW NON UNARY REPRESENTED TYPES DONT EXIST
+            logger.log_internal_error("codegen.cpp", 446, str("found type node that is not UNARY (expected to be UNARY)"));
             return -1;
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, middle);
 
         // update symbol table
         if (symbol_table.lookup(variable_name) != nullptr) {
-            // ERROR!! symbol already exists
+            logger.log_internal_error("codegen.cpp", 453, str("variable name already declared: ", variable_name));
             return -1;
         }
 
@@ -465,7 +420,6 @@ ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
         return build_store(rhs, variable_name);
     }
 
-    // ERROR!!
     return -1;
 }
 
@@ -531,8 +485,7 @@ ui32 SageCompiler::process_expression(NodeIndex node) {
             break;
     }
 
-
-    // ERROR!!
+    logger.log_error(operator_tok, str(operator_tok.lexeme, " is not an operator."), SYNTAX);
     return -1;
 }
 
@@ -551,7 +504,6 @@ ui32 SageCompiler::visit_expression(NodeIndex node) {
             break;
     }
     
-    // ERROR!!
     return -1;
 }
 

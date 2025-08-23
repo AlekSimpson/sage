@@ -1,6 +1,4 @@
 #include <string>
-#include <cstdlib>
-#include <cstdio>
 #include <cctype>
 #include <unordered_map>
 #include <fstream>

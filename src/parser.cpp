@@ -2,6 +2,7 @@
 #include "../include/node_manager.h"
 #include "../include/token.h"
 #include "../include/parser.h"
+#include "../include/error_logger.h"
 
 #include <unordered_map>
 #include <stdio.h>

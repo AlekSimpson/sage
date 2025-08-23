@@ -3,9 +3,8 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <unordered_set>
-#include <memory>
 #include <stack>
+#include <set>
 
 #include "node_manager.h"
 #include "sage_types.h"
