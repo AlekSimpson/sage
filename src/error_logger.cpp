@@ -103,15 +103,15 @@ ErrorLogger::ErrorLogger() {
 }
 
 ErrorLogger::~ErrorLogger() {
-    if (internal_errors.size() > 0) {
-        ofstream outfile(outfile_name, ios::app);
-        string fulllog = "";
-        for (int i = 0; i < internal_errors.size(); ++i) {
-            fulllog = fulllog + internal_errors[i]->print();
-        }
-        outfile << fulllog;
-        outfile.close();
-    }
+    // if (internal_errors.size() > 0) {
+    //     ofstream outfile(outfile_name, ios::app);
+    //     string fulllog = "";
+    //     for (int i = 0; i < internal_errors.size(); ++i) {
+    //         fulllog = fulllog + internal_errors[i]->print();
+    //     }
+    //     outfile << fulllog;
+    //     outfile.close();
+    // }
 
     for (int i = 0; i < error_amount + warning_amount; ++i) {
         delete errors[i];
@@ -129,7 +129,7 @@ void ErrorLogger::log_internal_error(
         0,
         INTERNAL);
 
-    internal_errors.push_back(error);
+    errors.push_back(error);
 }
 
 

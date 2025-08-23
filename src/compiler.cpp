@@ -76,13 +76,17 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    if (debug >= COMPILATION) {
-        node_manager->showtree(ast_root);
-    }
+    // if (debug >= COMPILATION) {
+    //     node_manager->showtree(ast_root);
+    // }
 
     // 1. program static analysis
     set<string> parent_scope;
     auto dep_graph = generate_ident_dependencies(ast_root, "global", 0, &parent_scope);
+    if (dep_graph == nullptr) {
+        logger.report_errors();
+        return;
+    }
     if (!dep_graph->dependencies_are_valid()) {
         logger.report_errors();
         return;
@@ -113,6 +117,8 @@ void SageCompiler::begin_compilation(string mainfile) {
         logger.report_errors();
         return;
     }
+
+    delete dep_graph;
 
     ///////////////
     interpreter->load_program(code);
@@ -185,8 +191,13 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
     int scopelevel,
     set<string>* parent_scope
 ) {
-    if (cursor != NULL_INDEX && node_manager->get_host_nodetype(cursor) != PN_BLOCK) {
-        logger.log_internal_error("compiler.cpp", 160, "generate_ident_dependencies recieved null cursor or cursor was a BLOCK type.");
+    if (cursor == NULL_INDEX) {
+        logger.log_internal_error("compiler.cpp", 195, "generate_ident_dependencies recieved null cursor");
+        return nullptr;
+    }
+    if (node_manager->get_host_nodetype(cursor) != PN_BLOCK) {
+        string message = str("generate_ident_dependencies: param cursor expected to be BLOCK type, instead was", nodetype_to_string(node_manager->get_host_nodetype(cursor)));
+        logger.log_internal_error("compiler.cpp", 199, message);
         return nullptr;
     }
 
