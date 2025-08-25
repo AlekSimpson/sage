@@ -34,7 +34,7 @@ string NodeManager::get_identifier(NodeIndex node) {
             break;
     }
 
-
+    return "";
 }
 
 int NodeManager::get_node_count() {

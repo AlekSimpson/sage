@@ -188,11 +188,16 @@ bool ErrorLogger::has_errors() {
 }
 
 void ErrorLogger::report_errors() {
+    if (errors_logged) {
+        return;
+    }
+
     string output;
     for (auto error : errors) {
         output = error->print();
         printf("%s\n", output.c_str());
     }
+    errors_logged = true;
 }
 
 ErrorLogger& ErrorLogger::get() {

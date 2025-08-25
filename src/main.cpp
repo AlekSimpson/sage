@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
     compiler.begin_compilation(target_file);
 
     if (ErrorLogger::get().has_errors()) {
+        ErrorLogger::get().report_errors();
         return 1;
     }
 

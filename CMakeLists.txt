@@ -81,14 +81,14 @@ set_target_properties(sage PROPERTIES
 )
 
 # Create build directories
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/objects")
+file(MAKE_DIRECTORY "./build/bin")
+file(MAKE_DIRECTORY "./build/objects")
 
 # Add custom target for running with a sample file
 add_custom_target(run
-    COMMAND sage ${CMAKE_SOURCE_DIR}/add.sage
+    COMMAND sage sage_modules/add.sage
     DEPENDS sage
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    WORKING_DIRECTORY ./build/bin
     COMMENT "Running sage with add.sage"
 )
 

@@ -237,7 +237,6 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
         return nullptr;
     }
 
-
     DependencyGraph* dependencies = new DependencyGraph(node_manager, scopename, scopelevel, parent_scope);
     ParseNodeType reptype;
     DependencyGraph* nested_dependency;

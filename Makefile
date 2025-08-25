@@ -19,7 +19,7 @@ endif
 # Common flags
 # CXXFLAGS := -fsanitize=address -Wall -Werror -std=c++17
 # CXXFLAGS := -fsanitize=address -Wall -std=c++17
-CXXFLAGS := -Wall -g -std=c++17
+CXXFLAGS := -Wall -std=c++17
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin
@@ -52,7 +52,7 @@ memdebug: CXXFLAGS += -fsanitize=address,leak -fno-omit-frame-pointer
 memdebug: LDFLAGS += -fsanitize=address,leak
 memdebug: all
 
-debug: CXXFLAGS += -g
+debug: CXXFLAGS += -g -fuse-ld=lld
 debug: all
 
 release: CXXFLAGS += -O2

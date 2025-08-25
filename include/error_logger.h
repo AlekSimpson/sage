@@ -33,6 +33,7 @@ private:
   int warning_amount = 0;
   bool warnings_are_errors = false;
   string outfile_name = "./compiler_dev_log.log";
+  bool errors_logged = false;
 
   ErrorLogger();
   ~ErrorLogger();
