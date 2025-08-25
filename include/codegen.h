@@ -65,7 +65,8 @@ public:
   bytecode compile(NodeIndex ast, DependencyGraph* graph);
   /*bool emit_and_link_llvm(llvm::Module* module, const std::string& output_file);*/
 
-  vector<string> get_expression_identifiers(NodeIndex root);
+  void compile_exec_order(DependencyGraph*);
+  void get_expression_identifiers(vector<string>& identifiers, NodeIndex root);
   DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
   void register_allocation(DependencyGraph*);
   bool node_is_precompiled(NodeIndex);
@@ -88,16 +89,16 @@ public:
   ui32 build_function_call(vector<ui32>, string);
   ui32 build_operator(ui32, ui32, SageOpCode);
 
+  ui32 visit(NodeIndex, DependencyGraph*);
   ui32 visit_function_return(ui32);
-  // ui32 visit_program(NodeIndex);
   ui32 visit_variable_decl(NodeIndex);
   ui32 visit_function_declaration(NodeIndex);
   ui32 visit_function_definition(NodeIndex);
   ui32 visit_function_call(NodeIndex);
   ui32 visit_codeblock(NodeIndex, DependencyGraph* depgraph = nullptr);
-  ui32 visit_trinary_expr(NodeIndex);
-  ui32 visit_binary_expr(NodeIndex);
+  ui32 visit_trinary_expr(NodeIndex, DependencyGraph* depgraph = nullptr);
+  ui32 visit_binary_expr(NodeIndex, DependencyGraph* depgraph = nullptr);
   ui32 visit_expression(NodeIndex);
   ui32 visit_variable_assignment(NodeIndex);
-  ui32 visit_unary_expr(NodeIndex);
+  ui32 visit_unary_expr(NodeIndex, DependencyGraph* depgraph = nullptr);
 };

@@ -20,6 +20,27 @@ NodeManager::~NodeManager() {
     delete[] container;
 }
 
+string NodeManager::get_identifier(NodeIndex node) {
+    switch (get_host_nodetype(node)) {
+        case PN_UNARY: {
+            return get_lexeme(node);
+        }
+        case PN_BINARY:
+        case PN_TRINARY: {
+            auto left = get_left(node);
+            return get_lexeme(left);
+        }
+        default:
+            break;
+    }
+
+
+}
+
+int NodeManager::get_node_count() {
+    return box_count;
+}
+
 BlockParseNode* NodeManager::unbox(NodeIndex index) {
     nodebox box = container[index];
 

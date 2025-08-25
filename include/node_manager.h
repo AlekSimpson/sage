@@ -27,6 +27,8 @@ public:
 
     BlockParseNode* unbox(NodeIndex index);
 
+    int get_node_count();
+
     string to_string(NodeIndex);
     void showtree(NodeIndex);
     ParseNodeType get_nodetype(NodeIndex);
@@ -42,6 +44,8 @@ public:
     NodeIndex get_branch(NodeIndex);
     NodeIndex reach_right(NodeIndex, int);
     vector<NodeIndex> get_children(NodeIndex);
+
+    string get_identifier(NodeIndex);
 
     void add_child(NodeIndex self, NodeIndex new_child);
 

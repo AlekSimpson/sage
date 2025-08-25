@@ -1,5 +1,7 @@
 #include "../include/sage_types.h"
 
+#include <memory>
+
 
 SageBuiltinType::SageBuiltinType(CanonicalType type) {
     canonical_type = type;

@@ -1,12 +1,11 @@
 #run {
-    executable_name = "output"
-    platform = "LINUX"
-    architecture = "X86"
-    bitsize = 64
+    executable_name char* = "output"
+    platform char* = "LINUX"
+    architecture char* = "X86"
+    bitsize int = 64
 }
 
 main :: () -> void {
     result i64 = 2 + 2 * 10
-    printf("this result is: %d\n", result)
 }
 

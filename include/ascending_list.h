@@ -1,17 +1,88 @@
 #pragma once
 #include <vector>
+#include <functional>
 
 template<typename T>
 struct ascending_list {
-    T *data = nullptr;
+    T* data = nullptr;
     int capacity = 0;
     int size = 0;
 
-    ascending_list() {
+    ascending_list() {}
+
+    ascending_list(int capacity) : capacity(capacity) {
+        data = new T[capacity];
     }
 
-    ascending_list(int capacity) : capacity(capacity), size(0) {
+    // Copy constructor
+    ascending_list(const ascending_list& other) : capacity(other.capacity), size(other.size) {
+        if (other.data != nullptr && capacity > 0) {
+            data = new T[capacity];
+            for (int i = 0; i < size; ++i) {
+                data[i] = other.data[i];
+            }
+        } else {
+            data = nullptr;
+        }
     }
+
+    // Copy assignment operator
+    ascending_list& operator=(const ascending_list& other) {
+        if (this != &other) {
+            // Clean up existing data
+            if (data != nullptr) {
+                delete[] data;
+                data = nullptr;
+            }
+            
+            // Copy from other
+            capacity = other.capacity;
+            size = other.size;
+            if (other.data != nullptr && capacity > 0) {
+                data = new T[capacity];
+                for (int i = 0; i < size; ++i) {
+                    data[i] = other.data[i];
+                }
+            } else {
+                data = nullptr;
+            }
+        }
+        return *this;
+    }
+
+    // Move constructor
+    ascending_list(ascending_list&& other) noexcept : data(other.data), capacity(other.capacity), size(other.size) {
+        other.data = nullptr;
+        other.capacity = 0;
+        other.size = 0;
+    }
+
+    // Move assignment operator
+    ascending_list& operator=(ascending_list&& other) noexcept {
+        if (this != &other) {
+            // Clean up existing data
+            if (data != nullptr) {
+                delete[] data;
+            }
+            
+            // Move from other
+            data = other.data;
+            capacity = other.capacity;
+            size = other.size;
+            
+            // Reset other
+            other.data = nullptr;
+            other.capacity = 0;
+            other.size = 0;
+        }
+        return *this;
+    }
+
+    // ~ascending_list() {
+    //     if (data != nullptr) {
+    //         delete[] data;
+    //     }
+    // }
 
     void insert_before(int index, T item) {
         T temp;
@@ -40,7 +111,9 @@ struct ascending_list {
             return;
         }
 
-        if (sorter(data[size - 1]) < sorter(item)) {
+        auto biggest_element = sorter(data[size - 1]);
+        auto item_element = sorter(item);
+        if (biggest_element < item_element || biggest_element == item_element) {
             data[size] = item;
             size++;
             return;
@@ -57,7 +130,7 @@ struct ascending_list {
 
             if (sorter(data[cursor]) < sorter(item)) {
                 if (cursor + 1 < size && sorter(data[cursor + 1]) > sorter(item)) {
-                    // item is greater than cursor but less than element directly after cursor
+                    // item is greater than cursor but less than an element directly after cursor
                     insert_before(cursor + 1, item);
                     return;
                 }

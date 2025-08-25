@@ -10,32 +10,36 @@
 
 using namespace std;
 
-ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* depgraph) {
-    auto visit = [this](NodeIndex child) -> ui32 {
-        switch (node_manager->get_host_nodetype(child)) {
-            case PN_UNARY:
-                return visit_unary_expr(child);
+ui32 SageCompiler::visit(NodeIndex node, DependencyGraph* dep_graph) {
+    switch (node_manager->get_host_nodetype(node)) {
+        case PN_UNARY:
+            return visit_unary_expr(node, dep_graph);
 
-            case PN_BINARY:
-                return visit_binary_expr(child);
+        case PN_BINARY:
+            return visit_binary_expr(node, dep_graph);
 
-            case PN_TRINARY:
-                return visit_trinary_expr(child);
+        case PN_TRINARY:
+            return visit_trinary_expr(node, dep_graph);
 
-            default:
-                return 0;
-        }
-    };
+        default:
+            return 0;
+    }
+};
 
-    if (depgraph != nullptr) {
-        auto ident_exec_order = depgraph->get_exec_order();
+void SageCompiler::compile_exec_order(DependencyGraph* dep_graph) {
+    if (dep_graph != nullptr) {
+        auto ident_exec_order = dep_graph->get_exec_order();
         NodeIndex ast_node;
-        for (u64 identifier : ident_exec_order) {
-            ast_node = depgraph->nodes[identifier].ast_pos;
-            visit(ast_node);
+        for (int identifier : ident_exec_order) {
+            ast_node = dep_graph->nodes[identifier].ast_pos;
+            visit(ast_node, dep_graph);
             precompiled.insert(ast_node);
         }
     }
+}
+
+ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* dep_graph) {
+    compile_exec_order(dep_graph);
 
     ui32 retval = -1;
     for (NodeIndex child : node_manager->get_children(node)) {
@@ -43,7 +47,7 @@ ui32 SageCompiler::visit_codeblock(NodeIndex node, DependencyGraph* depgraph) {
             continue;
         }
 
-        retval = visit(child);
+        retval = visit(child, dep_graph);
     }
 
     return retval;
@@ -227,7 +231,7 @@ ui32 SageCompiler::visit_function_call(NodeIndex node) {
     return build_function_call(args, func_call_name);
 }
 
-ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_unary_expr(NodeIndex node, DependencyGraph* dep_graph) {
     SageSymbol* symbol_value;
     string node_lexeme = node_manager->get_lexeme(node);
     
@@ -280,6 +284,12 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
         case PN_LIST:
             logger.log_internal_error("codegen.cpp", 323, str("LIST type unimplemented"));
             break;
+
+        case PN_RUN_DIRECTIVE: {
+            auto block = node_manager->get_branch(node);
+            return visit_codeblock(block, dep_graph);
+        }
+
         default:
             break;
     }
@@ -287,7 +297,7 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node) {
     return -1;
 }
 
-ui32 SageCompiler::visit_trinary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_trinary_expr(NodeIndex node, DependencyGraph* dep_graph) {
     ui32 retval = -1;
     switch(node_manager->get_nodetype(node)) {
         case PN_FOR:
@@ -335,7 +345,7 @@ ui32 SageCompiler::visit_variable_assignment(NodeIndex node) {
     return build_store(RHS, variable_symbol->identifier);
 }
 
-ui32 SageCompiler::visit_binary_expr(NodeIndex node) {
+ui32 SageCompiler::visit_binary_expr(NodeIndex node, DependencyGraph* dep_graph) {
     switch(node_manager->get_nodetype(node)) {
         case PN_BINARY:
             return visit_expression(node);
@@ -404,12 +414,6 @@ ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
             return -1;
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, middle);
-
-        // update symbol table
-        if (symbol_table.lookup(variable_name) != nullptr) {
-            logger.log_internal_error("codegen.cpp", 453, str("variable name already declared: ", variable_name));
-            return -1;
-        }
 
         // don't need to check the success of this call because we already know this symbol doesn't already exist
         symbol_table.declare_symbol(variable_name, type_ident);

@@ -1,6 +1,7 @@
 #include "../include/error_logger.h"
 #include <fstream>
 #include <iostream>
+#include <vector>
 using namespace std;
 
 SageError::SageError() {}

@@ -20,8 +20,8 @@ DependencyGraph::~DependencyGraph() {
     }
 }
 
-u64 DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
-    if (nodename_map.find(name) == nodename_map.end()) {
+int DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
+    if (nodename_map.find(name) != nodename_map.end()) {
         auto id = nodename_map[name];
         if (type == INI && nodes[id].type == INI) {
             auto token = man->get_token(ast_pos);
@@ -38,16 +38,17 @@ u64 DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
 
     local_scope.insert(name);
 
-    IdentNode info = IdentNode{name, type, ast_pos, 0, nullptr};
-    int new_id = info.get_id();
-    nodes[new_id] = info;
-    connections[new_id] = set<u64>();
+    // IdentNode info = IdentNode{name, type, ast_pos, 0, nullptr};
+    // int new_id = info.get_id();
+    int new_id = nodes.size();
+    nodes[new_id] = IdentNode{name, type, ast_pos, 0, nullptr};
+    connections[new_id] = set<int>();
     nodename_map[name] = new_id;
     return new_id;
 }
 
-u64 DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_pos, DependencyGraph* owned_scope) {
-    if (nodename_map.find(name) == nodename_map.end()) {
+int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_pos, DependencyGraph* owned_scope) {
+    if (nodename_map.find(name) != nodename_map.end()) {
         auto id = nodename_map[name];
         // if we are initializing a new node and the existing node is not just a reference
         if (type == INI && nodes[id].type == INI) {
@@ -67,10 +68,11 @@ u64 DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
         return id;
     }
 
-    IdentNode info = IdentNode{name, type, ast_pos, 0, owned_scope};
-    int new_id = info.get_id();
-    nodes[new_id] = info;
-    connections[new_id] = set<u64>();
+    // IdentNode info = IdentNode{name, type, ast_pos, 0, owned_scope};
+    // int new_id = info.get_id();
+    int new_id = nodes.size();
+    nodes[new_id] = IdentNode{name, type, ast_pos, 0, owned_scope};
+    connections[new_id] = set<int>();
     nodename_map[name] = new_id;
     if (owned_scope->scope_level < 0) {
         comptime_nodes.insert(new_id);
@@ -98,11 +100,11 @@ void DependencyGraph::add_connection(const string& dependency, const string& dep
     nodes[dependent_id].degree++;
 }
 
-set<u64>& DependencyGraph::get_dependents(const u64 node) {
+set<int>& DependencyGraph::get_dependents(const int node) {
     return connections[node];
 }
 
-void DependencyGraph::load_fringe(stack<u64>& fringe) {
+void DependencyGraph::load_fringe(stack<int>& fringe) {
     for (auto& [id, node]: nodes) {
         if (get_in_degree(id) == 0) {
             fringe.push(id);
@@ -110,7 +112,7 @@ void DependencyGraph::load_fringe(stack<u64>& fringe) {
     }
 }
 
-int DependencyGraph::get_in_degree(const u64 id) {
+int DependencyGraph::get_in_degree(const int id) {
     auto in_degree = nodes[id].degree - get_dependents(id).size(); // degree - out_degree
     return in_degree;
 }
@@ -128,19 +130,22 @@ bool DependencyGraph::dependencies_are_valid() {
     }
 
     // no circular dependencies
-    set<u64> explored;
-    stack<u64> fringe;
-    u64 walk;
+    set<int> explored;
+    stack<int> fringe;
+    int walk;
 
     load_fringe(fringe);
     while (explored.size() < nodes.size()) {
         walk = fringe.top();
         fringe.pop();
 
+        if (nodes[walk].owned_scope != nullptr) {
+            nodes[walk].owned_scope->dependencies_are_valid();
+        }
         explored.insert(walk);
 
-        set<u64>& neighbors = get_dependents(walk);
-        for (u64 id : neighbors) {
+        set<int>& neighbors = get_dependents(walk);
+        for (int id : neighbors) {
             if (explored.find(id) != explored.end()) {
                 auto token = man->get_token(nodes[id].ast_pos);
                 ErrorLogger::get().log_error(
@@ -153,13 +158,13 @@ bool DependencyGraph::dependencies_are_valid() {
         }
     }
 
-    return ErrorLogger::get().has_errors();
+    return !ErrorLogger::get().has_errors();
 }
 
 void DependencyGraph::merge_with(DependencyGraph& subscope) {
-    set<u64> explored;
-    stack<u64> fringe;
-    u64 walk;
+    set<int> explored;
+    stack<int> fringe;
+    int walk;
     IdentNode walknode;
 
     subscope.load_fringe(fringe);
@@ -182,7 +187,7 @@ void DependencyGraph::merge_with(DependencyGraph& subscope) {
             add_node(walknode.name, walknode.type, walknode.ast_pos);
         }
 
-        for (u64 id : walk_dependents) {
+        for (int id : walk_dependents) {
             if (explored.find(id) != explored.end()) {
                 continue;
             }
@@ -191,12 +196,12 @@ void DependencyGraph::merge_with(DependencyGraph& subscope) {
     }
 }
 
-vector<u64> DependencyGraph::get_exec_order() {
-    ascending_list<u64> order = ascending_list<u64>(nodes.size());
-    set<u64> explored;
-    stack<u64> indeg_zero;
-    queue<u64> fringe;
-    u64 walk;
+vector<int> DependencyGraph::get_exec_order() {
+    ascending_list<int> order = ascending_list<int>(nodes.size());
+    set<int> explored;
+    stack<int> indeg_zero;
+    queue<int> fringe;
+    int walk;
     
     for (auto& [id, node] : nodes) {
         if (get_in_degree(id) == 0) {
@@ -204,7 +209,7 @@ vector<u64> DependencyGraph::get_exec_order() {
         }
     }
 
-    auto node_sorter = [this](u64 id) {
+    auto node_sorter = [this](int id) {
         return this->get_in_degree(id);
     };
 
@@ -223,8 +228,8 @@ vector<u64> DependencyGraph::get_exec_order() {
 
         order.insert(walk, node_sorter);
 
-        set<u64>& neighbors = get_dependents(walk);
-        for (u64 id : neighbors) {
+        set<int>& neighbors = get_dependents(walk);
+        for (int id : neighbors) {
             if (explored.find(id) != neighbors.end()) {
                 continue;
             }
@@ -232,11 +237,12 @@ vector<u64> DependencyGraph::get_exec_order() {
         }
     }
 
-    return order.to_vector();
+    vector<int> result = order.to_vector();
+    return result;
 }
 
-int DependencyGraph::partition(vector<u64>* buffer, int low, int high) {
-    u64 pivot = (*buffer)[high];
+int DependencyGraph::partition(vector<int>* buffer, int low, int high) {
+    int pivot = (*buffer)[high];
     int pivot_priority = nodes[pivot].get_sort_value();
     int i = low - 1;
 
@@ -250,7 +256,7 @@ int DependencyGraph::partition(vector<u64>* buffer, int low, int high) {
     return i + 1;
 }
 
-void DependencyGraph::quicksort(vector<u64>* buffer, int low, int high) {
+void DependencyGraph::quicksort(vector<int>* buffer, int low, int high) {
     if (low < high) {
         int pivot_index = partition(buffer, low, high);
         quicksort(buffer, low, pivot_index - 1);
@@ -258,12 +264,8 @@ void DependencyGraph::quicksort(vector<u64>* buffer, int low, int high) {
     }
 }
 
-void DependencyGraph::quicksort(vector<u64>* buffer) {
+void DependencyGraph::quicksort(vector<int>* buffer) {
     quicksort(buffer, 0, buffer->size()-1);
-}
-
-u64 IdentNode::get_id() {
-    return reinterpret_cast<u64>(this);
 }
 
 void IdentNode::merge(IdentNode& node) {
