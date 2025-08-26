@@ -1,5 +1,6 @@
 #include "../include/sage_types.h"
 
+#include <error_logger.h>
 #include <memory>
 
 
@@ -13,9 +14,31 @@ CanonicalType SageBuiltinType::identify() {
 
 bool SageBuiltinType::match(SageType* other) {
     auto other_identity = other->identify();
-    return other_identity == identify();
+    return other_identity == this->identify();
 }
 
+string SageBuiltinType::to_string() {
+    switch (canonical_type) {
+        case BOOL:
+            return "bool";
+        case CHAR:
+            return "char";
+        case I8:
+            return "i8";
+        case I32:
+            return "i32";
+        case I64:
+            return "i64";
+        case F32:
+            return "f32";
+        case F64:
+            return "f64";
+        case VOID:
+            return "void";
+        default:
+            return "<unknown>";
+    }
+}
 
 SagePointerType::SagePointerType(SageType* pointee) : pointer_type(pointee) {}
 
@@ -33,6 +56,9 @@ bool SagePointerType::match(SageType* other) {
     return pointer_type->match(other_pointer->pointer_type);
 }
 
+string SagePointerType::to_string() {
+    return str(pointer_type->to_string(), "*");
+}
 
 SageArrayType::SageArrayType(SageType* element_type, int size) : array_type(element_type), size(size) {}
 
@@ -48,6 +74,10 @@ bool SageArrayType::match(SageType* other) {
 
     SageArrayType* other_array = dynamic_cast<SageArrayType*>(other);
     return (size != other_array->size) && array_type->match(other_array->array_type);
+}
+
+string SageArrayType::to_string() {
+    return str(array_type->to_string(), "[]");
 }
 
 SageFunctionType::SageFunctionType(vector<SageType*> returns, vector<SageType*> params) :
@@ -82,6 +112,34 @@ bool SageFunctionType::match(SageType* other) {
     return true;
 }
 
+string SageFunctionType::to_string() {
+    string value = "(";
+    for (int i = 0; i < parameter_types.size(); ++i) {
+        value += parameter_types[i]->to_string();
+        if (i != parameter_types.size() - 1) {
+            value += ",";
+        }else if (i == parameter_types.size() - 1) {
+            value += ") ";
+            break;
+        }
+
+        value += " ";
+    }
+
+    value += "-> ";
+
+    for (int i = 0; i < return_type.size(); ++i) {
+        value += return_type[i]->to_string();
+        if (i != return_type.size() - 1) {
+            value += ",";
+        }else if (i == return_type.size() - 1) {
+            break;
+        }
+
+        value += " ";
+    }
+    return value;
+}
 
 SageValue::SageValue(int size, int _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.int_value = _value;

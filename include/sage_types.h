@@ -23,9 +23,10 @@ enum CanonicalType {
 
 class SageType {
 public:
-  virtual ~SageType() = default;
-  virtual CanonicalType identify() = 0;
-  virtual bool match(SageType*) = 0;
+    virtual ~SageType() = default;
+    virtual CanonicalType identify() = 0;
+    virtual bool match(SageType*) = 0;
+    virtual string to_string() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -34,6 +35,7 @@ public:
   SageBuiltinType(CanonicalType);
   CanonicalType identify() override;
   bool match(SageType*) override;
+    string to_string() override;
 };
 
 class SagePointerType : public SageType {
@@ -42,15 +44,17 @@ public:
   SagePointerType(SageType*);
   CanonicalType identify() override;
   bool match(SageType*) override;
+    string to_string() override;
 };
 
 class SageArrayType : public SageType {
 public:
   SageType* array_type;
-  int size;
+  int size = 0;
   SageArrayType(SageType*, int);
   CanonicalType identify() override;
   bool match(SageType*) override;
+    string to_string() override;
 };
 
 class SageFunctionType : public SageType {
@@ -63,6 +67,7 @@ public:
   );
   CanonicalType identify() override;
   bool match(SageType*) override;
+    string to_string() override;
 };
 
 union value_t {

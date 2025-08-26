@@ -11,6 +11,10 @@
 using namespace std;
 
 ui32 SageCompiler::visit(NodeIndex node, DependencyGraph* dep_graph) {
+    if (node_is_precompiled(node)) {
+        return 0;
+    }
+
     switch (node_manager->get_host_nodetype(node)) {
         case PN_UNARY:
             return visit_unary_expr(node, dep_graph);
@@ -286,6 +290,9 @@ ui32 SageCompiler::visit_unary_expr(NodeIndex node, DependencyGraph* dep_graph) 
             break;
 
         case PN_RUN_DIRECTIVE: {
+            if (node_is_precompiled(node)) {
+                break;
+            }
             auto block = node_manager->get_branch(node);
             return visit_codeblock(block, dep_graph);
         }
@@ -415,12 +422,25 @@ ui32 SageCompiler::visit_variable_decl(NodeIndex node) {
         }
         auto type_ident = symbol_table.resolve_sage_type(node_manager, middle);
 
-        // don't need to check the success of this call because we already know this symbol doesn't already exist
-        symbol_table.declare_symbol(variable_name, type_ident);
+        auto rightnode = node_manager->get_right(node);
+        auto rightnode_token = node_manager->get_token(rightnode);
+        ui32 rhs = visit_expression(rightnode);
+        auto rhs_symbol = symbol_table.lookup(rhs);
+
+        if (!rhs_symbol->type->match(type_ident)) {
+            logger.log_error(
+                rightnode_token,
+                str(
+                    variable_name,
+                    "is of type",
+                    type_ident->to_string(),
+                    "but assigned expression was found to be",
+                    rhs_symbol->type->to_string()),
+                TYPE);
+            return -1;
+        }
+
         build_alloca(type_ident, variable_name);
-
-        ui32 rhs = visit_expression(node_manager->get_right(node));
-
         return build_store(rhs, variable_name);
     }
 

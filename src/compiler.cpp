@@ -373,6 +373,16 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
     //  4. sort them and allocate them, allocations written to symbol table
     //  5. add next branches to stack
 
+    stack<int> virtual_stack_frame;
+
+    auto push_vframe = [&virtual_stack_frame]() {
+        virtual_stack_frame.push(0);
+    };
+
+    auto pop_vframe = [&virtual_stack_frame]() {
+        virtual_stack_frame.pop();
+    };
+
     set<int> available_general_regs;
     for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
         available_general_regs.insert(r);
@@ -382,15 +392,18 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
 
     auto allocate_registers = [&, this](DependencyGraph* graph, vector<int>* prioritized_vars) {
         for (auto var : *prioritized_vars) {
+            auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
+
             if (available_general_regs.size() == 0) {
-                symbol_table.declare_symbol(graph->nodes[var].name, -1); // -1 register_alloc indicates spilled
+                var_symbol->assigned_register = -1;
+                var_symbol->spilled = true;
+                var_symbol->spill_offset = virtual_stack_frame.top();
+                virtual_stack_frame.top()++;
                 continue;
             }
             int chosen = *available_general_regs.begin();
             available_general_regs.erase(chosen);
-            // symbol_table.declare_symbol(graph->nodes[var].name, chosen);
-            auto cell = symbol_table.lookup(graph->nodes[var].name);
-            cell->assigned_register = chosen;
+            var_symbol->assigned_register = chosen;
             currently_allocated.insert(graph->nodes[var].name);
         }
     };
@@ -415,12 +428,39 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
                        inserter(currently_allocated, currently_allocated.begin()));
     };
 
+    auto update_scope = [&, this](DependencyGraph* walk) {
+        set<string> fullscope;
+        fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
+        fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
+
+        set<string> expired_values;
+        set_difference(currently_allocated.begin(), currently_allocated.end(),
+                       fullscope.begin(), fullscope.end(),
+                       inserter(expired_values, expired_values.begin()));
+
+        // if we have expired values then something went out of scope -> pop
+        if (expired_values.size() > 0) {
+            pop_vframe();
+            return;
+        }
+
+        set<string> result;
+        // if there are things in fullscope that are not currently allocated -> push
+        set_difference(fullscope.begin(), fullscope.end(),
+                       currently_allocated.begin(), currently_allocated.end(),
+                       inserter(result, result.begin()));
+        if (result.size() > 0) {
+            push_vframe();
+        }
+    };
+
     stack<DependencyGraph*> fringe;
     DependencyGraph* walk;
     fringe.push(dependencies);
     while (!fringe.empty()) {
         walk = fringe.top();
         fringe.pop();
+        update_scope(walk);
 
         vector<int> buffer;
         buffer.reserve(walk->nodes.size());

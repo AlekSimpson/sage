@@ -59,17 +59,18 @@ void SageInterpreter::load_program(bytecode _program) {
 vector<ui64> SageInterpreter::dereference_map(instruction* inst, int map[4]) {
     vector<int> raw_operands = inst->read();
     vector<ui64> return_values;
+    return_values.reserve(4);
 
-    int counter = -1;
-    for (int value : raw_operands) {
-        counter++;
-        if (map[counter] == 0) {
-            return_values.push_back(pack_int(value));
+    // int counter = -1;
+    // for (int value : raw_operands) {
+    for (int i = 0; i < raw_operands.size(); ++i) {
+        if (map[i] == 0) {
+            return_values.push_back(pack_int(raw_operands[i]));
             continue;
         }
 
         // otherwise dereference register
-        return_values[counter] = registers[value];
+        return_values[i] = registers[raw_operands[i]];
     }
 
     return return_values;
@@ -220,10 +221,14 @@ void SageInterpreter::execute() {
 
     command current_command = program[0];
 
-    bool reached_end = false;
+    // bool reached_end = false;
     vector<ui64> operands;
 
-    while (!reached_end) {
+    auto reached_end = [&, this]() -> bool {
+        return program_pointer == program.size();
+    };
+
+    while (!reached_end()) {
         operands = dereference_map(&current_command.inst, current_command.map);
         switch (current_command.inst.opcode) {
             case OP_ADD:
@@ -291,7 +296,6 @@ void SageInterpreter::execute() {
                 break;
             default:
                 ErrorLogger::get().log_internal_error("interpreter.cpp", 293, "VM tried to execute unrecognized bytecode"); 
-                reached_end = true;
                 break;
         }
 

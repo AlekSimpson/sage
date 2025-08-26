@@ -244,6 +244,7 @@ ui32 SageCompiler::build_constant_int(int value) {
     builder.add_instruction(OP_MOV, value, result_reg, builder.blank_encoding);
 
     symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->type = builtin_type;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
     symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
@@ -264,6 +265,7 @@ ui32 SageCompiler::build_constant_float(float value) {
     builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
 
     symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->type = builtin_type;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
     symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
@@ -284,6 +286,7 @@ ui32 SageCompiler::build_string_pointer(string value) {
     builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
 
     symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
+    symbol_table.symbol_table[symbol_table.size()-1]->type = array_type;
     symbol_table.symbol_table[symbol_table.size()-1]->is_variable = false;
     symbol_table.symbol_table[symbol_table.size()-1]->is_parameter = false;
 
