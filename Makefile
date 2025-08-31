@@ -52,7 +52,8 @@ memdebug: CXXFLAGS += -fsanitize=address,leak -fno-omit-frame-pointer
 memdebug: LDFLAGS += -fsanitize=address,leak
 memdebug: all
 
-debug: CXXFLAGS += -g -fuse-ld=lld
+# -fuse-ld=lld
+debug: CXXFLAGS += -g
 debug: all
 
 release: CXXFLAGS += -O2

@@ -74,7 +74,9 @@ successful SageSymbolTable::declare_symbol(const string& name, SageValue value) 
     current_scope.insert(name);
     SageSymbol* new_symbol = new SageSymbol;
     new_symbol->value = value;
+    new_symbol->type = value.valuetype;
     new_symbol->identifier = name;
+    new_symbol->is_variable = true;
 
     // symbol_table[name] = new_symbol;
     symbol_table.push_back(new_symbol);
@@ -95,6 +97,7 @@ successful SageSymbolTable::declare_symbol(const string& name, SageType* valuety
     SageSymbol* new_symbol = new SageSymbol;
     new_symbol->type = valuetype;
     new_symbol->identifier = name;
+    new_symbol->is_variable = true;
 
     symbol_table.push_back(new_symbol);
     symbol_map[name] = symbol_table.size() - 1;
@@ -115,6 +118,29 @@ bool SageSymbolTable::declare_symbol(const string& name, int reg) {
     new_symbol->type = nullptr;
     new_symbol->assigned_register = reg;
     new_symbol->identifier = name;
+    new_symbol->is_variable = true;
+
+    symbol_table.push_back(new_symbol);
+    symbol_map[name] = symbol_table.size() - 1;
+
+    return true;
+}
+
+bool SageSymbolTable::declare_parameter_symbol(const string& name, int reg) {
+    set<string>& current_scope = symbol_stack.top();
+
+    auto search = current_scope.find(name);
+    if (search != current_scope.end()) {
+        return false;
+    }
+
+    current_scope.insert(name);
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->type = nullptr;
+    new_symbol->assigned_register = reg;
+    new_symbol->identifier = name;
+    new_symbol->is_variable = false;
+    new_symbol->is_parameter = true;
 
     symbol_table.push_back(new_symbol);
     symbol_map[name] = symbol_table.size() - 1;
@@ -143,12 +169,28 @@ successful SageSymbolTable::declare_type_symbol(const string& name, SageType* ty
     return true;
 }
 
+uint32_t SageSymbolTable::declare_internal_symbol(const string& name, SageValue value) {
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->is_variable = false;
+    new_symbol->is_parameter = false;
+    new_symbol->value = value;
+    new_symbol->identifier = name;
+    new_symbol->type = value.valuetype;
+
+    symbol_table.push_back(new_symbol);
+    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
+    symbol_map[new_symbol->identifier] = symbol_id;
+
+    return symbol_id;
+}
+
 uint32_t SageSymbolTable::declare_internal_symbol(int register_value) {
     SageSymbol* new_symbol = new SageSymbol;
     new_symbol->is_variable = false;
+    new_symbol->is_parameter = false;
     new_symbol->assigned_register = register_value;
-    new_symbol->identifier = "temp_" + to_string(symbol_table.size());
-    
+    new_symbol->identifier = str("temp_", to_string(symbol_table.size()));
+
     symbol_table.push_back(new_symbol);
     uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
     symbol_map[new_symbol->identifier] = symbol_id;
@@ -181,10 +223,8 @@ void SageSymbolTable::pop_scope() {
 }
 
 uint32_t SageSymbolTable::lookup_id(string name) {
-    auto current_scope = symbol_stack.top();
-
-    auto search = current_scope.find(name);
-    if (search == current_scope.end()) {
+    auto search = symbol_map.find(name);
+    if (search == symbol_map.end()) {
         return 0;
     }
 
@@ -192,10 +232,8 @@ uint32_t SageSymbolTable::lookup_id(string name) {
 }
 
 SageSymbol* SageSymbolTable::lookup(const string& name) {
-    auto current_scope = symbol_stack.top();
-
-    auto search = current_scope.find(name);
-    if (search == current_scope.end()) {
+    auto search = symbol_map.find(name);
+    if (search == symbol_map.end()) {
         return nullptr;
     }
 

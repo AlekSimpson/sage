@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "token.h"
+struct DependencyGraph;
 using namespace std;
 
 class NodeManager;
@@ -57,6 +58,7 @@ public:
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
+  DependencyGraph* block_dependencies = nullptr;
 
   vector<int> children;
 

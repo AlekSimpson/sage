@@ -270,6 +270,68 @@ vector<NodeIndex> NodeManager::get_children(NodeIndex node) {
     return vector<NodeIndex>();
 }
 
+DependencyGraph* NodeManager::get_dependencies(NodeIndex node) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        printf("WARNING | get_dependencies: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        return nullptr;
+    }
+
+    auto block_child_of = [&, this](NodeIndex parent) {
+        NodeIndex x = parent;
+        while (get_host_nodetype(x) != PN_BLOCK) {
+            if (get_right(x) != -1) {
+                x = get_right(x);
+                continue;
+            }
+            if (get_branch(x) != -1) {
+                x = get_branch(x);
+                continue;
+            }
+            break;
+        }
+        return x;
+    };
+
+    auto result_node = block_child_of(node);
+    if (get_host_nodetype(result_node) != PN_BLOCK) {
+        return nullptr;
+    }
+
+    auto container = get_node(result_node);
+    BlockParseNode* block_node = dynamic_cast<BlockParseNode*>(container.node);
+    return block_node->block_dependencies;
+}
+
+void NodeManager::bind_dependency(NodeIndex node, DependencyGraph* dependencies) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        printf("WARNING | get_dependencies: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        return;
+    }
+
+    auto block_child_of = [&, this](NodeIndex parent) {
+        NodeIndex x = parent;
+        while (get_host_nodetype(x) != PN_BLOCK) {
+            if (get_right(x) != -1) {
+                x = get_right(x);
+                continue;
+            }
+            if (get_branch(x) != -1) {
+                x = get_branch(x);
+                continue;
+            }
+            break;
+        }
+        return x;
+    };
+
+    auto container = get_node(block_child_of(node));
+    BlockParseNode* block_node = dynamic_cast<BlockParseNode*>(container.node);
+    block_node->block_dependencies = dependencies;
+}
+
+
 void NodeManager::delete_node(NodeIndex index) {
     delete container[index].node;
     container[index].node = nullptr;

@@ -5,8 +5,20 @@
 #include "token.h"
 using namespace std;
 
+#define current_linenum __LINE__
+
 template<typename... T>
 string str(T... args) {
+    ostringstream oss;
+    //((oss << args << " "), ...);
+    ((oss << args), ...);
+    string result = oss.str();
+    if (!result.empty()) result.pop_back(); // Remove trailing space
+    return result;
+}
+
+template<typename... T>
+string sen(T... args) {
     ostringstream oss;
     ((oss << args << " "), ...);
     string result = oss.str();

@@ -1,10 +1,8 @@
 #pragma once
 
 #include "sage_types.h"
-#include "node_manager.h"
 #include "sage_bytecode.h"
 #include "symbols.h"
-#include <set>
 
 #define LOGIC_REG 21
 #define SYSCALL_REG 22
@@ -48,7 +46,6 @@ public:
   int procedure_encoding; // starts at 0
   map<string, int> procedure_label_encoding;
   StackFrame* frame_pointer; // keeps track of current frame
-  set<int> available_volatiles;
 
   bytecode program;
   map<int, SageValue> heap;
@@ -61,29 +58,27 @@ public:
 
   int store_in_heap(SageValue value);
   void load_program(bytecode program);
-  bool register_is_stale(SageSymbol* symbol, int reg);
-  int get_volatile_register();
   void execute();
 
   void push_stack_scope();
   void pop_stack_scope(); // pops current stack frame
-  vector<ui64> dereference_map(instruction*, int[4]);
+  vector<SageValue> dereference_map(instruction*, int[4]);
 
-  void execute_add(vector<ui64>);
-  void execute_sub(vector<ui64>);
-  void execute_mul(vector<ui64>);
-  void execute_div(vector<ui64>);
-  void execute_load(vector<ui64>);
-  void execute_store(vector<ui64>);
-  void execute_mov(vector<ui64>);
-  void execute_call(vector<ui64>);
+  void execute_add(vector<SageValue>);
+  void execute_sub(vector<SageValue>);
+  void execute_mul(vector<SageValue>);
+  void execute_div(vector<SageValue>);
+  void execute_load(vector<SageValue>);
+  void execute_store(vector<SageValue>);
+  void execute_mov(vector<SageValue>);
+  void execute_call(vector<SageValue>);
   void execute_return();
-  void execute_eqcomp(vector<ui64>);
-  void execute_ltcomp(vector<ui64>);
-  void execute_gtcomp(vector<ui64>);
-  void execute_and(vector<ui64>);
-  void execute_or(vector<ui64>);
-  void execute_not(vector<ui64>);
+  void execute_eqcomp(vector<SageValue>);
+  void execute_ltcomp(vector<SageValue>);
+  void execute_gtcomp(vector<SageValue>);
+  void execute_and(vector<SageValue>);
+  void execute_or(vector<SageValue>);
+  void execute_not(vector<SageValue>);
   void execute_syscall();
 };
 

@@ -1,7 +1,6 @@
 #include "../include/sage_types.h"
-
+#include "../include/registers.h"
 #include <error_logger.h>
-#include <memory>
 
 
 SageBuiltinType::SageBuiltinType(CanonicalType type) {
@@ -143,55 +142,152 @@ string SageFunctionType::to_string() {
 
 SageValue::SageValue(int size, int _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.int_value = _value;
+    nullvalue = false;
 }
 
 SageValue::SageValue(int size, float _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.float_value = _value;
+    nullvalue = false;
 }
 
 SageValue::SageValue(int size, char _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.char_value = _value;
+    nullvalue = false;
 }
 
 SageValue::SageValue(int size, bool _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.bool_value = _value;
+    nullvalue = false;
 }
 
 SageValue::SageValue(int size, string* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
-    // string* value_string = new string(_value);
-    // value.string_value = value_string;
     value.string_value = _value;
+    nullvalue = false;
 }
 
 SageValue::SageValue(int size, void* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
     value.complex_type = _value;
+    nullvalue = false;
+}
+
+// Constructor from register
+SageValue::SageValue(ui64 register_value) {
+    RegType reg_type = unpack_type(register_value);
+    nullvalue = false;
+
+    switch(reg_type) {
+        case I32_REG:
+            bitsize = 32;
+        value.int_value = unpack_int(register_value);
+        valuetype = TypeRegistery::get_builtin_type(I32);
+        break;
+        case F32_REG:
+            bitsize = 32;
+        value.float_value = unpack_float(register_value);
+        valuetype = TypeRegistery::get_builtin_type(F32);
+        break;
+        case PTR_REG:
+            bitsize = 64;
+        value.complex_type = unpack_pointer(register_value);
+        valuetype = TypeRegistery::get_builtin_type(POINTER);
+        break;
+    }
 }
 
 SageValue::SageValue() {}
+SageValue::~SageValue() {}
 
-SageValue::~SageValue() {
-    //if (value.string_value != nullptr) {
-    //    delete value.string_value;
-    //}
+// For instruction operands
+int SageValue::as_operand() const {
+    switch(valuetype->identify()) {
+        case I32:
+        case I8:
+        case I64:
+            return value.int_value;
+        case F32:
+        case F64:
+            return static_cast<int>(value.float_value);
+        case CHAR:
+            return value.char_value;
+        case BOOL:
+            return value.bool_value;
+        case POINTER:
+        case ARRAY:
+            return static_cast<int>(reinterpret_cast<uintptr_t>(value.complex_type));
+        default:
+            return 0;
+    }
 }
 
 uint64_t SageValue::load() {
-    return 0; // TODO:
+    switch (valuetype->identify()) {
+        case CHAR:
+            return pack_int(value.char_value);
+        case BOOL:
+            return pack_int(value.bool_value);
+        case I8:
+        case I32:
+        case I64:
+            return pack_int(value.int_value);
+        case F32:
+        case F64:
+            return pack_float(value.float_value);
+        case POINTER:
+        case ARRAY:
+            return pack_ptr(value.complex_type);
+        case FUNC:
+            break;
+        default:
+            break;
+    }
+    ErrorLogger::get().log_internal_error(
+        "sage_types.cpp",
+        current_linenum,
+        "unimplemented load() for function types");
+
+    return 0;
 }
 
 bool SageValue::is_null() {
-    return false; // TODO: 
+    return nullvalue;
 }
 
-bool equals(const SageValue& other) {
-    return false; // TODO:
+bool SageValue::equals(const SageValue& other) {
+    auto this_type = valuetype->identify();
+    switch (this_type) {
+        case CHAR:
+            return value.char_value == other.value.char_value && this_type == other.valuetype->identify();
+        case BOOL:
+            return value.bool_value == other.value.bool_value && this_type == other.valuetype->identify();
+        case I8:
+        case I32:
+        case I64:
+            return value.int_value == other.value.int_value && this_type == other.valuetype->identify();
+        case F32:
+        case F64:
+            return value.float_value == other.value.float_value && this_type == other.valuetype->identify();
+        case POINTER:
+        case ARRAY:
+            return value.complex_type == other.value.complex_type && this_type == other.valuetype->identify();
+        case FUNC:
+            break;
+        default:
+            break;
+    }
+    ErrorLogger::get().log_internal_error(
+       "sage_types.cpp",
+       current_linenum,
+       "Unknown sage type encountered");
+
+    return false;
 }
 
 
 /// Type Registery
 SageType* TypeRegistery::get_builtin_type(CanonicalType canonical_type) {
     auto it = builtin_types.find(canonical_type);
-    if (it != builtin_types.end()) {
+    if (
+        it != builtin_types.end()) {
         return it->second.get();
     }
     

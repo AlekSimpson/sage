@@ -69,3 +69,21 @@ main :: () {
 
     }
 }
+
+visit -> expression | statement
+statement -> funcdef, struct, if, while, for, vardec | expression
+expression -> varref, literal, funccall, binop, unop
+
+
+
+
+
+
+
+
+
+
+
+
+
+

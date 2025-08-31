@@ -4,5 +4,5 @@ build/objects/src/symbols.o: src/symbols.cpp src/../include/symbols.h \
   src/../include/codegen.h src/../include/error_logger.h \
   src/../include/parser.h src/../include/lexer.h \
   src/../include/interpreter.h src/../include/sage_bytecode.h \
-  src/../include/bytecode_builder.h src/../include/depgraph.h \
-  src/../include/ascending_list.h
+  src/../include/../include/sage_types.h \
+  src/../include/bytecode_builder.h src/../include/ascending_list.h

@@ -44,7 +44,9 @@ public:
   bool declare_symbol(const string& name, SageValue value);
   bool declare_symbol(const string& name, SageType* valuetype);
   bool declare_symbol(const string& name, int register_alloc);
+  bool declare_parameter_symbol(const string& name, int register_alloc);
   uint32_t declare_internal_symbol(int register_value); // sets is_variable to false
+  uint32_t declare_internal_symbol(const string& name, SageValue value);
 
   SageType* derive_sage_type(NodeManager*, NodeIndex);
   SageType* resolve_sage_type(NodeManager*, NodeIndex);

@@ -64,6 +64,7 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
         nodes[id].type = type;
         nodes[id].ast_pos = ast_pos;
         nodes[id].owned_scope = owned_scope;
+        man->bind_dependency(ast_pos, owned_scope);
 
         return id;
     }
@@ -77,6 +78,7 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
     if (owned_scope->scope_level < 0) {
         comptime_nodes.insert(new_id);
     }
+    man->bind_dependency(ast_pos, owned_scope);
 
     return new_id;
 }
