@@ -39,11 +39,10 @@ struct DependencyGraph {
 
   int add_scope_node(string ident_name, dep_type type, NodeIndex ast_pos, DependencyGraph* owned_scope);
   int add_node(string ident_name, dep_type type, NodeIndex ast_pos);
-  void add_connection(const string& dependency, const string& dependent);
+  void add_connection(const string& dependency, const string& dependent, NodeIndex ast_pos);
   vector<int> get_exec_order();
   set<int>& get_dependents(int);
   bool dependencies_are_valid();
-  int get_in_degree(int);
   void load_fringe(stack<int>& fringe);
   void merge_with(DependencyGraph& related_graph); // used to merge graphs that depend on each other for identifiers
   void quicksort(vector<int>*, int, int);
@@ -55,7 +54,7 @@ struct IdentNode {
   string name;
   dep_type type;
   NodeIndex ast_pos = -1;
-  int degree = 0;
+  int in_degree = 0;
   DependencyGraph* owned_scope = nullptr;
   int reference_count = 1;
   int sort_value = -1;

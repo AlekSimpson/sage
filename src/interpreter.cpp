@@ -63,14 +63,18 @@ vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]
     vector<SageValue> return_values;
     return_values.reserve(4);
 
+    if (inst->opcode == OP_LABEL || inst->opcode == OP_NOP || inst->opcode == VOP_EXIT) {
+        return return_values;
+    }
+
     for (int i = 0; i < raw_operands.size(); ++i) {
         if (map[i] == 0) {
-            return_values[i] = SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32));
+            return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
             continue;
         }
 
         // otherwise dereference register
-        return_values[i] = SageValue(registers[raw_operands[i]]);
+        return_values.push_back(SageValue(registers[raw_operands[i]]));
     }
 
     return return_values;
@@ -209,7 +213,7 @@ void SageInterpreter::execute_mov(vector<SageValue> operands) {
 }
 
 void SageInterpreter::execute_call(vector<SageValue> operands) {
-    push_stack_scope();
+    // push_stack_scope(); NOTE: might actually want this to take place when we read a label instruction
     int caller_id_pointer = operands[0].as_i32();
     string* caller_id_string = heap[caller_id_pointer].value.string_value;
     program_pointer = procedure_label_encoding[*caller_id_string];
@@ -281,20 +285,16 @@ void SageInterpreter::execute() {
     program_pointer = 0;
     registers[STACK_POINTER] = SageValue(64, 0, TypeRegistery::get_builtin_type(I64));
 
-    command current_command = program[0];
-
-    // bool reached_end = false;
+    command current_command;
     vector<SageValue> operands;
+    bool vm_running = true;
 
-    auto reached_end = [&, this]() -> bool {
-        return program_pointer == program.size();
-    };
-
-    while (!reached_end()) {
+    while (vm_running && program_pointer < program.size()) {
         if (ErrorLogger::get().has_errors()) {
             ErrorLogger::get().report_errors();
             break;
         }
+        current_command = program[program_pointer];
 
         operands = dereference_map(&current_command.inst, current_command.deref_map);
         switch (current_command.inst.opcode) {
@@ -353,18 +353,22 @@ void SageInterpreter::execute() {
                 execute_syscall();
                 break;
             case OP_LABEL:
+                push_stack_scope();
             case OP_NOP:
                 break;
+            case VOP_EXIT:
+                vm_running = false;
+                continue;
             default:
                 ErrorLogger::get().log_internal_error(
                     "interpreter.cpp",
                     current_linenum,
                     "VM tried to execute unrecognized bytecode");
-                break;
+                vm_running = false;
+                continue;
         }
 
         program_pointer++;
-        current_command = program[program_pointer];
     }
 }
 

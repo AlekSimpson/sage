@@ -51,7 +51,7 @@ NodeIndex SageCompiler::parse_codefile(string target_file) {
     parser.filename = target_file;
     NodeIndex parsetree = parser.parse_program(false);
     if (parsetree == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", 40, "AST root is null. parsing failed.");
+        logger.log_internal_error("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
         return NULL_INDEX;
     }
     return parsetree;
@@ -69,9 +69,6 @@ bytecode SageCompiler::compile(NodeIndex ast_index, bool compiling_root) {
     bytecode output = builder.final();
     builder.reset();
 
-    if (logger.has_errors()) {
-        logger.report_errors();
-    }
     return output;
 }
 
@@ -94,7 +91,7 @@ void SageCompiler::begin_compilation(string mainfile) {
             return;
         }
 
-        logger.log_internal_error("compiler.cpp", 75, "AST root was null. Parsing failed.");
+        logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
         return;
     }
 
@@ -110,11 +107,7 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     set<string> parent_scope;
     auto dep_graph = generate_ident_dependencies(ast_root, "global", 0, &parent_scope);
-    if (dep_graph == nullptr) {
-        logger.report_errors();
-        return;
-    }
-    if (!dep_graph->dependencies_are_valid()) {
+    if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
@@ -138,8 +131,8 @@ void SageCompiler::begin_compilation(string mainfile) {
         }
         print_bytecode(code);
         precompiled.insert(mark.ast_position);
-        // interpreter->load_program(code);
-        // interpreter->execute();
+        interpreter->load_program(code);
+        interpreter->execute();
     }
     interpreter_mode = false;
 
@@ -157,8 +150,8 @@ void SageCompiler::begin_compilation(string mainfile) {
     delete dep_graph;
 
     ///////////////
-    // interpreter->load_program(code);
-    // interpreter->execute();
+    interpreter->load_program(code);
+    interpreter->execute();
     interpreter->close();
     // ^^^^^^^^TEMP!!!
 
@@ -192,17 +185,25 @@ bool SageCompiler::check_filename_valid(string filename) {
     return true;
 }
 
-void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeIndex root) {
+void SageCompiler::get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root) {
     switch (node_manager->get_host_nodetype(root)) {
         case PN_UNARY: {
-            if (node_manager->get_nodetype(root) == PN_IDENTIFIER) {
-                identifiers.push_back(node_manager->get_lexeme(root));
+            auto nodetype = node_manager->get_nodetype(root);
+            if (nodetype == PN_IDENTIFIER || nodetype == PN_VAR_REF) {
+                identifiers.push_back(root);
+                return;
             }
+            vector<NodeIndex> branch_idents;
+            if (node_manager->get_branch(root) != -1) {
+                get_expression_identifiers(branch_idents, node_manager->get_branch(root));
+                identifiers.insert(identifiers.begin(), branch_idents.begin(), branch_idents.end());
+            }
+
             return;
         }
         case PN_BINARY: {
-            vector<string> left_idents;
-            vector<string> right_idents;
+            vector<NodeIndex> left_idents;
+            vector<NodeIndex> right_idents;
             get_expression_identifiers(left_idents, node_manager->get_left(root));
             get_expression_identifiers(right_idents, node_manager->get_right(root));
             identifiers.insert(identifiers.begin(), left_idents.begin(), left_idents.end());
@@ -210,9 +211,9 @@ void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeI
             return;
         }
         case PN_TRINARY: {
-            vector<string> left_idents;
-            vector<string> middle_idents;
-            vector<string> right_idents;
+            vector<NodeIndex> left_idents;
+            vector<NodeIndex> middle_idents;
+            vector<NodeIndex> right_idents;
             get_expression_identifiers(left_idents, node_manager->get_left(root));
             get_expression_identifiers(middle_idents, node_manager->get_middle(root));
             get_expression_identifiers(right_idents, node_manager->get_right(root));
@@ -222,7 +223,7 @@ void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeI
         }
         case PN_BLOCK: {
             for (auto child : node_manager->get_children(root)) {
-                vector<string> idents;
+                vector<NodeIndex> idents;
                 idents.reserve(node_manager->get_children(root).size());
                 get_expression_identifiers(idents, child);
                 identifiers.insert(identifiers.begin(), idents.begin(), idents.end());
@@ -240,12 +241,12 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
     set<string>* parent_scope
 ) {
     if (cursor == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", 195, "generate_ident_dependencies recieved null cursor");
+        logger.log_internal_error("compiler.cpp", current_linenum, "generate_ident_dependencies recieved null cursor");
         return nullptr;
     }
     if (node_manager->get_host_nodetype(cursor) != PN_BLOCK) {
         string message = str("generate_ident_dependencies: param cursor expected to be BLOCK type, instead was", nodetype_to_string(node_manager->get_host_nodetype(cursor)));
-        logger.log_internal_error("compiler.cpp", 199, message);
+        logger.log_internal_error("compiler.cpp", current_linenum, message);
         return nullptr;
     }
 
@@ -332,10 +333,10 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 // caller depends on its parameters
                 string function_name = node_manager->get_identifier(child);
                 dependencies->add_node(function_name, REF, child);
-                vector<string> idents;
+                vector<NodeIndex> idents;
                 get_expression_identifiers(idents, node_manager->get_branch(child));
                 for (auto ident : idents) {
-                    dependencies->add_connection(function_name, ident);
+                    dependencies->add_connection(function_name, node_manager->get_lexeme(ident), ident);
                 }
 
                 continue;
@@ -351,10 +352,10 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 }
 
                 // rhs is a tree of unary, binary and trinary nodes representing operations and operands (or just a single value)
-                vector<string> referenced_identifiers;
+                vector<NodeIndex> referenced_identifiers;
                 get_expression_identifiers(referenced_identifiers, node_manager->get_right(child));
-                for (string ident : referenced_identifiers) {
-                    dependencies->add_connection(assigned_var_name, ident);
+                for (NodeIndex ident : referenced_identifiers) {
+                    dependencies->add_connection(assigned_var_name, node_manager->get_lexeme(ident), ident);
                 }
                 
                 continue;
@@ -370,11 +371,12 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 continue;
 
             default:
-                logger.log_internal_error("compiler.cpp", 292, "dependency resolution scan missing");
+                logger.log_internal_error("compiler.cpp", current_linenum, "dependency resolution scan missing");
                 break;
         }
     }
 
+    !dependencies->dependencies_are_valid(); // do a sweep for any identifier resolution errors
     return dependencies;
 }
 

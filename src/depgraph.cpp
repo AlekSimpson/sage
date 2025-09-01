@@ -33,13 +33,15 @@ int DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
 
         nodes[id].type = type;
         nodes[id].ast_pos = ast_pos;
+        for (auto dependent : get_dependents(id)) {
+            // in degree doesn't count for connections from nodes that are references at the time of connection creation
+            nodes[dependent].in_degree++;
+        }
         return id;
     }
 
     local_scope.insert(name);
 
-    // IdentNode info = IdentNode{name, type, ast_pos, 0, nullptr};
-    // int new_id = info.get_id();
     int new_id = nodes.size();
     nodes[new_id] = IdentNode{name, type, ast_pos, 0, nullptr};
     connections[new_id] = set<int>();
@@ -65,12 +67,14 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
         nodes[id].ast_pos = ast_pos;
         nodes[id].owned_scope = owned_scope;
         man->bind_dependency(ast_pos, owned_scope);
+        for (auto dependent : get_dependents(id)) {
+            // in degree doesn't count for connections from nodes that are references at the time of connection creation
+            nodes[dependent].in_degree++;
+        }
 
         return id;
     }
 
-    // IdentNode info = IdentNode{name, type, ast_pos, 0, owned_scope};
-    // int new_id = info.get_id();
     int new_id = nodes.size();
     nodes[new_id] = IdentNode{name, type, ast_pos, 0, owned_scope};
     connections[new_id] = set<int>();
@@ -83,23 +87,25 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
     return new_id;
 }
 
-void DependencyGraph::add_connection(const string& dependency, const string& dependent) {
+void DependencyGraph::add_connection(const string& dependency, const string& dependent, NodeIndex astpos) {
     // "a depends on b" (b --> a) where a is dependent and b is dependency
 
     // dependency and dependent may or may not have already been parsed when we add a connection for either of them
     if (nodename_map.find(dependency) == nodename_map.end()) {
-        add_node(dependency, REF, -1);
+        add_node(dependency, REF, astpos);
     }
     if (nodename_map.find(dependent) == nodename_map.end()) {
-        add_node(dependent, REF, -1);
+        add_node(dependent, REF, astpos);
     }
 
     auto dependency_id = nodename_map[dependency];
     auto dependent_id = nodename_map[dependent];
 
     connections[dependency_id].insert(dependent_id);
-    nodes[dependency_id].degree++;
-    nodes[dependent_id].degree++;
+    if (nodes[dependency_id].type == INI) {
+        // a node cannot depend on a reference
+        nodes[dependent_id].in_degree++;
+    }
 }
 
 set<int>& DependencyGraph::get_dependents(const int node) {
@@ -108,25 +114,20 @@ set<int>& DependencyGraph::get_dependents(const int node) {
 
 void DependencyGraph::load_fringe(stack<int>& fringe) {
     for (auto& [id, node]: nodes) {
-        if (get_in_degree(id) == 0) {
+        if (nodes[id].in_degree == 0) {
             fringe.push(id);
         }
     }
 }
 
-int DependencyGraph::get_in_degree(const int id) {
-    auto in_degree = nodes[id].degree - get_dependents(id).size(); // degree - out_degree
-    return in_degree;
-}
-
 bool DependencyGraph::dependencies_are_valid() {
     for (const auto& [key, value] : nodes) {
         // all in degree 0 nodes are of type INI
-        if (get_in_degree(key) == 0 && value.type == REF) {
+        if (value.type == REF && value.in_degree == 0) {
             auto token = man->get_token(value.ast_pos);
             ErrorLogger::get().log_error(
                 token,
-                str("undefined reference, ", value.name),
+                sen("undefined reference:", value.name),
                 GENERAL);
         }
     }
@@ -149,6 +150,10 @@ bool DependencyGraph::dependencies_are_valid() {
         set<int>& neighbors = get_dependents(walk);
         for (int id : neighbors) {
             if (explored.find(id) != explored.end()) {
+                if (nodes[id].type != INI || nodes[walk].type != INI) {
+                    continue;
+                }
+
                 auto token = man->get_token(nodes[id].ast_pos);
                 ErrorLogger::get().log_error(
                     token,
@@ -182,7 +187,7 @@ void DependencyGraph::merge_with(DependencyGraph& subscope) {
         if (nodename_map.find(walknode.name) != nodename_map.end()) {
             for (auto dependent : walk_dependents) {
                 auto nodevalue = subscope.nodes[dependent];
-                add_connection(walknode.name, nodevalue.name);
+                add_connection(walknode.name, nodevalue.name, 0);
             }
             nodes[nodename_map[walknode.name]].merge(walknode);
         }else {
@@ -206,13 +211,13 @@ vector<int> DependencyGraph::get_exec_order() {
     int walk;
     
     for (auto& [id, node] : nodes) {
-        if (get_in_degree(id) == 0) {
+        if (nodes[id ].in_degree == 0) {
             indeg_zero.push(id);
         }
     }
 
     auto node_sorter = [this](int id) {
-        return this->get_in_degree(id);
+        return this->nodes[id].in_degree;
     };
 
     while (explored.size() < nodes.size()) {

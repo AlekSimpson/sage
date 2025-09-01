@@ -60,7 +60,7 @@ public:
   void begin_compilation(string mainfile);
   bytecode compile(NodeIndex ast, bool compiling_root = false);
   void compile_dependency_resolution_order(DependencyGraph*);
-  void get_expression_identifiers(vector<string>& identifiers, NodeIndex root);
+  void get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root);
   DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
   void register_allocation(DependencyGraph*);
   bool node_is_precompiled(NodeIndex);
@@ -71,7 +71,7 @@ public:
 
   /* builders */
   ui32 build_store(ui32 rhs, string variable_symbol);
-  ui32 build_return(ui32);
+  ui32 build_return(ui32, bool);
   ui32 build_function_with_block(string);
   ui32 build_alloca(string);
   ui32 build_add(ui32, ui32);
@@ -98,7 +98,7 @@ public:
   ui32 visit_for(NodeIndex);
   ui32 visit_vardec(NodeIndex);
   ui32 visit_varassign(NodeIndex);
-  ui32 visit_funcret(ui32);
+  ui32 visit_funcret(string, ui32);
 
   ui32 visit_expression(NodeIndex);
   ui32 visit_varref(NodeIndex);

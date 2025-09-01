@@ -42,7 +42,9 @@ enum SageOpCode {
     OP_NOP,
 
     OP_SYSCALL,
-    OP_LABEL
+    OP_LABEL,
+
+    VOP_EXIT,
 };
 
 struct _double {
@@ -61,9 +63,10 @@ struct operand {
 };
 
 struct instruction {
-    SageOpCode opcode;
-    uint32_t operands;
+    SageOpCode opcode = SageOpCode::OP_NOP;
+    uint32_t operands = 0;
 
+    instruction();
     instruction(SageOpCode, uint32_t);
     instruction(SageOpCode, int, int);
     instruction(SageOpCode, int, int, int);
@@ -74,12 +77,13 @@ struct instruction {
 
 struct command {
     instruction inst;
-    int deref_map[4];
+    int deref_map[4] = {0, 0, 0, 0};
     // 0 - neutral, use raw
     // 1 - deref register
     // 2 - deref stack
     // 3 - deref heap
 
+    command();
     command(SageOpCode, uint32_t, int [4]);
     command(SageOpCode, int, int, int [4]);
     command(SageOpCode, int, int, int, int [4]);

@@ -247,14 +247,19 @@ ui32 SageCompiler::build_store(ui32 rhs, string variable_name) {
     return 0;
 }
 
-ui32 SageCompiler::build_return(ui32 return_value_id) {
+ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
     // TODO: doesn't yet support multiple return values
     // this is why we are just by default loading the 
     // return value into sr6 because sr6 is the first 
     // return register.
 
+    SageOpCode retcode = OP_RET;
+    if (is_program_exit) {
+        retcode = VOP_EXIT;
+    }
+
     if (return_value_id == -1) {
-        builder.build_im(OP_RET, 0);
+        builder.build_im(retcode, 0);
         builder.exit_frame();
         return 0;
     }
@@ -268,19 +273,21 @@ ui32 SageCompiler::build_return(ui32 return_value_id) {
     // is it a literal value
     //     is it stale?
 
-    if (return_symbol->is_variable || return_symbol->is_parameter) {
-        if (return_symbol->spilled) {
-            // load it from stack offset
-            builder.build_reg_im(OP_LOAD, 6, return_symbol->spill_offset);
-            return 0;
-        }
+    bool is_var = (return_symbol->is_variable || return_symbol->is_parameter);
 
-        builder.build_reg_im(OP_MOV, return_symbol->assigned_register, 6);
+    if (is_var && return_symbol->spilled) {
+        // load it from stack offset
+        builder.build_reg_im(OP_LOAD, 6, return_symbol->spill_offset);
+        builder.build_im(retcode, 0);
         builder.exit_frame();
+    }else if (is_var) {
+        builder.build_reg_im(OP_MOV, return_symbol->assigned_register, 6);
     }else if (!return_symbol->value.is_null()) { // literal value
         builder.build_im_im(OP_MOV, return_symbol->value, 6);
-        builder.exit_frame();
     }
+
+    builder.build_im(retcode, 0);
+    builder.exit_frame();
 
     return 0;
 }

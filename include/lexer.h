@@ -26,7 +26,7 @@ public:
   void unget_token();
 
 private:
-  Token* lexer_make_token(TokenType type, string lexeme);
+  Token* lexer_make_token(TokenType type, string lexeme, int depth = -1);
   Token* check_for_string();
   Token* handle_symbol_case(
       char default_char, TokenType default_type, 

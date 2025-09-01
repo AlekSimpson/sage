@@ -8,6 +8,8 @@
 
 using namespace std;
 
+command::command() {}
+
 command::command(SageOpCode code, uint32_t ops, int _map[4]) : inst(instruction(code, ops)) {
     for (int i = 0; i < 4; ++i) {
         deref_map[i] = _map[i];
@@ -56,6 +58,7 @@ string command::print() {
         {OP_NOP, "NOP"},
         {OP_SYSCALL, "SYSCALL"},
         {OP_LABEL, "LABEL"},
+        {VOP_EXIT, "EXIT"}
     };
 
     union operand_packer {
@@ -157,6 +160,8 @@ string command::print() {
 
     return sen(opcode_map[inst.opcode], op1, op2, op3);
 }
+
+instruction::instruction() {}
 
 instruction::instruction(SageOpCode code, uint32_t ops) : opcode(code), operands(ops) {
 }

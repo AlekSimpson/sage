@@ -2,6 +2,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <set>
 #include "token.h"
 using namespace std;
 
@@ -10,10 +11,8 @@ using namespace std;
 template<typename... T>
 string str(T... args) {
     ostringstream oss;
-    //((oss << args << " "), ...);
     ((oss << args), ...);
     string result = oss.str();
-    // if (!result.empty()) result.pop_back(); // Remove trailing space
     return result;
 }
 
@@ -22,7 +21,7 @@ string sen(T... args) {
     ostringstream oss;
     ((oss << args << " "), ...);
     string result = oss.str();
-    // if (!result.empty()) result.pop_back(); // Remove trailing space
+    if (!result.empty()) result.pop_back(); // remove trailing space
     return result;
 }
 
@@ -41,6 +40,7 @@ class ErrorLogger {
 private:
   vector<SageError*> errors;
   vector<SageError*> internal_errors;
+  set<size_t> error_hashes;
   int error_amount = 0;
   int warning_amount = 0;
   bool warnings_are_errors = false;
@@ -84,6 +84,7 @@ struct SageError {
   vector<string> read_file_lines();
   string print();
   void print_error();
+  size_t hash() const;
 };
 
 

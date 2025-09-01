@@ -17,6 +17,16 @@ SageLexer::SageLexer(string fname) {
     peeked_tokens = stack<Token>();
 }
 
+SageLexer::SageLexer() {
+    filename = "";
+    linenum = 0;
+    linedepth = 0;
+    current_token = new Token();
+    // char_buffer.open(fname);
+    last_token = Token();
+    peeked_tokens = stack<Token>();
+}
+
 SageLexer::~SageLexer() {
     delete current_token;
     if (char_buffer.is_open()) {
@@ -83,11 +93,15 @@ Token* SageLexer::lex_for_symbols() {
         case '-':
             char_buffer.get(peekahead);
             if (peekahead == '>') {
+                linedepth++;
                 return lexer_make_token(TT_FUNC_RETURN_TYPE, "->");
-            }else if (peekahead == '-') {
+            }
+            if (peekahead == '-') {
+                linedepth++;
                 return lexer_make_token(TT_DECREMENT, "--");
             }
 
+            char_buffer.putback(peekahead);
             return lexer_make_token(TT_SUB, "-");
 
         case '.':
@@ -150,15 +164,22 @@ Token* SageLexer::followed_by(char expected_char, TokenType expected_type, strin
         return lexer_make_token(expected_type, expected_lexeme);
     }
 
+    char_buffer.putback(current_char);
+    linedepth--;
     return nullptr;
 }
 
-Token* SageLexer::lexer_make_token(TokenType type, string lexeme) {
+Token* SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
+    int d = depth;
+    if (d == -1) {
+        d = this->linedepth;
+    }
+
     current_token->lexeme = lexeme;
     current_token->token_type = type;
     current_token->filename = this->filename;
     current_token->linenum = this->linenum;
-    current_token->linedepth = this->linedepth;
+    current_token->linedepth = d;
     return current_token;
 }
 
@@ -225,6 +246,7 @@ Token* SageLexer::lex_for_identifiers() {
         {"run", 21},
     };
 
+    int starting_linedepth = linedepth;
     while (isalpha(current_char) || isdigit(current_char) || current_char == '_') {
         lexeme += string(1, current_char);
         char_buffer.get(current_char);
@@ -233,7 +255,7 @@ Token* SageLexer::lex_for_identifiers() {
 
     char_buffer.putback(current_char);
 
-    lexer_make_token(TT_IDENT, lexeme);
+    lexer_make_token(TT_IDENT, lexeme, starting_linedepth);
     if (KEYWORDS.find(lexeme) != KEYWORDS.end()) {
         current_token->token_type = TT_KEYWORD;
     }
@@ -246,10 +268,10 @@ Token* SageLexer::get_token() {
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
     if (!peeked_tokens.empty()) {
-        Token tok = peeked_tokens.top();
+        Token t = peeked_tokens.top();
         peeked_tokens.pop();
 
-        current_token->fill_with(tok);
+        current_token->fill_with(t);
         return current_token;
     }
 

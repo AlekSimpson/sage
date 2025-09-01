@@ -6,6 +6,9 @@
 #include "../include/sage_types.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
+
+#include <boost/function/function_template.hpp>
+
 #include "../include/depgraph.h"
 
 using namespace std;
@@ -186,7 +189,7 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
         }
 
         // auto return on void functions
-        build_return(-1);
+        build_return(-1, function_name == "main");
     }
 
     symbol_table.pop_scope();
@@ -219,13 +222,10 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
     return 0;
 }
 
-ui32 SageCompiler::visit_funcret(ui32 value) {
-     symbol_table.current_function_has_returned = true;
-    if (value != -1) {
-        return build_return(value);
-    }
+ui32 SageCompiler::visit_funcret(string func_name, ui32 value) {
+    symbol_table.current_function_has_returned = true;
 
-    return build_return(-1);
+    return build_return(value, func_name == "main");
 }
 
 
