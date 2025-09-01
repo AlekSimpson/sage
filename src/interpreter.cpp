@@ -111,7 +111,7 @@ void SageInterpreter::execute_sub(vector<SageValue> operands) {
     bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
     bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
     if  (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
+        registers[target_register] = SageValue(operands[1].as_float() - operands[2].as_float());
         return;
     }
 
@@ -132,7 +132,7 @@ void SageInterpreter::execute_mul(vector<SageValue> operands) {
     bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
     bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
     if  (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
+        registers[target_register] = SageValue(operands[1].as_float() * operands[2].as_float());
         return;
     }
 
@@ -148,7 +148,7 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
         return;
     }
 
-    if (operands[2] == 0) {
+    if (operands[2].value.int_value == 0) {
         ErrorLogger::get().log_internal_error(
            "interpreter.cpp",
            current_linenum,
@@ -161,7 +161,7 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
     bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
     bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
     if  (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
+        registers[target_register] = SageValue(operands[1].as_float() / operands[2].as_float());
         return;
     }
 

@@ -111,6 +111,8 @@ public:
     SageValue(int, string*, SageType*);
     SageValue(int, void*, SageType*);
     SageValue(uint64_t register_value);
+    SageValue(int);
+    SageValue(float);
     ~SageValue();
 
     uint64_t load();

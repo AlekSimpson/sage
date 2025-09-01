@@ -112,7 +112,7 @@ string command::print() {
         if (deref_map[0] == 1) {
             op1 = str("r", to_string(packer.s));
         }
-        if (inst.opcode == OP_JMP || inst.opcode == OP_CALL) {
+        if (inst.opcode == OP_JMP || inst.opcode == OP_CALL || inst.opcode == OP_LABEL) {
             op1 = str("@", to_string(packer.s));
         }
 
@@ -121,7 +121,8 @@ string command::print() {
     if (using_double) {
         string op1 = to_string(packer.d.one);
         if (deref_map[0] == 1 || inst.opcode == OP_LOAD) {
-            op1 = str("r", to_string(packer.d.one));
+            op1 = str("r", op1);
+            // op1 = "r" + op1;
         }
 
         string op2 = to_string(packer.d.two);
@@ -162,12 +163,13 @@ instruction::instruction(SageOpCode code, uint32_t ops) : opcode(code), operands
 
 instruction::instruction(SageOpCode code, int op1, int op2) {
     opcode = code;
-    operands = dpack(op1, op2);
+    operands = dpack(static_cast<ui16>(op1), static_cast<ui16>(op2));
 }
 
 instruction::instruction(SageOpCode code, int op1, int op2, int op3) {
     opcode = code;
-    operands = tpack(op1, op2, op3);
+    //operands = tpack(op1, op2, op3);
+    operands = tpack(static_cast<ui16>(op1), static_cast<ui16>(op2), static_cast<ui16>(op3));
 }
 
 instruction::instruction(SageOpCode code, int op1, int op2, int op3, int op4) {

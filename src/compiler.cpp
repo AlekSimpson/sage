@@ -143,8 +143,10 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
     interpreter_mode = false;
 
+
     // compile runtime code
     bytecode code = compile(ast_root, true);
+    printf("------------\n");
     print_bytecode(code);
 
     if (logger.has_errors()) {
@@ -509,7 +511,9 @@ bool SageCompiler::node_is_precompiled(NodeIndex node) {
 }
 
 int SageCompiler::get_volatile() {
-    return volatile_index % volatile_register_state.size();
+    int retval = 10 + (volatile_index % volatile_register_state.size());
+    volatile_index++;
+    return retval;
 }
 
 bool SageCompiler::volatile_is_stale(SageValue& live, int volatile_idx) {

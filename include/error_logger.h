@@ -13,7 +13,7 @@ string str(T... args) {
     //((oss << args << " "), ...);
     ((oss << args), ...);
     string result = oss.str();
-    if (!result.empty()) result.pop_back(); // Remove trailing space
+    // if (!result.empty()) result.pop_back(); // Remove trailing space
     return result;
 }
 
@@ -22,7 +22,7 @@ string sen(T... args) {
     ostringstream oss;
     ((oss << args << " "), ...);
     string result = oss.str();
-    if (!result.empty()) result.pop_back(); // Remove trailing space
+    // if (!result.empty()) result.pop_back(); // Remove trailing space
     return result;
 }
 

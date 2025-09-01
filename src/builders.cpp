@@ -51,73 +51,198 @@ bytecode BytecodeBuilder::final() {
     return result;
 }
 
-void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1) {
-    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, blank_encoding));
+void BytecodeBuilder::build_im(SageOpCode opcode, SageValue op) {
+    int encoding[4] = {0, 0, 0, 0};
+    procedures[current_id()].procedure_instructions.push_back(command(opcode, op.as_operand(), encoding));
     total_instruction_count++;
 }
 
-void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int (&map)[4]) {
-    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, map));
+void BytecodeBuilder::build_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2) {
+    int deref_encoding[4] = {0, 0, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        imm1,
+        imm2,
+        deref_encoding
+    ));
     total_instruction_count++;
 }
 
-void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int (&map)[4]) {
-    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, map));
+void BytecodeBuilder::build_im_reg(SageOpCode opcode, SageValue immediate, int reg_index) {
+    int deref_encoding[4] = {0, 1, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        immediate.as_operand(),
+        reg_index,
+        deref_encoding
+    ));
     total_instruction_count++;
 }
 
-void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int (&map)[4]) {
-    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, map));
+void BytecodeBuilder::build_reg_im(SageOpCode opcode, int reg_index, SageValue immediate) {
+    int deref_encoding[4] = {1, 0, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg_index,
+        immediate.as_operand(),
+        deref_encoding
+    ));
     total_instruction_count++;
 }
 
-void BytecodeBuilder::add_instruction(SageOpCode opcode, int op1, int op2, int op3, int op4, int (&map)[4]) {
-    procedures[current_id()].procedure_instructions.push_back(command(opcode, op1, op2, op3, op4, map));
+void BytecodeBuilder::build_reg_reg(SageOpCode opcode, int reg1, int reg2) {
+    int deref_encoding[4] = {1, 1, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg1,
+        reg2,
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_reg_im_im(SageOpCode opcode, int reg, SageValue imm1, SageValue imm2) {
+    int deref_encoding[4] = {1, 0, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg,
+        imm1.as_operand(),
+        imm2.as_operand(),
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_reg_reg_reg(SageOpCode opcode, int reg1, int reg2, int reg3) {
+    int deref_encoding[4] = {1, 1, 1, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg1,
+        reg2,
+        reg3,
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_reg_im_reg(SageOpCode opcode, int reg1, SageValue immediate, int reg2) {
+    int deref_encoding[4] = {1, 0, 1, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg1,
+        immediate.as_operand(),
+        reg2,
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_reg_reg_im(SageOpCode opcode, int reg1, int reg2, SageValue immediate) {
+    int deref_encoding[4] = {1, 1, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        reg1,
+        reg2,
+        immediate.as_operand(),
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_im_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2, SageValue imm3) {
+    int deref_encoding[4] = {0, 0, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        imm1.as_operand(),
+        imm2.as_operand(),
+        imm3.as_operand(),
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_im_reg_reg(SageOpCode opcode, SageValue immediate, int reg1, int reg2) {
+    int deref_encoding[4] = {0, 1, 1, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        immediate.as_operand(),
+        reg1,
+        reg2,
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_im_reg_im(SageOpCode opcode, SageValue imm1, int reg, SageValue imm2) {
+    int deref_encoding[4] = {0, 1, 0, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        imm1.as_operand(),
+        reg,
+        imm2.as_operand(),
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageValue imm2, int reg) {
+    int deref_encoding[4] = {0, 0, 1, 0};
+
+    procedures[current_id()].procedure_instructions.push_back(command(
+        opcode,
+        imm1.as_operand(),
+        imm2.as_operand(),
+        reg,
+        deref_encoding
+    ));
     total_instruction_count++;
 }
 
 
 
-ui32 SageCompiler::build_store(ui32 rhs, string variable_symbol) {
-    // find where variable_symbol is stored
-    SageSymbol* expr_symbol = symbol_table.lookup(rhs);
-    SageSymbol* var_symbol = symbol_table.lookup(variable_symbol);
+ui32 SageCompiler::build_store(ui32 rhs, string variable_name) {
+    SageSymbol* var_symbol = symbol_table.lookup(variable_name);
+    SageSymbol* rhs_symbol = symbol_table.lookup(rhs);
 
-    // get the register the stored value will be in
-    int stored_value;
-    if (expr_symbol->is_variable || expr_symbol->is_parameter) {
-        stored_value = expr_symbol->assigned_register;
+    // is it a variable
+    //   is it spilled -> is it stale?
+    //   otherwise it has an assigned register (wont be stale)
+    // is it a literal expr -> used assigned register
+    // is it a literal value
+    //     is it stale?
 
-        if (expr_symbol->spilled) {
-            stored_value = get_volatile();
-            builder.add_instruction(OP_LOAD, stored_value, expr_symbol->spill_offset, builder.blank_encoding);
+    if (rhs_symbol->is_variable || rhs_symbol->is_parameter) {
+        if (rhs_symbol->spilled) {
+            // load it from stack offset
+            int dest_reg = get_volatile();
+            builder.build_reg_im(OP_LOAD, dest_reg, rhs_symbol->spill_offset);
+            rhs_symbol->assigned_register = dest_reg;
         }
-    }else if (expr_symbol->value.is_null()) {
-        // literal expression (the result of a operation)
-        stored_value = expr_symbol->assigned_register;
-        if (volatile_is_stale(expr_symbol->value, stored_value)) {
-            // if the volatile state is stale then we need to move the value into the volatile again
-            // NOTE: in the future when we optimize bytecode generation further we may want to change how this works
-            builder.add_instruction(OP_MOV, expr_symbol->value.as_operand(), stored_value, builder.blank_encoding);
+    }else if (!rhs_symbol->value.is_null()) { // literal value
+        if (var_symbol->spilled) {
+            builder.build_im_im(OP_STORE, rhs_symbol->value, var_symbol->spill_offset);
+        }else {
+            builder.build_im_im(OP_MOV, rhs_symbol->value, var_symbol->assigned_register);
         }
-    }else {
-        // its a literal value
-        stored_value = expr_symbol->assigned_register;
-        if (volatile_is_stale(expr_symbol->value, stored_value)) {
-            // if the volatile state is stale then we need to move the value into the volatile again
-            // NOTE: in the future when we optimize bytecode generation further we may want to change how this works
-            builder.add_instruction(OP_MOV, expr_symbol->value.as_operand(), stored_value, builder.blank_encoding);
-        }
-    }
-
-    // generate the bytecode for the actual storage operation
-    if (var_symbol->spilled) {
-        builder.add_instruction(OP_STORE, stored_value, var_symbol->spill_offset, builder.first_encoding);
         return 0;
     }
 
-    // otherwise the variable is stored in a register
-    builder.add_instruction(OP_MOV, stored_value, var_symbol->assigned_register, builder.first_encoding);
+    if (var_symbol->spilled) {
+        builder.build_reg_im(OP_STORE, rhs_symbol->assigned_register, var_symbol->spill_offset);
+    }else {
+        builder.build_reg_im(OP_MOV, rhs_symbol->assigned_register, var_symbol->assigned_register);
+    }
 
     return 0;
 }
@@ -129,90 +254,89 @@ ui32 SageCompiler::build_return(ui32 return_value_id) {
     // return register.
 
     if (return_value_id == -1) {
-        // there is no value to return
-        builder.add_instruction(OP_RET, 0);
+        builder.build_im(OP_RET, 0);
         builder.exit_frame();
         return 0;
     }
 
-    // otherwise there is a return value
-    SageSymbol* return_value = symbol_table.lookup(return_value_id);
+    SageSymbol* return_symbol = symbol_table.lookup(return_value_id);
 
-    // literal expr
-    //   in register (value would be null)
-    // literal value
-    //   in register
-    // variable
-    //   on stack
-    //   in register
-    // parameter
-    //   in register
+    // is it a variable
+    //   is it spilled -> is it stale?
+    //   otherwise it has an assigned register (wont be stale)
+    // is it a literal expr -> used assigned register
+    // is it a literal value
+    //     is it stale?
 
-    if (return_value->is_variable && return_value->spilled) {
-        // load the variable value into a volatile from the stack using the varlifetime offset
-        builder.add_instruction(OP_LOAD, 6, return_value->spill_offset, builder.blank_encoding);
-        builder.add_instruction(OP_RET, 0);
+    if (return_symbol->is_variable || return_symbol->is_parameter) {
+        if (return_symbol->spilled) {
+            // load it from stack offset
+            builder.build_reg_im(OP_LOAD, 6, return_symbol->spill_offset);
+            return 0;
+        }
 
+        builder.build_reg_im(OP_MOV, return_symbol->assigned_register, 6);
         builder.exit_frame();
-
-        return 0;
+    }else if (!return_symbol->value.is_null()) { // literal value
+        builder.build_im_im(OP_MOV, return_symbol->value, 6);
+        builder.exit_frame();
     }
-
-    // TODO: once we support more than 4 return values then we will need to add logic that checks if the parameter is spilled
-
-    // move the value into the function return register
-    builder.add_instruction(OP_MOV, return_value->assigned_register, 6, builder.first_encoding);
-    builder.add_instruction(OP_RET, 0);
-
-    builder.exit_frame();
 
     return 0;
 }
 
-ui32 SageCompiler::build_function_with_block(
-    string function_name
-) {
+ui32 SageCompiler::build_function_with_block(string function_name) {
     interpreter->procedure_label_encoding[function_name] = interpreter->procedure_encoding;
     interpreter->procedure_encoding++;
 
     builder.new_frame(function_name);
-    builder.add_instruction(OP_LABEL,
-                            interpreter->procedure_label_encoding[function_name],
-                            builder.blank_encoding);
-
+    builder.build_im(OP_LABEL, interpreter->procedure_label_encoding[function_name]);
     return 0;
 }
 
 ui32 SageCompiler::build_alloca(string var_name) {
-    SageSymbol* variable = symbol_table.lookup(var_name);
-
-    if (variable->spilled) {
-        // then we can do normal stack stuff
-        builder.add_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1, builder.blank_encoding);
+    SageSymbol* var_symbol = symbol_table.lookup(var_name);
+    if (var_symbol->spilled) {
+        builder.build_im_im_im(OP_ADD, STACK_POINTER, STACK_POINTER, 1);
     }
 
-    // otherwise its actually stored in a register and we don't need to do anything
     return 0;
 }
 
 ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
-    SageSymbol* value1 = symbol_table.lookup(value1_id);
-    SageSymbol* value2 = symbol_table.lookup(value2_id);
-    int value1_register = value1->assigned_register;
-    int value2_register = value2->assigned_register;
+    SageSymbol* lhs_symbol = symbol_table.lookup(value1_id);
+    SageSymbol* rhs_symbol = symbol_table.lookup(value2_id);
+    SageValue lhs = SageValue();
+    SageValue rhs = SageValue();
 
-    if (value1->spilled) {
-        value1_register = get_volatile();
-        builder.add_instruction(OP_LOAD, value1_register, value1->spill_offset, builder.blank_encoding);
+    if (lhs_symbol->spilled) {
+        // load it from stack offset
+        int dest_reg = get_volatile();
+        builder.build_reg_im(OP_LOAD, dest_reg, lhs_symbol->spill_offset);
+        lhs_symbol->assigned_register = dest_reg;
+    }else if (!lhs_symbol->value.is_null()) { // literal value
+        lhs = lhs_symbol->value;
     }
 
-    if (value2->spilled) {
-        value2_register = get_volatile();
-        builder.add_instruction(OP_LOAD, value2_register, value2->spill_offset, builder.blank_encoding);
+    if (rhs_symbol->spilled) {
+        // load it from stack offset
+        int dest_reg = get_volatile();
+        builder.build_reg_im(OP_LOAD, dest_reg, lhs_symbol->spill_offset);
+        rhs_symbol->assigned_register = dest_reg;
+    }else if (!rhs_symbol->value.is_null()) { // literal value
+        rhs = rhs_symbol->value;
     }
 
     int result_register = get_volatile();
-    builder.add_instruction(opcode, result_register, value1_register, value2_register, builder.blank_encoding);
+    if (lhs.is_null() && rhs.is_null()) {
+        builder.build_im_reg_reg(opcode, result_register, lhs_symbol->assigned_register, rhs_symbol->assigned_register);
+    }else if (lhs.is_null() && !rhs.is_null()) {
+        builder.build_im_reg_im(opcode, result_register, lhs_symbol->assigned_register, rhs);
+    }else if (!lhs.is_null() && rhs.is_null()) {
+        builder.build_im_im_reg(opcode, result_register, lhs, rhs_symbol->assigned_register);
+    }else if (!lhs.is_null() && !rhs.is_null()) {
+        builder.build_im_im_im(opcode, result_register, lhs, rhs);
+    }
 
     ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_register);
     return result_symbol_id;
@@ -247,63 +371,19 @@ ui32 SageCompiler::build_load(string reference_name) {
 
     if (symbol->spilled) {
         int volatile_reg = get_volatile();
-        builder.add_instruction(OP_LOAD, volatile_reg, symbol->spill_offset, builder.blank_encoding);
+        builder.build_reg_im(OP_LOAD, volatile_reg, symbol->spill_offset);
         symbol->assigned_register = volatile_reg;
-        return symbol_table.lookup_id(reference_name);
     }
 
     return symbol_table.lookup_id(reference_name);
 }
 
-ui32 SageCompiler::build_constant_int(int value) {
-    auto* builtin_type = TypeRegistery::get_builtin_type(I64);
-    auto success = symbol_table.declare_internal_symbol(to_string(value), SageValue(64, value, builtin_type));
-    if (!success) {
-        return symbol_table.lookup_id(to_string(value));
-    }
-
-    int result_reg = get_volatile();
-    builder.add_instruction(OP_MOV, value, result_reg, builder.blank_encoding);
-    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
-
-    return symbol_table.lookup_id(to_string(value));
-}
-
-ui32 SageCompiler::build_constant_float(float value) {
-    auto* builtin_type = TypeRegistery::get_builtin_type(F64);
-    auto success = symbol_table.declare_internal_symbol(to_string(value), SageValue(64, value, builtin_type));
-    if (!success) {
-        return symbol_table.lookup_id(to_string(value));
-    }
-
-    int result_reg = get_volatile();
-    int heap_pointer = interpreter->store_in_heap(symbol_table.lookup(to_string(value))->value); // FIX: should use stack instead, but its not majorly important for now
-    builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
-    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
-
-    return symbol_table.lookup_id(to_string(value));
-}
-
-ui32 SageCompiler::build_string_pointer(string value) {
-    auto* char_type = TypeRegistery::get_builtin_type(CHAR);
-    auto* array_type = TypeRegistery::get_pointer_type(char_type);
-    string* strcopy = new string(value);
-    auto success = symbol_table.declare_internal_symbol(value, SageValue(64, strcopy, array_type));
-    if (!success) {
-        return symbol_table.lookup_id(value);
-    }
-    SageValue& symbol =  symbol_table.lookup(value)->value;
-    int heap_pointer = interpreter->store_in_heap(symbol); // FIX: should use stack instead but its not majorly important for now
-    int result_reg = get_volatile();
-    builder.add_instruction(OP_MOV, heap_pointer, result_reg, builder.blank_encoding);
-    symbol_table.symbol_table[symbol_table.size()-1]->assigned_register = result_reg;
-
-    return symbol_table.lookup_id(value);
-}
-
 ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) {
     if (args.size() > 6) {
-        logger.log_internal_error("builders.cpp", 295, str(function_name, " with more than 6 arguments is unimplemented."));
+        logger.log_internal_error(
+            "builders.cpp",
+            current_linenum,
+            sen(function_name, "with more than 6 arguments is unimplemented."));
         return 0;
     }
 
@@ -313,21 +393,38 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
 
         if (symbol->spilled) {
             // is either a parameter or variable
-            int vol_register = get_volatile();
-            builder.add_instruction(OP_LOAD, vol_register, symbol->spill_offset, builder.blank_encoding);
-            builder.add_instruction(OP_MOV, vol_register, i, builder.blank_encoding);
-            continue;
+            builder.build_reg_im(OP_LOAD, i, symbol->spill_offset);
+        }else if (!symbol->value.is_null()) {
+            builder.build_im_im(OP_MOV, symbol->value, i);
+        }else {
+            builder.build_reg_im(OP_MOV, symbol->assigned_register, i);
         }
-
-        builder.add_instruction(OP_MOV, symbol->assigned_register, i, builder.blank_encoding);
     }
 
     int procedure_encoding = interpreter->procedure_label_encoding[function_name];
-    builder.add_instruction(OP_CALL, procedure_encoding);
+    builder.build_im(OP_CALL, procedure_encoding);
     return 0;
 }
 
+ui32 SageCompiler::build_constant_int(string value) {
+    auto* builtin_type = TypeRegistery::get_builtin_type(I64);
+    symbol_table.declare_internal_symbol(value, SageValue(64, stoi(value), builtin_type));
+    return symbol_table.lookup_id(value);
+}
 
+ui32 SageCompiler::build_constant_float(string value) {
+    auto* builtin_type = TypeRegistery::get_builtin_type(F64);
+    symbol_table.declare_internal_symbol(value, SageValue(64, stof(value), builtin_type));
+    return symbol_table.lookup_id(value);
+}
+
+ui32 SageCompiler::build_string_pointer(string value) {
+    auto* char_type = TypeRegistery::get_builtin_type(CHAR);
+    auto* array_type = TypeRegistery::get_pointer_type(char_type);
+    string* strcopy = new string(value);
+    symbol_table.declare_internal_symbol(value, SageValue(64, strcopy, array_type));
+    return symbol_table.lookup_id(value);
+}
 
 
 

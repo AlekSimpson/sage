@@ -32,8 +32,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
         return 0;
     }
 
-    auto type = node_manager->get_nodetype(node);
-    switch (type) {
+    switch (node_manager->get_nodetype(node)) {
         case PN_BLOCK: {
             for (auto child : node_manager->get_children(node)) {
                 visit(child);
@@ -78,8 +77,7 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
         return 0;
     }
 
-    auto type = node_manager->get_nodetype(node);
-    switch (type) {
+    switch (node_manager->get_nodetype(node)) {
         case PN_FUNCDEF:
             return visit_funcdef(node);
         case PN_STRUCT:
@@ -195,10 +193,10 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
     return 0;
 }
 
-ui32 SageCompiler::visit_struct(NodeIndex node) {}
-ui32 SageCompiler::visit_if(NodeIndex node) {}
-ui32 SageCompiler::visit_while(NodeIndex node) {}
-ui32 SageCompiler::visit_for(NodeIndex node) {}
+ui32 SageCompiler::visit_struct(NodeIndex node) { return 0; }
+ui32 SageCompiler::visit_if(NodeIndex node) { return 0; }
+ui32 SageCompiler::visit_while(NodeIndex node) { return 0; }
+ui32 SageCompiler::visit_for(NodeIndex node) { return 0; }
 
 ui32 SageCompiler::visit_vardec(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
@@ -263,17 +261,14 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
             return visit_varref(node);
         case PN_FUNCCALL:
             return visit_funccall(node);
-        case PN_NUMBER: {
-            // NOTE: we don't actually know if this is supposed to be an int64, it could be something else, will have to see if this causes errors in testing
-            return build_constant_int(stoi(node_lexeme));
-        }
         case PN_STRING: {
-            // TODO: probably need a function that wil process the raw string lexeme's into string format rules and strip away \"\"
             node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
             return build_string_pointer(node_lexeme);
         }
+        case PN_NUMBER:
+            return build_constant_int(node_lexeme);
         case PN_FLOAT:
-            return build_constant_float(stof(node_lexeme));
+            return build_constant_float(node_lexeme);
         default:
             break;
     }

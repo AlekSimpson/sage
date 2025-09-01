@@ -67,6 +67,7 @@ public:
   ui32 process_expression(NodeIndex);
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
+  void add_mov(int op1, int op2, int (&map)[4]);
 
   /* builders */
   ui32 build_store(ui32 rhs, string variable_symbol);
@@ -80,11 +81,11 @@ public:
   ui32 build_and(ui32, ui32);
   ui32 build_or(ui32, ui32);
   ui32 build_load(string);
-  ui32 build_constant_int(int);
-  ui32 build_constant_float(float);
-  ui32 build_string_pointer(string);
   ui32 build_function_call(vector<ui32>, string);
   ui32 build_operator(ui32, ui32, SageOpCode);
+  ui32 build_constant_int(string);
+  ui32 build_constant_float(string);
+  ui32 build_string_pointer(string);
 
   /* visitors */
   ui32 visit(NodeIndex); // equivalent to visit block

@@ -170,6 +170,16 @@ SageValue::SageValue(int size, void* _value, SageType* valuetype) : bitsize(size
     nullvalue = false;
 }
 
+SageValue::SageValue(int _value) : bitsize(64), valuetype(TypeRegistery::get_builtin_type(I64)) {
+    value.int_value = _value;
+    nullvalue = false;
+}
+
+SageValue::SageValue(float _value) : bitsize(64), valuetype(TypeRegistery::get_builtin_type(F64)) {
+    value.float_value = _value;
+    nullvalue = false;
+}
+
 // Constructor from register
 SageValue::SageValue(ui64 register_value) {
     RegType reg_type = unpack_type(register_value);
