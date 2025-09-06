@@ -30,8 +30,8 @@ SageInterpreter::SageInterpreter(int stack_size) {
     frame_pointer = new StackFrame();
 }
 
-void SageInterpreter::push_stack_scope() {
-    int32_t return_address = program_pointer;
+void SageInterpreter::push_stack_scope(int func_id) {
+    int32_t return_address = program_pointer + 1;
     if (return_address + 1 == stack.capacity()) {
         ErrorLogger::get().log_error(
             "interpreter.cpp",
@@ -42,13 +42,13 @@ void SageInterpreter::push_stack_scope() {
 
     // make new current stack frame
     registers[STACK_POINTER] = int_reg_inc(registers[STACK_POINTER], 1);
-    int start_address = unpack_int(registers[STACK_POINTER]);
+    int start_stack_address = unpack_int(registers[STACK_POINTER]);
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer, 
 		    	           cached_registers, 
 		    	           return_address,
-		    	           start_address,
-		    	           program_pointer);
+		    	           start_stack_address,
+		    	           proc_line_locations[func_id]);
 }
 
 void SageInterpreter::pop_stack_scope() {
@@ -217,14 +217,14 @@ void SageInterpreter::execute_mov(vector<SageValue> operands) {
 }
 
 void SageInterpreter::execute_call(vector<SageValue> operands) {
-    push_stack_scope();
     int caller_dest_location = operands[0].as_i32();
-    program_pointer = proc_line_locations[caller_dest_location];
+    push_stack_scope(caller_dest_location);
+    program_pointer = frame_pointer->prog_start_address;
 }
 
 void SageInterpreter::execute_return() {
     int callback_addr = frame_pointer->prog_return_address;
-    if (callback_addr != -1) {
+    if (callback_addr == -1) {
         vm_running = false;
     }
     program_pointer = callback_addr;
@@ -294,6 +294,7 @@ void SageInterpreter::execute() {
     command current_command;
     vector<SageValue> operands;
     vm_running = true;
+    bool prog_pointer_jump = false;
 
     while (vm_running && program_pointer < program.size()) {
         if (ErrorLogger::get().has_errors()) {
@@ -333,9 +334,11 @@ void SageInterpreter::execute() {
                 break; // TODO:
             case OP_CALL:
                 execute_call(operands);
+                prog_pointer_jump = true;
                 break;
             case OP_RET:
                 execute_return();
+                prog_pointer_jump = true;
                 break;
             case OP_EQ:
                 execute_eqcomp(operands);
@@ -373,7 +376,10 @@ void SageInterpreter::execute() {
                 continue;
         }
 
-        program_pointer++;
+        if (!prog_pointer_jump) {
+            program_pointer++;
+        }
+        prog_pointer_jump = false;
     }
 }
 

@@ -46,7 +46,7 @@ void BytecodeBuilder::reset() {
     // procedure_stack.push(hash_djb2("global"));
 }
 
-bytecode BytecodeBuilder::final(map<int, int>& proc_locations) {
+bytecode BytecodeBuilder::final(map<int, int>& proc_line_locations) {
     bytecode result;
     if (!has_main_function) {
         result.reserve(total_instruction_count + 2);
@@ -62,13 +62,13 @@ bytecode BytecodeBuilder::final(map<int, int>& proc_locations) {
             result.end(),
             current_instructions.begin(), current_instructions.end());
     }
-    proc_locations[hash_djb2("main")] = 0;
+    proc_line_locations[hash_djb2("main")] = 0;
 
     for (string pname : procs) {
         if (pname == "main") continue;
 
         bytecode& current_instructions = procedures[hash_djb2(pname)].procedure_instructions;
-        proc_locations[hash_djb2(pname)] = result.size() + 1;
+        proc_line_locations[hash_djb2(pname)] = result.size();
         result.insert(
             result.end(),
             current_instructions.begin(), current_instructions.end());
@@ -433,7 +433,9 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
     }
 
     builder.build_im(OP_CALL, hash_djb2(function_name));
-    return 0;
+
+    symbol_table.lookup(function_name)->assigned_register = 6; // TEMP: when we support more than one return value we will need to beef up the logic around this
+    return symbol_table.lookup_id(function_name);
 }
 
 ui32 SageCompiler::build_constant_int(string value) {

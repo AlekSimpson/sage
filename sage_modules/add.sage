@@ -1,6 +1,6 @@
 
 main :: () {
-    add(5, 5)
+    result: int = add(5, 5)
 }
 
 add :: (x: int, y: int) -> int {

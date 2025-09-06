@@ -13,7 +13,7 @@
 
 class StackFrame {
 public:
-    int prog_return_address; // where the function was called from, so we can go back to it when we finish
+    int prog_return_address; // where the program resumes after the function finishes executing
     int prog_start_address; // where the function begins
     int stack_pointer; // keep track of where this frame starts in the stack, so we can pop the frame correctly
     StackFrame* previous_frame;
@@ -62,7 +62,7 @@ public:
     int store_in_heap(SageValue value);
     void load_program(bytecode program);
     void execute();
-    void push_stack_scope();
+    void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
     vector<SageValue> dereference_map(instruction*, int [4]);
 

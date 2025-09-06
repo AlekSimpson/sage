@@ -74,8 +74,10 @@ bytecode SageCompiler::compile(NodeIndex ast_index, bool compiling_root) {
 
 void SageCompiler::begin_compilation(string mainfile) {
     auto print_bytecode = [&](bytecode& code) {
+        int count = 0;
         for (auto instruction : code) {
-            printf("%s\n", instruction.print().c_str());
+            printf("%d: %s\n", count, instruction.print().c_str());
+            count++;
         }
     };
 
