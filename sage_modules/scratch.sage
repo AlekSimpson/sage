@@ -70,9 +70,18 @@ main :: () {
     }
 }
 
-visit -> expression | statement
-statement -> funcdef, struct, if, while, for, vardec | expression
-expression -> varref, literal, funccall, binop, unop
+
+main :: () {
+    result: i64 = 2 + 2 * 10
+}
+
+add :: (x: int, y: int) -> int {
+    ret 5
+}
+
+#run {
+    x: int = 5 - 5
+}
 
 
 

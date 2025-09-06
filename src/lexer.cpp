@@ -2,6 +2,7 @@
 #include <cctype>
 #include <unordered_map>
 #include <fstream>
+#include "../include/error_logger.h"
 #include "../include/lexer.h"
 #include "../include/token.h"
 
@@ -87,8 +88,15 @@ Token* SageLexer::lex_for_symbols() {
     char peekahead;
     char first_peek;
     switch (current_char) {
-        case ':':
-            return followed_by(':', TT_BINDING, "::");
+        case ':': {
+
+            auto retval = followed_by(':', TT_BINDING, "::");
+            if (retval != nullptr) {
+                return retval;
+            }
+
+            return lexer_make_token(TT_COLON, ":");
+        }
 
         case '-':
             char_buffer.get(peekahead);
@@ -315,7 +323,9 @@ Token* SageLexer::get_token() {
         return tok;
     }
 
+    string undefined_lexeme = str(current_char);
     tok = lexer_make_token(TT_ERROR, "unrecognized symbol");
+    ErrorLogger::get().log_error(*tok, sen("unrecognized symbol:", undefined_lexeme), SYNTAX);
     last_token = *tok;
     return tok;
 }

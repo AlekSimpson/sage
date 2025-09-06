@@ -23,28 +23,30 @@ struct SageSymbol {
   SageSymbol(SageValue, string);
 };
 
-typedef set<string> SageScope;
-typedef bool successful;
+struct function_visit {
+  string function_name = "";
+  int return_statement_count = 0;
+
+  function_visit(string name) : function_name(name) {};
+  bool has_returned() const { return return_statement_count > 0; }
+};
 
 class SageSymbolTable {
 public:
-  stack<SageScope> symbol_stack;
-  SageScope type_scope;
+  set<string> types;
   vector<SageSymbol*> symbol_table;
   map<string, uint32_t> symbol_map;
-  bool current_function_has_returned;
+  stack<function_visit> function_visitor_state;
+  //bool current_function_has_returned;
 
   SageSymbolTable();
   ~SageSymbolTable();
 
-  void push_scope();
-  void pop_scope();
-
-  bool declare_type_symbol(const string& name, SageType* type);
-  bool declare_symbol(const string& name, SageValue value);
-  bool declare_symbol(const string& name, SageType* valuetype);
-  bool declare_symbol(const string& name, int register_alloc);
-  bool declare_parameter_symbol(const string& name, int register_alloc);
+  void declare_type_symbol(const string& name, SageType* type);
+  void declare_symbol(const string& name, SageValue value);
+  void declare_symbol(const string& name, SageType* valuetype);
+  void declare_symbol(const string& name, int register_alloc);
+  void declare_parameter_symbol(const string& name, int register_alloc);
   uint32_t declare_internal_symbol(int register_value); // sets is_variable to false
   uint32_t declare_internal_symbol(const string& name, SageValue value);
 

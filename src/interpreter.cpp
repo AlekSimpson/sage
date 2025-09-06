@@ -2,6 +2,9 @@
 #include <unistd.h>
 
 #include "../include/interpreter.h"
+
+#include <bytecode_builder.h>
+
 #include "../include/sage_types.h"
 #include "../include/registers.h"
 #include "../include/error_logger.h"
@@ -10,12 +13,12 @@
 // StackFrame
 
 StackFrame::StackFrame(
-    StackFrame* previous, map<int, int> caller_cache, int ret_addr, int sp
-) : return_address(ret_addr), stack_pointer(sp), previous_frame(previous), 
+    StackFrame* previous, map<int, int> caller_cache, int ret_addr, int sp, int ps
+) : prog_return_address(ret_addr), prog_start_address(ps), stack_pointer(sp), previous_frame(previous),
     saved_caller_values(caller_cache) {}
 
 StackFrame::StackFrame()
-    : return_address(-1), stack_pointer(0), previous_frame(nullptr) {}
+    : prog_return_address(-1), prog_start_address(0), stack_pointer(0), previous_frame(nullptr) {}
 
 // Interpreter
 
@@ -28,8 +31,8 @@ SageInterpreter::SageInterpreter(int stack_size) {
 }
 
 void SageInterpreter::push_stack_scope() {
-    int32_t return_address = unpack_int(registers[STACK_POINTER]); 
-    if (return_address + 1 == stack.size()) {
+    int32_t return_address = program_pointer;
+    if (return_address + 1 == stack.capacity()) {
         ErrorLogger::get().log_error(
             "interpreter.cpp",
             current_linenum,
@@ -43,8 +46,9 @@ void SageInterpreter::push_stack_scope() {
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer, 
 		    	           cached_registers, 
-				   return_address,
-				   start_address);
+		    	           return_address,
+		    	           start_address,
+		    	           program_pointer);
 }
 
 void SageInterpreter::pop_stack_scope() {
@@ -213,14 +217,16 @@ void SageInterpreter::execute_mov(vector<SageValue> operands) {
 }
 
 void SageInterpreter::execute_call(vector<SageValue> operands) {
-    // push_stack_scope(); NOTE: might actually want this to take place when we read a label instruction
-    int caller_id_pointer = operands[0].as_i32();
-    string* caller_id_string = heap[caller_id_pointer].value.string_value;
-    program_pointer = procedure_label_encoding[*caller_id_string];
+    push_stack_scope();
+    int caller_dest_location = operands[0].as_i32();
+    program_pointer = proc_line_locations[caller_dest_location];
 }
 
 void SageInterpreter::execute_return() {
-    int callback_addr = frame_pointer->return_address;
+    int callback_addr = frame_pointer->prog_return_address;
+    if (callback_addr != -1) {
+        vm_running = false;
+    }
     program_pointer = callback_addr;
     pop_stack_scope();
 }
@@ -283,11 +289,11 @@ void SageInterpreter::execute_syscall() {
 
 void SageInterpreter::execute() {
     program_pointer = 0;
-    registers[STACK_POINTER] = SageValue(64, 0, TypeRegistery::get_builtin_type(I64));
+    registers[STACK_POINTER] = 0;
 
     command current_command;
     vector<SageValue> operands;
-    bool vm_running = true;
+    vm_running = true;
 
     while (vm_running && program_pointer < program.size()) {
         if (ErrorLogger::get().has_errors()) {
@@ -353,7 +359,6 @@ void SageInterpreter::execute() {
                 execute_syscall();
                 break;
             case OP_LABEL:
-                push_stack_scope();
             case OP_NOP:
                 break;
             case VOP_EXIT:

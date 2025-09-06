@@ -14,20 +14,16 @@ struct procedure_frame {
     }
 };
 
+int hash_djb2(const std::string& str);
+
 struct BytecodeBuilder {
     map<int, procedure_frame> procedures;
+    vector<string> procs;
     stack<int> procedure_stack;
-    // int blank_encoding[4] = {0, 0, 0, 0};
-    // int first_encoding[4] = {1, 0, 0, 0};
     int total_instruction_count = 0;
+    bool has_main_function = false;
 
     BytecodeBuilder();
-
-    // void add_instruction(SageOpCode, int);
-    // void add_instruction(SageOpCode, int, int (&map)[4]);
-    // void add_instruction(SageOpCode, int, int, int (&map)[4]);
-    // void add_instruction(SageOpCode, int, int, int, int (&map)[4]);
-    // void add_instruction(SageOpCode, int, int, int, int, int (&map)[4]);
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);
@@ -46,6 +42,5 @@ struct BytecodeBuilder {
     void new_frame(string name);
     void exit_frame();
     void reset();
-    bytecode final();
-    int current_id();
+    bytecode final(map<int, int>& proc_locations);
 };

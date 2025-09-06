@@ -49,6 +49,38 @@ int DependencyGraph::add_node(string name, dep_type type, NodeIndex ast_pos) {
     return new_id;
 }
 
+int DependencyGraph::add_param_node(string name, dep_type type, NodeIndex ast_pos) {
+     if (nodename_map.find(name) != nodename_map.end()) {
+         auto id = nodename_map[name];
+         if (type == INI && nodes[id].type == INI) {
+             auto token = man->get_token(ast_pos);
+             ErrorLogger::get().log_error(
+                 token,
+                 str("redefinition of ", name, " is not allowed"),
+                 GENERAL);
+         }
+         if (type == REF) return id;
+
+         nodes[id].type = type;
+         nodes[id].ast_pos = ast_pos;
+         nodes[id].is_parameter = true;
+         for (auto dependent : get_dependents(id)) {
+             // in degree doesn't count for connections from nodes that are references at the time of connection creation
+             nodes[dependent].in_degree++;
+         }
+         return id;
+    }
+
+    local_scope.insert(name);
+
+    int new_id = nodes.size();
+    nodes[new_id] = IdentNode{name, type, ast_pos, 0, nullptr};
+    nodes[new_id].is_parameter = true;
+    connections[new_id] = set<int>();
+    nodename_map[name] = new_id;
+    return new_id;
+}
+
 int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_pos, DependencyGraph* owned_scope) {
     if (nodename_map.find(name) != nodename_map.end()) {
         auto id = nodename_map[name];
@@ -57,7 +89,7 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
             auto token = man->get_token(ast_pos);
             ErrorLogger::get().log_error(
                 token,
-                str("redefinition of ", name, " is not allowed"), 
+                sen("redefinition of", name, "is not allowed"),
                 GENERAL);
         }
 
@@ -74,6 +106,9 @@ int DependencyGraph::add_scope_node(string name, dep_type type, NodeIndex ast_po
 
         return id;
     }
+
+
+    local_scope.insert(name);
 
     int new_id = nodes.size();
     nodes[new_id] = IdentNode{name, type, ast_pos, 0, owned_scope};
@@ -123,7 +158,7 @@ void DependencyGraph::load_fringe(stack<int>& fringe) {
 bool DependencyGraph::dependencies_are_valid() {
     for (const auto& [key, value] : nodes) {
         // all in degree 0 nodes are of type INI
-        if (value.type == REF && value.in_degree == 0) {
+        if (value.type == REF && (value.in_degree == 0 && parent_scope->find(value.name) == parent_scope->end())) {
             auto token = man->get_token(value.ast_pos);
             ErrorLogger::get().log_error(
                 token,

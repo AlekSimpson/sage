@@ -91,6 +91,7 @@ public:
   ui32 visit(NodeIndex); // equivalent to visit block
 
   ui32 visit_statement(NodeIndex);
+  ui32 visit_keyword(NodeIndex);
   ui32 visit_funcdef(NodeIndex);
   ui32 visit_struct(NodeIndex);
   ui32 visit_if(NodeIndex);
@@ -98,7 +99,7 @@ public:
   ui32 visit_for(NodeIndex);
   ui32 visit_vardec(NodeIndex);
   ui32 visit_varassign(NodeIndex);
-  ui32 visit_funcret(string, ui32);
+  ui32 visit_funcret(NodeIndex);
 
   ui32 visit_expression(NodeIndex);
   ui32 visit_varref(NodeIndex);

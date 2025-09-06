@@ -47,14 +47,11 @@ private:
   NodeIndex parse_struct_field_access();
 
   // util methods
-  void raise_error(string message);
   bool match_types(TokenType type_a, TokenType type_b);
   bool matches_any(TokenType type_a, TokenType* possible_types, int type_amount);
   void consume(TokenType expected_type, string message);
   void advance();
   Token peek();
-  // bool current_token_type_is(TokenType token_type);
-  // bool is_ending_token();
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
 

@@ -39,6 +39,7 @@ struct DependencyGraph {
 
   int add_scope_node(string ident_name, dep_type type, NodeIndex ast_pos, DependencyGraph* owned_scope);
   int add_node(string ident_name, dep_type type, NodeIndex ast_pos);
+  int add_param_node(string ident_name, dep_type type, NodeIndex ast_pos);
   void add_connection(const string& dependency, const string& dependent, NodeIndex ast_pos);
   vector<int> get_exec_order();
   set<int>& get_dependents(int);
@@ -61,6 +62,7 @@ struct IdentNode {
   int instruction_freq = 0;
   bool high_priority = false;
   NodeManager* man = nullptr;
+  bool is_parameter = false;
 
   void merge(IdentNode& node);
   int get_sort_value();

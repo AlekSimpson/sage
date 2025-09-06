@@ -66,7 +66,7 @@ bytecode SageCompiler::compile(NodeIndex ast_index, bool compiling_root) {
         compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
     }
     visit(ast_index);
-    bytecode output = builder.final();
+    bytecode output = builder.final(interpreter->proc_line_locations);
     builder.reset();
 
     return output;
@@ -86,20 +86,19 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     NodeIndex ast_root = parser.parse_program(debug == PARSING || debug == ALL);
     if (ast_root == -1) {
-        if (logger.has_errors()) {
-            logger.report_errors();
-            return;
-        }
-
         logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
         return;
     }
 
+    if (logger.has_errors()) {
+        logger.report_errors();
+        return;
+    }
+
     bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
-    // if (debug >= COMPILATION) {
-    //     TODO: wrap debug options and output into error logger
-    //     node_manager->showtree(ast_root);
-    // }
+
+    // TODO: wrap debug options and output into error logger
+    // node_manager->showtree(ast_root);
 
     // 1. program static analysis
 
@@ -107,6 +106,13 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     set<string> parent_scope;
     auto dep_graph = generate_ident_dependencies(ast_root, "global", 0, &parent_scope);
+    if (dep_graph == NULL) {
+        logger.report_errors();
+        return;
+    }
+
+    !dep_graph->dependencies_are_valid(); // do a sweep for any identifier resolution errors
+
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -266,6 +272,15 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                     name,
                     scopelevel++,
                     &dependencies->local_scope);
+
+                // process function parameters
+                vector<NodeIndex> idents;
+                get_expression_identifiers(idents, node_manager->get_left(node_manager->get_right(child)));
+                for (int i = 0; i < (int)idents.size(); ++i) {
+                    nested_dependency->add_param_node(node_manager->get_lexeme(idents[i]), INI, idents[i]);
+                    symbol_table.declare_parameter_symbol(node_manager->get_lexeme(idents[i]), i);
+                }
+
                 dependencies->add_scope_node(name, INI, child, nested_dependency);
                 symbol_table.declare_symbol(name, -1);
                 continue;
@@ -370,13 +385,26 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 dependencies->add_node(node_manager->get_identifier(child), REF, child);
                 continue;
 
+            case PN_KEYWORD: {
+                if (node_manager->get_lexeme(child) != "ret") {
+                    continue;
+                }
+
+                vector<NodeIndex> idents;
+                get_expression_identifiers(idents, node_manager->get_branch(child));
+                for (auto ident : idents) {
+                    dependencies->add_node(node_manager->get_identifier(ident), REF, child);
+                }
+
+                continue;
+            }
+
             default:
                 logger.log_internal_error("compiler.cpp", current_linenum, "dependency resolution scan missing");
                 break;
         }
     }
 
-    !dependencies->dependencies_are_valid(); // do a sweep for any identifier resolution errors
     return dependencies;
 }
 
@@ -416,6 +444,8 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
 
     auto allocate_registers = [&, this](DependencyGraph* graph, vector<int>* prioritized_vars) {
         for (auto var : *prioritized_vars) {
+            if (graph->nodes[var].is_parameter) continue;
+
             auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
 
             if (available_general_regs.size() == 0) {
@@ -498,6 +528,7 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
                 fringe.push(node.owned_scope);
                 continue;
             }
+            if (node.is_parameter) continue;
 
             buffer.push_back(key);
         }

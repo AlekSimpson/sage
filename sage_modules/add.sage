@@ -1,9 +1,10 @@
-main :: () -> void {
-    result i64 = 2 + 2 * 10
-    printf(y)
+
+main :: () {
+    add(5, 5)
 }
 
-#run {
-    x int = 5 - 5
+add :: (x: int, y: int) -> int {
+    ret x + y
 }
+
 

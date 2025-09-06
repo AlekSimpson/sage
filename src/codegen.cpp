@@ -51,6 +51,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
         case PN_VAR_DEC:
         case PN_ASSIGN:
         case PN_RUN_DIRECTIVE:
+        case PN_KEYWORD:
             return visit_statement(node);
 
         case PN_VAR_REF:
@@ -95,6 +96,8 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
             return visit_vardec(node);
         case PN_ASSIGN:
             return visit_varassign(node);
+        case PN_KEYWORD:
+            return visit_keyword(node);
         case PN_RUN_DIRECTIVE: {
             if (!interpreter_mode) {
                 return 0;
@@ -107,6 +110,30 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
         default:
             return visit_expression(node);
     }
+}
+
+ui32 SageCompiler::visit_keyword(NodeIndex node) {
+    string lexeme = node_manager->get_lexeme(node);
+    if (lexeme == "ret") {
+        return visit_funcret(node);
+    }
+    if (lexeme == "continue") {
+        return 0;
+    }
+    if (lexeme == "break") {
+        return 0;
+    }
+    if (lexeme == "fallthrough") {
+        return 0;
+    }
+    if (lexeme == "include") {
+        return 0;
+    }
+    ErrorLogger::get().log_internal_error(
+        "codegen.cpp",
+        current_linenum,
+        sen("found unrecognized keyword:", node_manager->get_lexeme(node)));
+    return 0;
 }
 
 ui32 SageCompiler::visit_varassign(NodeIndex node) {
@@ -134,8 +161,8 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
 }
 
 ui32 SageCompiler::visit_funcdef(NodeIndex node) {
-    symbol_table.push_scope();
-    symbol_table.current_function_has_returned = false;
+    string function_name = node_manager->get_lexeme(node_manager->get_left(node));
+    symbol_table.function_visitor_state.push(function_visit(function_name));
 
     NodeIndex trinary_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(trinary_node);
@@ -147,20 +174,6 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
         return 0;
     }
 
-    // const vector<NodeIndex>& parameters = node_manager->get_children(node_manager->get_left(trinary_node));
-    // vector<string> parameter_names;
-    // parameter_names.reserve(parameters.size());
-    // string name;
-    // for (NodeIndex parameter : parameters) {
-    //     if (node_manager->get_host_nodetype(parameter) != PN_BINARY) {
-    //         logger.log_internal_error("codegen.cpp", current_linenum, str("expected param node to be BINARY"));
-    //         return 0;
-    //     }
-
-    //     name = node_manager->get_lexeme(node_manager->get_left(parameter));
-    //     parameter_names.push_back(name);
-    // }
-
     auto return_node = node_manager->get_middle(trinary_node);
     if (node_manager->get_host_nodetype(return_node) != PN_UNARY) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("expected type node to be UNARY"));
@@ -170,21 +183,20 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
     vector<SageType*> return_types(1); // until we support more return types this is always length one
     return_types.push_back(return_type);
 
-    string function_name = node_manager->get_lexeme(node_manager->get_left(node));
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(trinary_node);
     compile_dependency_resolution_order(node_manager->get_dependencies(node));
     visit(body_node);
 
     SageType* voidtype = TypeRegistery::get_builtin_type(VOID);
-    if (!symbol_table.current_function_has_returned) {
+    if (!symbol_table.function_visitor_state.top().has_returned()) {
         if (!return_type->match(voidtype)) {
             auto token = node_manager->get_token(node);
             logger.log_error(
                 token,
                 str("function (",function_name,") missing return statement"),
                 GENERAL);
-            symbol_table.pop_scope();
+            symbol_table.function_visitor_state.pop();
             return 0;
         }
 
@@ -192,7 +204,7 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
         build_return(-1, function_name == "main");
     }
 
-    symbol_table.pop_scope();
+    symbol_table.function_visitor_state.pop();
     return 0;
 }
 
@@ -222,10 +234,16 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
     return 0;
 }
 
-ui32 SageCompiler::visit_funcret(string func_name, ui32 value) {
-    symbol_table.current_function_has_returned = true;
+ui32 SageCompiler::visit_funcret(NodeIndex node) {
+    symbol_table.function_visitor_state.top().return_statement_count++;
+    bool is_main = symbol_table.function_visitor_state.top().function_name == "main";
 
-    return build_return(value, func_name == "main");
+    auto branch_id = node_manager->get_branch(node);
+    if (branch_id != NULL_INDEX) {
+        return build_return(visit_expression(branch_id), is_main);
+    }
+
+    return build_return(-1, is_main);
 }
 
 
