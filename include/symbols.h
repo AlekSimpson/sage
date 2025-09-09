@@ -37,7 +37,7 @@ public:
   vector<SageSymbol*> symbol_table;
   map<string, uint32_t> symbol_map;
   stack<function_visit> function_visitor_state;
-  //bool current_function_has_returned;
+  vector<string*> string_pool;
 
   SageSymbolTable();
   ~SageSymbolTable();
@@ -49,6 +49,7 @@ public:
   void declare_parameter_symbol(const string& name, int register_alloc);
   uint32_t declare_internal_symbol(int register_value); // sets is_variable to false
   uint32_t declare_internal_symbol(const string& name, SageValue value);
+  uint32_t declare_string_symbol(const string& name, SageValue value);
 
   SageType* derive_sage_type(NodeManager*, NodeIndex);
   SageType* resolve_sage_type(NodeManager*, NodeIndex);

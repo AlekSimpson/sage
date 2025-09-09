@@ -31,7 +31,8 @@ enum ErrorType {
   SYNTAX,
   SEMANTIC,
   TYPE,
-  INTERNAL
+  INTERNAL,
+  RUNTIME
 };
 
 struct SageError;

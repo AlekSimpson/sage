@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stack>
 #include <boost/algorithm/string.hpp>
+#include <sys/syscall.h>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -22,8 +23,8 @@ SageCompiler::SageCompiler(string mainfile)
       debug(COMPILATION),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
-      interpreter(new SageInterpreter(4046)),
       symbol_table(SageSymbolTable()),
+      interpreter(new SageInterpreter(4046, &symbol_table.string_pool)),
       builder(BytecodeBuilder()) {
     symbol_table.initialize();
 
@@ -47,6 +48,18 @@ SageCompiler::~SageCompiler() {
     delete interpreter;
 }
 
+void SageCompiler::print_bytecode(bytecode& code) {
+    int count = 0;
+    for (string name : builder.procs) {
+        printf("%s: %d\n", name.c_str(), hash_djb2(name));
+    }
+    printf("------------\n");
+    for (auto instruction : code) {
+        printf("%d: %s\n", count, instruction.print().c_str());
+        count++;
+    }
+}
+
 NodeIndex SageCompiler::parse_codefile(string target_file) {
     parser.filename = target_file;
     NodeIndex parsetree = parser.parse_program(false);
@@ -57,30 +70,25 @@ NodeIndex SageCompiler::parse_codefile(string target_file) {
     return parsetree;
 }
 
-bytecode SageCompiler::compile(NodeIndex ast_index, bool compiling_root) {
-     if (ast_index == NULL_INDEX) {
+bytecode SageCompiler::compile(NodeIndex ast_index) {
+    if (ast_index == NULL_INDEX) {
         return bytecode();
     }
 
-    if (compiling_root) {
-        compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
-    }
+    // if (compiling_root) {
+    //     compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
+    // }
     visit(ast_index);
-    bytecode output = builder.final(interpreter->proc_line_locations);
+    bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
+    printf("======================\n");
+    print_bytecode(output);
+    printf("======================\n");
     builder.reset();
 
     return output;
 }
 
 void SageCompiler::begin_compilation(string mainfile) {
-    auto print_bytecode = [&](bytecode& code) {
-        int count = 0;
-        for (auto instruction : code) {
-            printf("%d: %s\n", count, instruction.print().c_str());
-            count++;
-        }
-    };
-
     if (!check_filename_valid(mainfile)) {
         logger.log_error(mainfile, -1, "Main program filename is not valid. Make sure it ends in '.sage'", GENERAL);
         return;
@@ -97,18 +105,32 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
+    // setup builtin functions
+    vector<SageType*> puti_params = {
+        TypeRegistery::get_builtin_type(I64),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    symbol_table.declare_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType*>()));
+
+    vector<SageType*> puts_params = {
+        TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    symbol_table.declare_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType*>()));
+
     bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
 
     // TODO: wrap debug options and output into error logger
-    // node_manager->showtree(ast_root);
+    node_manager->showtree(ast_root);
 
     // 1. program static analysis
 
     // TODO: Type checking
 
     set<string> parent_scope;
+    builder.builtins = {"puts", "puti"};
     auto dep_graph = generate_ident_dependencies(ast_root, "global", 0, &parent_scope);
-    if (dep_graph == NULL) {
+    if (dep_graph == nullptr) {
         logger.report_errors();
         return;
     }
@@ -131,24 +153,25 @@ void SageCompiler::begin_compilation(string mainfile) {
     // execute run directives
     interpreter_mode = true;
     comptime_ast_bookmark mark;
+    string rundir_name;
     for (int i = 0; i < bookmarked_run_directives.size; ++i) {
         mark = bookmarked_run_directives[i];
+        rundir_name = str("rundir", i);
+        builder.procedures[hash_djb2(rundir_name)] = procedure_frame(rundir_name);
+        builder.procedure_stack.push(hash_djb2(rundir_name));
+        builder.procs.push_back(rundir_name);
         bytecode code = compile(mark.ast_position);
         if (code.empty()) {
             continue;
         }
-        print_bytecode(code);
         precompiled.insert(mark.ast_position);
         interpreter->load_program(code);
         interpreter->execute();
     }
     interpreter_mode = false;
 
-
     // compile runtime code
-    bytecode code = compile(ast_root, true);
-    printf("------------\n");
-    print_bytecode(code);
+    bytecode code = compile(ast_root);
 
     if (logger.has_errors()) {
         logger.report_errors();
@@ -263,6 +286,12 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
     DependencyGraph* nested_dependency;
 
     dependencies->local_scope = set<string>();
+
+    // setup builtins
+    for (auto builtin : builder.builtins) {
+        dependencies->add_node(builtin, INI, -1);
+        dependencies->local_scope.insert(builtin);
+    }
 
     for (auto child : node_manager->get_children(cursor)) {
         reptype = node_manager->get_nodetype(child);
@@ -449,6 +478,7 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
             if (graph->nodes[var].is_parameter) continue;
 
             auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
+            if (var_symbol->type != nullptr && var_symbol->type->identify() == FUNC) continue;
 
             if (available_general_regs.size() == 0) {
                 var_symbol->assigned_register = -1;

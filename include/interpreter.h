@@ -43,6 +43,8 @@ public:
     // sr22 = syscall register
     // sr23 = stack pointer
     //
+    // opcode   , 0            , 1   , 2
+    // sys_write, stdout_fileno, buff, length
 
     ui64 registers[125];
     int program_pointer;
@@ -55,8 +57,10 @@ public:
     vector<SageValue> stack;
     bool vm_running = false;
 
+    vector<string*>* string_pool;
+
     SageInterpreter();
-    SageInterpreter(int stack_size);
+    SageInterpreter(int stack_size, vector<string*>* string_pool);
 
     void close();
     int store_in_heap(SageValue value);

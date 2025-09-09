@@ -128,6 +128,7 @@ public:
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
     void* as_ptr() const { return value.complex_type; }
+    const char* as_charbuff() const { return value.string_value->c_str(); }
 };
 
 namespace std {

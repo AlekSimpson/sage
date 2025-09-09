@@ -18,16 +18,18 @@ void SageCompiler::compile_dependency_resolution_order(DependencyGraph* dep_grap
         return;
     }
 
-    doing_dependency_resolution_order = true;
+    // FIX: Really just need to rework the dependency resolution system, as it stands right
+    // now it doesn't work exactly right nor does it output the ideal program behavior
 
-    auto ident_exec_order = dep_graph->get_exec_order();
-    NodeIndex ast_node;
-    for (int identifier : ident_exec_order) {
-        ast_node = dep_graph->nodes[identifier].ast_pos;
-        visit(ast_node);
-        precompiled.insert(ast_node);
-    }
-    doing_dependency_resolution_order = false;
+    // doing_dependency_resolution_order = true;
+    // auto ident_exec_order = dep_graph->get_exec_order();
+    // NodeIndex ast_node;
+    // for (int identifier : ident_exec_order) {
+    //     ast_node = dep_graph->nodes[identifier].ast_pos;
+    //     visit(ast_node);
+    //     precompiled.insert(ast_node);
+    // }
+    // doing_dependency_resolution_order = false;
 }
 
 ui32 SageCompiler::visit(NodeIndex node) {
@@ -64,7 +66,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
             ErrorLogger::get().log_internal_error(
                 "codegen.cpp",
                 current_linenum,
-                str("Unhandled node type in SageCompiler::visit(NodeIndex):", node));
+                sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)));
             break;
     }
     return 0;
@@ -270,6 +272,7 @@ ui32 SageCompiler::visit_varref(NodeIndex node) {
     return build_load(node_lexeme);
 }
 
+// todo: might make more sense to change this func name to "visit_atom"
 ui32 SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
     string node_lexeme = node_manager->get_lexeme(node);

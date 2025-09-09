@@ -170,7 +170,7 @@ NodeIndex SageParser::parse_value_dec() {
         string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->to_string(rhs);
 
         Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum);
-        return node_manager->create_trinary(dec_token, PN_ASSIGN, name_identifier_node, type_identifier_node, rhs);
+        return node_manager->create_trinary(dec_token, PN_VAR_DEC, name_identifier_node, type_identifier_node, rhs);
     }
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;

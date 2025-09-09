@@ -19,6 +19,7 @@ int hash_djb2(const std::string& str);
 struct BytecodeBuilder {
     map<int, procedure_frame> procedures;
     vector<string> procs;
+    vector<string> builtins;
     stack<int> procedure_stack;
     int total_instruction_count = 0;
     bool has_main_function = false;
@@ -39,8 +40,11 @@ struct BytecodeBuilder {
     void build_im_im(SageOpCode, SageValue, SageValue);
     void build_im(SageOpCode, SageValue);
 
+    void build_puti();
+    void build_puts();
+
     void new_frame(string name);
     void exit_frame();
     void reset();
-    bytecode final(map<int, int>& proc_locations);
+    bytecode final(map<int, int>& proc_locations, bool is_comptime);
 };

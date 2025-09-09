@@ -120,6 +120,23 @@ void SageSymbolTable::declare_type_symbol(const string& name, SageType* type) {
     symbol_map[name] = static_cast<uint32_t>(symbol_table.size() - 1);
 }
 
+uint32_t SageSymbolTable::declare_string_symbol(const string& name, SageValue value) {
+    string_pool.push_back(value.value.string_value);
+
+    SageSymbol* new_symbol = new SageSymbol;
+    new_symbol->is_variable = false;
+    new_symbol->is_parameter = false;
+    new_symbol->value = SageValue(64, (int)string_pool.size()-1, TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)));
+    new_symbol->identifier = name;
+    new_symbol->type = value.valuetype;
+
+    symbol_table.push_back(new_symbol);
+    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
+    symbol_map[str("string__", new_symbol->identifier)] = symbol_id;
+
+    return symbol_id;
+}
+
 uint32_t SageSymbolTable::declare_internal_symbol(const string& name, SageValue value) {
     SageSymbol* new_symbol = new SageSymbol;
     new_symbol->is_variable = false;

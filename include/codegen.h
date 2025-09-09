@@ -17,6 +17,8 @@
 #define GENERAL_REG_RANGE_BEGIN 24
 #define GENERAL_REG_RANGE_END 124
 
+#define SAGESYS_write_int 600
+
 enum debug_level {
   NONE,
   PARSING,
@@ -40,8 +42,8 @@ public:
   NodeManager* node_manager;
   ErrorLogger& logger = ErrorLogger::get();
   SageParser parser;
-  SageInterpreter* interpreter;
   SageSymbolTable symbol_table;
+  SageInterpreter* interpreter;
   BytecodeBuilder builder;
   set<NodeIndex> precompiled;
   ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
@@ -58,7 +60,7 @@ public:
   bool check_filename_valid(string filename);
   NodeIndex parse_codefile(string target_file);
   void begin_compilation(string mainfile);
-  bytecode compile(NodeIndex ast, bool compiling_root = false);
+  bytecode compile(NodeIndex ast);
   void compile_dependency_resolution_order(DependencyGraph*);
   void get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root);
   DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
@@ -68,6 +70,9 @@ public:
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
   void add_mov(int op1, int op2, int (&map)[4]);
+  void create_puts();
+  void create_puti();
+  void print_bytecode(bytecode&);
 
   /* builders */
   ui32 build_store(ui32 rhs, string variable_symbol);

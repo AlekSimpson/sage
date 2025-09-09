@@ -268,7 +268,10 @@ vector<int> DependencyGraph::get_exec_order() {
         walk = fringe.front();
         fringe.pop();
 
-        order.insert(walk, node_sorter);
+        bool has_no_dependents_or_dependencies = nodes[walk].in_degree == 0 && connections[walk].size() == 0;
+        if (!nodes[walk].is_parameter && !has_no_dependents_or_dependencies) {
+            order.insert(walk, node_sorter);
+        }
 
         set<int>& neighbors = get_dependents(walk);
         for (int id : neighbors) {
@@ -280,6 +283,11 @@ vector<int> DependencyGraph::get_exec_order() {
     }
 
     vector<int> result = order.to_vector();
+    printf("--[%s]--------------------\n", scopename.c_str());
+    for (auto id : result) {
+        printf("%s, ", nodes[id].name.c_str());
+    }
+    printf("\n-------------------\n");
     return result;
 }
 

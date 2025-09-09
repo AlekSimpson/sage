@@ -4,6 +4,7 @@
 #include "../include/interpreter.h"
 
 #include <bytecode_builder.h>
+#include <codegen.h>
 
 #include "../include/sage_types.h"
 #include "../include/registers.h"
@@ -22,9 +23,9 @@ StackFrame::StackFrame()
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr), string_pool(nullptr) {}
 
-SageInterpreter::SageInterpreter(int stack_size) {
+SageInterpreter::SageInterpreter(int stack_size, vector<string*>* string_pool) : string_pool(string_pool) {
     stack.reserve(stack_size);
 
     frame_pointer = new StackFrame();
@@ -276,15 +277,30 @@ void SageInterpreter::execute_not(vector<SageValue> operands) {
 }
 
 void SageInterpreter::execute_syscall() {
-    /*int callcode = unpack_int(registers[22]);*/
-    // TODO:
-    // syscall(long(callcode),
-    //         registers[0],
-    //         registers[1],
-    //         registers[2],
-    //         registers[3],
-    //         registers[4],
-    //         registers[5]);
+    int callcode = unpack_int(registers[22]);
+
+    switch (callcode) {
+        case SYS_write: {
+            string* strvalue = (*string_pool)[unpack_int(registers[1])];
+            syscall(
+                callcode,
+                unpack_int(registers[0]),
+                strvalue->c_str(),
+                unpack_int(registers[2]));
+            break;
+        }
+        case SAGESYS_write_int: {
+            string x = to_string(unpack_int(registers[1]));
+            syscall(
+                SYS_write,
+                unpack_int(registers[0]),
+                to_string(unpack_int(registers[1])).c_str(),
+                unpack_int(registers[2]));
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 void SageInterpreter::execute() {
@@ -295,6 +311,7 @@ void SageInterpreter::execute() {
     vector<SageValue> operands;
     vm_running = true;
     bool prog_pointer_jump = false;
+    auto x = 0xA;
 
     while (vm_running && program_pointer < program.size()) {
         if (ErrorLogger::get().has_errors()) {

@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <sys/syscall.h>
+
 #include "../include/symbols.h"
 #include "../include/interpreter.h"
 #include "../include/node_manager.h"
@@ -19,8 +22,8 @@ int hash_djb2(const std::string& str) {
 }
 
 BytecodeBuilder::BytecodeBuilder() {
-    // procedures[0] = procedure_frame("global");
-    // procedure_stack.push(0);
+    build_puts();
+    build_puti();
 }
 
 void BytecodeBuilder::new_frame(string name) {
@@ -41,19 +44,23 @@ void BytecodeBuilder::exit_frame() {
 void BytecodeBuilder::reset() {
     procedures.clear();
     procedure_stack = stack<int>();
+    procs.clear();
 
-    // procedures[hash_djb2("global")] = procedure_frame("global");
-    // procedure_stack.push(hash_djb2("global"));
+    build_puts();
+    build_puti();
 }
 
-bytecode BytecodeBuilder::final(map<int, int>& proc_line_locations) {
+bytecode BytecodeBuilder::final(map<int, int>& proc_line_locations, bool is_comptime) {
     bytecode result;
-    if (!has_main_function) {
-        result.reserve(total_instruction_count + 2);
 
-        int encoding[4] = {0, 0, 0, 0};
-        result.push_back(command(OP_LABEL, hash_djb2("main"), encoding));
-        result.push_back(command(VOP_EXIT, -1, encoding));
+    if (!has_main_function) {
+        if (!is_comptime) {
+            result.reserve(total_instruction_count + 2);
+
+            int encoding[4] = {0, 0, 0, 0};
+            result.push_back(command(OP_LABEL, hash_djb2("main"), encoding));
+            result.push_back(command(VOP_EXIT, -1, encoding));
+        }
     }else {
         result.reserve(total_instruction_count);
         auto hash = hash_djb2("main");
@@ -69,9 +76,23 @@ bytecode BytecodeBuilder::final(map<int, int>& proc_line_locations) {
 
         bytecode& current_instructions = procedures[hash_djb2(pname)].procedure_instructions;
         proc_line_locations[hash_djb2(pname)] = result.size();
+
         result.insert(
-            result.end(),
-            current_instructions.begin(), current_instructions.end());
+           result.end(),
+           current_instructions.begin(), current_instructions.end());
+        int enc[4] = {0,0,0,0};
+        result.push_back(command(VOP_EXIT, -1, enc));
+    }
+
+    for (string pname : builtins) {
+        if (pname == "main") continue;
+
+        bytecode& current_instructions = procedures[hash_djb2(pname)].procedure_instructions;
+        proc_line_locations[hash_djb2(pname)] = result.size();
+
+        result.insert(
+           result.end(),
+           current_instructions.begin(), current_instructions.end());
     }
     return result;
 }
@@ -234,7 +255,35 @@ void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageVal
     total_instruction_count++;
 }
 
+void BytecodeBuilder::build_puti() {
+    //procs.push_back("puti");
+    procedures[hash_djb2("puti")] = procedure_frame("puti");
+    procedure_stack.push(hash_djb2("puti"));
+    build_im(OP_LABEL, hash_djb2("puti"));
+    build_im_im(OP_MOV, SAGESYS_write_int, 22);
+    build_reg_im(OP_MOV, 1, 10);  // save digit count (r1) in temp register r10
+    build_reg_im(OP_MOV, 0, 1);   // save integer to print into r1
+    build_reg_im(OP_MOV, 10, 2);  // save digit count into r2
+    build_im_im(OP_MOV, STDOUT_FILENO, 0); // tell system that this is outputting to stdout
+    build_im(OP_SYSCALL, -1);
+    build_im(OP_RET, -1);
+    procedure_stack.pop();
+}
 
+void BytecodeBuilder::build_puts() {
+    //procs.push_back("puts");
+    procedures[hash_djb2("puts")] = procedure_frame("puts");
+    procedure_stack.push(hash_djb2("puts"));
+    build_im(OP_LABEL, hash_djb2("puts"));
+    build_im_im(OP_MOV, SYS_write, 22);
+    build_reg_im(OP_MOV, 1, 10);
+    build_reg_im(OP_MOV, 0, 1);
+    build_reg_im(OP_MOV, 10, 2);
+    build_im_im(OP_MOV, STDOUT_FILENO, 0);
+    build_im(OP_SYSCALL, -1);
+    build_im(OP_RET, -1);
+    procedure_stack.pop();
+}
 
 ui32 SageCompiler::build_store(ui32 rhs, string variable_name) {
     SageSymbol* var_symbol = symbol_table.lookup(variable_name);
@@ -454,8 +503,8 @@ ui32 SageCompiler::build_string_pointer(string value) {
     auto* char_type = TypeRegistery::get_builtin_type(CHAR);
     auto* array_type = TypeRegistery::get_pointer_type(char_type);
     string* strcopy = new string(value);
-    symbol_table.declare_internal_symbol(value, SageValue(64, strcopy, array_type));
-    return symbol_table.lookup_id(value);
+    symbol_table.declare_string_symbol(value, SageValue(64, strcopy, array_type));
+    return symbol_table.lookup_id(str("string__", value));
 }
 
 
