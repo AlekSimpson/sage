@@ -507,28 +507,27 @@ void process_escape_sequences(string& str) {
             switch (str[read_pos + 1]) {
                 case 'n':
                     str[write_pos++] = '\n';
-                    ++read_pos;
                     break;
                 case 't':
                     str[write_pos++] = '\t';
-                    ++read_pos;
                     break;
                 case 'r':
                     str[write_pos++] = '\r';
-                    ++read_pos;
                     break;
                 case '\\':
                     str[write_pos++] = '\\';
-                    ++read_pos;
                     break;
                 case '"':
                     str[write_pos++] = '"';
-                    ++read_pos;
+                    break;
+                case '0':
+                    str[write_pos++] = '\0';
                     break;
                 default:
                     str[write_pos++] = str[read_pos];
-                    break;
+                    continue;
             }
+            ++read_pos;
             continue;
         }
 
@@ -542,7 +541,7 @@ ui32 SageCompiler::build_string_pointer(string value) {
     auto* char_type = TypeRegistery::get_builtin_type(CHAR);
     auto* array_type = TypeRegistery::get_pointer_type(char_type);
     string* strcopy = new string(value);
-    process_escape_sequences(*strcopy);
+    process_escape_sequences(*strcopy); // todo: might want to have a convenient syntax in the future to declare raw arrays of characters that aren't escaped and don't end in null terminators
     symbol_table.declare_string_symbol(value, SageValue(64, strcopy, array_type));
     return symbol_table.lookup_id(str("string__", value));
 }
