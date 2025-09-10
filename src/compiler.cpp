@@ -80,9 +80,9 @@ bytecode SageCompiler::compile(NodeIndex ast_index) {
     // }
     visit(ast_index);
     bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
-    printf("======================\n");
-    print_bytecode(output);
-    printf("======================\n");
+    // printf("======================\n");
+    // print_bytecode(output);
+    // printf("======================\n");
     builder.reset();
 
     return output;
@@ -121,7 +121,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
 
     // TODO: wrap debug options and output into error logger
-    node_manager->showtree(ast_root);
+    // node_manager->showtree(ast_root);
 
     // 1. program static analysis
 
@@ -173,6 +173,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     // compile runtime code
     bytecode code = compile(ast_root);
 
+    // todo: test that functions declared inside functions work
     if (logger.has_errors()) {
         logger.report_errors();
         return;

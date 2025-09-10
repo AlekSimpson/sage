@@ -499,13 +499,54 @@ ui32 SageCompiler::build_constant_float(string value) {
     return symbol_table.lookup_id(value);
 }
 
+void process_escape_sequences(string& str) {
+    size_t write_pos = 0;
+
+    for (size_t read_pos = 0; read_pos < str.length(); ++read_pos) {
+        if (str[read_pos] == '\\' && read_pos + 1 < str.length()) {
+            switch (str[read_pos + 1]) {
+                case 'n':
+                    str[write_pos++] = '\n';
+                    ++read_pos;
+                    break;
+                case 't':
+                    str[write_pos++] = '\t';
+                    ++read_pos;
+                    break;
+                case 'r':
+                    str[write_pos++] = '\r';
+                    ++read_pos;
+                    break;
+                case '\\':
+                    str[write_pos++] = '\\';
+                    ++read_pos;
+                    break;
+                case '"':
+                    str[write_pos++] = '"';
+                    ++read_pos;
+                    break;
+                default:
+                    str[write_pos++] = str[read_pos];
+                    break;
+            }
+            continue;
+        }
+
+        str[write_pos++] = str[read_pos];
+    }
+
+    str.resize(write_pos);
+}
+
 ui32 SageCompiler::build_string_pointer(string value) {
     auto* char_type = TypeRegistery::get_builtin_type(CHAR);
     auto* array_type = TypeRegistery::get_pointer_type(char_type);
     string* strcopy = new string(value);
+    process_escape_sequences(*strcopy);
     symbol_table.declare_string_symbol(value, SageValue(64, strcopy, array_type));
     return symbol_table.lookup_id(str("string__", value));
 }
+
 
 
 
