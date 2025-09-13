@@ -69,3 +69,30 @@ main :: () {
 
     }
 }
+
+
+main :: () {
+    result: i64 = 2 + 2 * 10
+}
+
+add :: (x: int, y: int) -> int {
+    ret 5
+}
+
+#run {
+    x: int = 5 - 5
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

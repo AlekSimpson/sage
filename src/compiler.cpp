@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stack>
 #include <boost/algorithm/string.hpp>
+#include <sys/syscall.h>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -22,10 +23,24 @@ SageCompiler::SageCompiler(string mainfile)
       debug(COMPILATION),
       node_manager(new NodeManager()),
       parser(SageParser(node_manager, mainfile)),
-      interpreter(new SageInterpreter(4046)),
       symbol_table(SageSymbolTable()),
+      interpreter(new SageInterpreter(4046, &symbol_table.string_pool)),
       builder(BytecodeBuilder()) {
     symbol_table.initialize();
+
+    volatile_register_state = {
+        {10, SageValue()},
+        {11, SageValue()},
+        {12, SageValue()},
+        {13, SageValue()},
+        {14, SageValue()},
+        {15, SageValue()},
+        {16, SageValue()},
+        {17, SageValue()},
+        {18, SageValue()},
+        {19, SageValue()},
+        {20, SageValue()},
+    };
 }
 
 SageCompiler::~SageCompiler() {
@@ -33,47 +48,41 @@ SageCompiler::~SageCompiler() {
     delete interpreter;
 }
 
+void SageCompiler::print_bytecode(bytecode& code) {
+    int count = 0;
+    for (string name : builder.procs) {
+        printf("%s: %d\n", name.c_str(), hash_djb2(name));
+    }
+    printf("------------\n");
+    for (auto instruction : code) {
+        printf("%d: %s\n", count, instruction.print().c_str());
+        count++;
+    }
+}
+
 NodeIndex SageCompiler::parse_codefile(string target_file) {
     parser.filename = target_file;
     NodeIndex parsetree = parser.parse_program(false);
     if (parsetree == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", 40, "AST root is null. parsing failed.");
+        logger.log_internal_error("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
         return NULL_INDEX;
     }
     return parsetree;
 }
 
-bytecode SageCompiler::compile(NodeIndex ast_index, DependencyGraph* dep_graph) {
-     if (ast_index == NULL_INDEX) {
+bytecode SageCompiler::compile(NodeIndex ast_index) {
+    if (ast_index == NULL_INDEX) {
         return bytecode();
     }
 
-    bytecode output;
-    switch (node_manager->get_host_nodetype(ast_index)) {
-         case PN_UNARY:
-            visit_unary_expr(ast_index, dep_graph);
-            output = builder.final();
-            break;
-         case PN_BINARY:
-            visit_binary_expr(ast_index, dep_graph);
-            output = builder.final();
-            break;
-         case PN_TRINARY:
-            visit_trinary_expr(ast_index, dep_graph);
-            output = builder.final();
-            break;
-         case PN_BLOCK:
-            visit_codeblock(ast_index, dep_graph);
-            output = builder.final();
-            break;
-         default:
-            return bytecode();
-    }
-
-    if (logger.has_errors()) {
-        logger.report_errors();
-    }
-
+    // if (compiling_root) {
+    //     compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
+    // }
+    visit(ast_index);
+    bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
+    // printf("======================\n");
+    // print_bytecode(output);
+    // printf("======================\n");
     builder.reset();
 
     return output;
@@ -87,28 +96,48 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     NodeIndex ast_root = parser.parse_program(debug == PARSING || debug == ALL);
     if (ast_root == -1) {
-        if (logger.has_errors()) {
-            logger.report_errors();
-            return;
-        }
-
-        logger.log_internal_error("compiler.cpp", 75, "AST root was null. Parsing failed.");
+        logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
         return;
     }
 
+    if (logger.has_errors()) {
+        logger.report_errors();
+        return;
+    }
+
+    // setup builtin functions
+    vector<SageType*> puti_params = {
+        TypeRegistery::get_builtin_type(I64),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    symbol_table.declare_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType*>()));
+
+    vector<SageType*> puts_params = {
+        TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    symbol_table.declare_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType*>()));
+
     bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
-    // if (debug >= COMPILATION) {
-    //     node_manager->showtree(ast_root);
-    // }
+
+    // TODO: wrap debug options and output into error logger
+    // node_manager->showtree(ast_root);
 
     // 1. program static analysis
+
+    // TODO: Type checking
+
     set<string> parent_scope;
+    builder.builtins = {"puts", "puti"};
     auto dep_graph = generate_ident_dependencies(ast_root, "global", 0, &parent_scope);
     if (dep_graph == nullptr) {
         logger.report_errors();
         return;
     }
-    if (!dep_graph->dependencies_are_valid()) {
+
+    !dep_graph->dependencies_are_valid(); // do a sweep for any identifier resolution errors
+
+    if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
@@ -119,13 +148,19 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    // TODO: Type checking
-
     // 2. program compilation
+
+    // execute run directives
+    interpreter_mode = true;
     comptime_ast_bookmark mark;
+    string rundir_name;
     for (int i = 0; i < bookmarked_run_directives.size; ++i) {
         mark = bookmarked_run_directives[i];
-        bytecode code = compile(mark.ast_position, mark.graph);
+        rundir_name = str("rundir", i);
+        builder.procedures[hash_djb2(rundir_name)] = procedure_frame(rundir_name);
+        builder.procedure_stack.push(hash_djb2(rundir_name));
+        builder.procs.push_back(rundir_name);
+        bytecode code = compile(mark.ast_position);
         if (code.empty()) {
             continue;
         }
@@ -133,10 +168,12 @@ void SageCompiler::begin_compilation(string mainfile) {
         interpreter->load_program(code);
         interpreter->execute();
     }
+    interpreter_mode = false;
 
-    // runtime code compilation
-    bytecode code = compile(ast_root, dep_graph);
+    // compile runtime code
+    bytecode code = compile(ast_root);
 
+    // todo: test that functions declared inside functions work
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -180,17 +217,25 @@ bool SageCompiler::check_filename_valid(string filename) {
     return true;
 }
 
-void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeIndex root) {
+void SageCompiler::get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root) {
     switch (node_manager->get_host_nodetype(root)) {
         case PN_UNARY: {
-            if (node_manager->get_nodetype(root) == PN_IDENTIFIER) {
-                identifiers.push_back(node_manager->get_lexeme(root));
+            auto nodetype = node_manager->get_nodetype(root);
+            if (nodetype == PN_IDENTIFIER || nodetype == PN_VAR_REF) {
+                identifiers.push_back(root);
+                return;
             }
+            vector<NodeIndex> branch_idents;
+            if (node_manager->get_branch(root) != -1) {
+                get_expression_identifiers(branch_idents, node_manager->get_branch(root));
+                identifiers.insert(identifiers.begin(), branch_idents.begin(), branch_idents.end());
+            }
+
             return;
         }
         case PN_BINARY: {
-            vector<string> left_idents;
-            vector<string> right_idents;
+            vector<NodeIndex> left_idents;
+            vector<NodeIndex> right_idents;
             get_expression_identifiers(left_idents, node_manager->get_left(root));
             get_expression_identifiers(right_idents, node_manager->get_right(root));
             identifiers.insert(identifiers.begin(), left_idents.begin(), left_idents.end());
@@ -198,9 +243,9 @@ void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeI
             return;
         }
         case PN_TRINARY: {
-            vector<string> left_idents;
-            vector<string> middle_idents;
-            vector<string> right_idents;
+            vector<NodeIndex> left_idents;
+            vector<NodeIndex> middle_idents;
+            vector<NodeIndex> right_idents;
             get_expression_identifiers(left_idents, node_manager->get_left(root));
             get_expression_identifiers(middle_idents, node_manager->get_middle(root));
             get_expression_identifiers(right_idents, node_manager->get_right(root));
@@ -210,7 +255,7 @@ void SageCompiler::get_expression_identifiers(vector<string>& identifiers, NodeI
         }
         case PN_BLOCK: {
             for (auto child : node_manager->get_children(root)) {
-                vector<string> idents;
+                vector<NodeIndex> idents;
                 idents.reserve(node_manager->get_children(root).size());
                 get_expression_identifiers(idents, child);
                 identifiers.insert(identifiers.begin(), idents.begin(), idents.end());
@@ -228,21 +273,26 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
     set<string>* parent_scope
 ) {
     if (cursor == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", 195, "generate_ident_dependencies recieved null cursor");
+        logger.log_internal_error("compiler.cpp", current_linenum, "generate_ident_dependencies recieved null cursor");
         return nullptr;
     }
     if (node_manager->get_host_nodetype(cursor) != PN_BLOCK) {
         string message = str("generate_ident_dependencies: param cursor expected to be BLOCK type, instead was", nodetype_to_string(node_manager->get_host_nodetype(cursor)));
-        logger.log_internal_error("compiler.cpp", 199, message);
+        logger.log_internal_error("compiler.cpp", current_linenum, message);
         return nullptr;
     }
-
 
     DependencyGraph* dependencies = new DependencyGraph(node_manager, scopename, scopelevel, parent_scope);
     ParseNodeType reptype;
     DependencyGraph* nested_dependency;
 
     dependencies->local_scope = set<string>();
+
+    // setup builtins
+    for (auto builtin : builder.builtins) {
+        dependencies->add_node(builtin, INI, -1);
+        dependencies->local_scope.insert(builtin);
+    }
 
     for (auto child : node_manager->get_children(cursor)) {
         reptype = node_manager->get_nodetype(child);
@@ -254,17 +304,30 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                     name,
                     scopelevel++,
                     &dependencies->local_scope);
+
+                // process function parameters
+                vector<NodeIndex> idents;
+                get_expression_identifiers(idents, node_manager->get_left(node_manager->get_right(child)));
+                for (int i = 0; i < (int)idents.size(); ++i) {
+                    nested_dependency->add_param_node(node_manager->get_lexeme(idents[i]), INI, idents[i]);
+                    symbol_table.declare_parameter_symbol(node_manager->get_lexeme(idents[i]), i);
+                }
+
                 dependencies->add_scope_node(name, INI, child, nested_dependency);
+                symbol_table.declare_symbol(name, -1);
                 continue;
             }
-            case PN_STRUCT:
+            case PN_STRUCT: {
+                auto name = node_manager->get_identifier(child);
                 nested_dependency = generate_ident_dependencies(
                     node_manager->get_right(child),
                     node_manager->get_identifier(child),
                     scopelevel++,
                     &dependencies->local_scope);
                 dependencies->add_scope_node(node_manager->get_identifier(child), INI, child, nested_dependency);
+                symbol_table.declare_symbol(name, -1);
                 continue;
+            }
             case PN_WHILE:
                 nested_dependency = generate_ident_dependencies(
                     node_manager->get_right(child),
@@ -317,10 +380,10 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 // caller depends on its parameters
                 string function_name = node_manager->get_identifier(child);
                 dependencies->add_node(function_name, REF, child);
-                vector<string> idents;
+                vector<NodeIndex> idents;
                 get_expression_identifiers(idents, node_manager->get_branch(child));
                 for (auto ident : idents) {
-                    dependencies->add_connection(function_name, ident);
+                    dependencies->add_connection(function_name, node_manager->get_lexeme(ident), ident);
                 }
 
                 continue;
@@ -336,10 +399,10 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 }
 
                 // rhs is a tree of unary, binary and trinary nodes representing operations and operands (or just a single value)
-                vector<string> referenced_identifiers;
+                vector<NodeIndex> referenced_identifiers;
                 get_expression_identifiers(referenced_identifiers, node_manager->get_right(child));
-                for (string ident : referenced_identifiers) {
-                    dependencies->add_connection(assigned_var_name, ident);
+                for (NodeIndex ident : referenced_identifiers) {
+                    dependencies->add_connection(assigned_var_name, node_manager->get_lexeme(ident), ident);
                 }
                 
                 continue;
@@ -349,9 +412,27 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 dependencies->add_node(node_manager->get_identifier(child), INI, child);
                 symbol_table.declare_symbol(node_manager->get_identifier(child), -1);
                 continue;
-            // NOTE: case PN_VAR_REF: won't occurr on the statement level but will be found on the expression level, look for these in the three above
+
+            case PN_VAR_REF:
+                dependencies->add_node(node_manager->get_identifier(child), REF, child);
+                continue;
+
+            case PN_KEYWORD: {
+                if (node_manager->get_lexeme(child) != "ret") {
+                    continue;
+                }
+
+                vector<NodeIndex> idents;
+                get_expression_identifiers(idents, node_manager->get_branch(child));
+                for (auto ident : idents) {
+                    dependencies->add_node(node_manager->get_identifier(ident), REF, child);
+                }
+
+                continue;
+            }
+
             default:
-                logger.log_internal_error("compiler.cpp", 292, "dependency resolution scan missing");
+                logger.log_internal_error("compiler.cpp", current_linenum, "dependency resolution scan missing");
                 break;
         }
     }
@@ -360,19 +441,31 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
 }
 
 void SageCompiler::register_allocation(DependencyGraph* dependencies) {
-    // Factors to consider for variable-register mapping sorting order
-    // 1. Usage amount throughout scope
-    // 2. Local to scope means higher priority
-    // 3. Is it used in a loop?
+    /*
+     *  Factors to consider for variable-register mapping sorting order
+     *  1. Usage amount throughout scope
+     *  2. Local to scope means higher priority
+     *  3. Is it used in a loop?
+     *
+     *  need to track current scope to expire old intervals, the scopes lifetime essentially is the variable lifetime for all vars
+     *
+     *  while loop: stack not empty
+     *   1. pop stack -> walk var
+     *   2. expire old intervals
+     *   3. get values declared in current scope
+     *   4. sort them and allocate them, allocations written to symbol table
+     *   5. add next branches to stack
+     */
 
-    // need to track current scope to expire old intervals, the scopes lifetime essentially is the variable lifetime for all vars
+    stack<int> virtual_stack_frame;
 
-    // while loop: stack not empty
-    //  1. pop stack -> walk var
-    //  2. expire old intervals
-    //  3. get values declared in current scope
-    //  4. sort them and allocate them, allocations written to symbol table
-    //  5. add next branches to stack
+    auto push_vframe = [&virtual_stack_frame]() {
+        virtual_stack_frame.push(0);
+    };
+
+    auto pop_vframe = [&virtual_stack_frame]() {
+        virtual_stack_frame.pop();
+    };
 
     set<int> available_general_regs;
     for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
@@ -383,15 +476,21 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
 
     auto allocate_registers = [&, this](DependencyGraph* graph, vector<int>* prioritized_vars) {
         for (auto var : *prioritized_vars) {
+            if (graph->nodes[var].is_parameter) continue;
+
+            auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
+            if (var_symbol->type != nullptr && var_symbol->type->identify() == FUNC) continue;
+
             if (available_general_regs.size() == 0) {
-                symbol_table.declare_symbol(graph->nodes[var].name, -1); // -1 register_alloc indicates spilled
+                var_symbol->assigned_register = -1;
+                var_symbol->spilled = true;
+                var_symbol->spill_offset = virtual_stack_frame.top();
+                virtual_stack_frame.top()++;
                 continue;
             }
             int chosen = *available_general_regs.begin();
             available_general_regs.erase(chosen);
-            // symbol_table.declare_symbol(graph->nodes[var].name, chosen);
-            auto cell = symbol_table.lookup(graph->nodes[var].name);
-            cell->assigned_register = chosen;
+            var_symbol->assigned_register = chosen;
             currently_allocated.insert(graph->nodes[var].name);
         }
     };
@@ -416,12 +515,39 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
                        inserter(currently_allocated, currently_allocated.begin()));
     };
 
+    auto update_scope = [&](DependencyGraph* walk) {
+        set<string> fullscope;
+        fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
+        fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
+
+        set<string> expired_values;
+        set_difference(currently_allocated.begin(), currently_allocated.end(),
+                       fullscope.begin(), fullscope.end(),
+                       inserter(expired_values, expired_values.begin()));
+
+        // if we have expired values then something went out of scope -> pop
+        if (expired_values.size() > 0) {
+            pop_vframe();
+            return;
+        }
+
+        set<string> result;
+        // if there are things in fullscope that are not currently allocated -> push
+        set_difference(fullscope.begin(), fullscope.end(),
+                       currently_allocated.begin(), currently_allocated.end(),
+                       inserter(result, result.begin()));
+        if (result.size() > 0) {
+            push_vframe();
+        }
+    };
+
     stack<DependencyGraph*> fringe;
     DependencyGraph* walk;
     fringe.push(dependencies);
     while (!fringe.empty()) {
         walk = fringe.top();
         fringe.pop();
+        update_scope(walk);
 
         vector<int> buffer;
         buffer.reserve(walk->nodes.size());
@@ -435,6 +561,7 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
                 fringe.push(node.owned_scope);
                 continue;
             }
+            if (node.is_parameter) continue;
 
             buffer.push_back(key);
         }
@@ -448,3 +575,45 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
 bool SageCompiler::node_is_precompiled(NodeIndex node) {
     return precompiled.find(node) != precompiled.end();
 }
+
+int SageCompiler::get_volatile() {
+    int retval = 10 + (volatile_index % volatile_register_state.size());
+    volatile_index++;
+    return retval;
+}
+
+bool SageCompiler::volatile_is_stale(SageValue& live, int volatile_idx) {
+    return !volatile_register_state[volatile_idx].equals(live);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

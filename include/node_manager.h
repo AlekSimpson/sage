@@ -44,11 +44,11 @@ public:
     NodeIndex get_branch(NodeIndex);
     NodeIndex reach_right(NodeIndex, int);
     vector<NodeIndex> get_children(NodeIndex);
-
+    DependencyGraph* get_dependencies(NodeIndex);
     string get_identifier(NodeIndex);
 
+    void bind_dependency(NodeIndex, DependencyGraph*);
     void add_child(NodeIndex self, NodeIndex new_child);
-
     void delete_node(NodeIndex index);
 
     NodeIndex create(AbstractParseNode*, ParseNodeType);

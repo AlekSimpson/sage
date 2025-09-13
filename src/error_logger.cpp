@@ -18,6 +18,17 @@ SageError::SageError(
     message(msg),
     filename(filename) {}
 
+size_t SageError::hash() const {
+    size_t h1 = std::hash<string>{}(filename);
+    size_t h2 = std::hash<int>{}(line_number);
+    size_t h3 = std::hash<int>{}(column_number);
+    size_t h4 = std::hash<int>{}(static_cast<int>(error_type));
+    size_t h5 = std::hash<string>{}(message);
+
+    // Combine hashes using XOR and bit shifting
+    return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h5 << 4);
+}
+
 string SageError::get_error_type_string() {
     switch (error_type) {
         case ErrorType::SYNTAX: return "syntax error";
@@ -59,18 +70,18 @@ string SageError::print() {
         
         // Try to read the file and show the problematic line
         auto lines = read_file_lines();
-        if (!lines.empty() && line_number <= static_cast<int>(lines.size()) && line_number > 0) {
+        if (!lines.empty() && line_number <= static_cast<int>(lines.size())) {
             // Calculate padding for line numbers
             int max_line_digits = to_string(line_number + 1).length();
             
             // Empty line before code
             output << BLUE;
-            for (int i = 0; i < max_line_digits; i++) output << " ";
+            for (int i = 0; i < max_line_digits; ++i) output << " ";
             output << " |" << RESET << "\n";
             
             // Show the line with error
             output << BLUE << line_number;
-            for (int i = to_string(line_number).length(); i < max_line_digits; i++) {
+            for (int i = to_string(line_number).length(); i < max_line_digits; ++i) {
                 output << " ";
             }
             output << " | " << RESET << lines[line_number - 1] << "\n";
@@ -78,13 +89,11 @@ string SageError::print() {
             // Show pointer to error location
             if (column_number > 0) {
                 output << BLUE;
-                for (int i = 0; i < max_line_digits; i++) output << " ";
+                for (int i = 0; i < max_line_digits; ++i) output << " ";
                 output << " | " << RESET;
                 
                 // Add spaces up to the error column
-                for (int i = 1; i < column_number; i++) {
-                    output << " ";
-                }
+                for (int i = 1; i < column_number; ++i) output << " ";
                 output << RED << "^" << RESET << "\n";
             }
         }
@@ -130,9 +139,14 @@ void ErrorLogger::log_internal_error(
         0,
         INTERNAL);
 
-    errors.push_back(error);
-}
+    if (error_hashes.find(error->hash()) != error_hashes.end()) {
+        delete error;
+        return;
+    }
 
+    errors.push_back(error);
+    error_hashes.insert(error->hash());
+}
 
 void ErrorLogger::log_error(
     string filename, 
@@ -146,9 +160,15 @@ void ErrorLogger::log_error(
         0,
         type);
 
+    if (error_hashes.find(error->hash()) != error_hashes.end()) {
+        delete error;
+        return;
+    }
+
     error_amount++;
 
     errors.push_back(error);
+    error_hashes.insert(error->hash());
 }
 
 void ErrorLogger::log_error(
@@ -162,9 +182,15 @@ void ErrorLogger::log_error(
         token.linedepth,
         type);
 
+    if (error_hashes.find(error->hash()) != error_hashes.end()) {
+        delete error;
+        return;
+    }
+
     error_amount++;
 
     errors.push_back(error);
+    error_hashes.insert(error->hash());
 }
 
 void ErrorLogger::log_warning(
@@ -178,9 +204,15 @@ void ErrorLogger::log_warning(
         token.linedepth,
         type);
 
+    if (error_hashes.find(error->hash()) != error_hashes.end()) {
+        delete error;
+        return;
+    }
+
     warning_amount++;
 
     errors.push_back(error);
+    error_hashes.insert(error->hash());
 }
 
 bool ErrorLogger::has_errors() {
@@ -188,11 +220,16 @@ bool ErrorLogger::has_errors() {
 }
 
 void ErrorLogger::report_errors() {
+    if (errors_logged) {
+        return;
+    }
+
     string output;
     for (auto error : errors) {
         output = error->print();
         printf("%s\n", output.c_str());
     }
+    errors_logged = true;
 }
 
 ErrorLogger& ErrorLogger::get() {

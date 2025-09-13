@@ -84,8 +84,8 @@ NodeIndex SageParser::parse_statements() {
 
 NodeIndex SageParser::parse_statement() {
     Token next_token;
+    // TokenType value_dec_slice[3] = {TT_KEYWORD, TT_LBRACKET, TT_IDENT};
     TokenType value_assign_slice[2] = {TT_ASSIGN, TT_FIELD_ACCESSOR};
-    TokenType value_dec_slice[3] = {TT_KEYWORD, TT_LBRACKET, TT_IDENT};
 
     switch (current_token->token_type) {
         case TT_IDENT:
@@ -93,9 +93,11 @@ NodeIndex SageParser::parse_statement() {
 
             if (match_types(next_token.token_type, TT_BINDING)) {
                 return parse_construct();
-            }else if (matches_any(next_token.token_type, value_dec_slice, 3)) {
+            }
+            if (match_types(next_token.token_type, TT_COLON)) {
                 return parse_value_dec();
-            }else if (matches_any(next_token.token_type, value_assign_slice, 2)) {
+            }
+            if (matches_any(next_token.token_type, value_assign_slice, 2)) {
                 NodeIndex retval = parse_assign();
                 if (retval == NULL_INDEX) {
                     // nil means that we actually were parsing an expression and should stop parsing for assign
@@ -103,7 +105,8 @@ NodeIndex SageParser::parse_statement() {
                 }
 
                 return retval;
-            }else if (match_types(next_token.token_type, TT_LPAREN)) {
+            }
+            if (match_types(next_token.token_type, TT_LPAREN)) {
                 return parse_function_call();
             }
 
@@ -126,7 +129,10 @@ NodeIndex SageParser::parse_run_directive() {
     consume(TT_POUND, "Expected 'run' directive to begin with '#' symbol");
 
     if (current_token->token_type != TT_KEYWORD || current_token->lexeme != "run") {
-        raise_error("Expected 'run' keyword in run directive statement.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Expected 'run' keyword in run directive statement.",
+            SYNTAX);
         return NULL_INDEX;
     }
     advance();
@@ -144,9 +150,14 @@ NodeIndex SageParser::parse_value_dec() {
     NodeIndex name_identifier_node = node_manager->create_unary(name_identifier_token, PN_IDENTIFIER);
     advance(); // move past identifier
 
+    consume(TT_COLON, "Expected ':' in variable declaration");
+
     NodeIndex type_identifier_node = parse_type();
     if (type_identifier_node == NULL_INDEX) {
-        raise_error("Found invalid type in value declaration list.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Found invalid type in value declaration list.",
+            SYNTAX);
         return NULL_INDEX;
     }
 
@@ -159,7 +170,7 @@ NodeIndex SageParser::parse_value_dec() {
         string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->to_string(rhs);
 
         Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum);
-        return node_manager->create_trinary(dec_token, PN_ASSIGN, name_identifier_node, type_identifier_node, rhs);
+        return node_manager->create_trinary(dec_token, PN_VAR_DEC, name_identifier_node, type_identifier_node, rhs);
     }
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;
@@ -185,7 +196,10 @@ NodeIndex SageParser::parse_value_dec_list() {
     }
 
     if (!match_types(current_token->token_type, TT_IDENT)) {
-        raise_error("Expecting value dec to begin with identifier.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Expecting value dec to begin with identifier.",
+            SYNTAX);
         return NULL_INDEX;
     }
 
@@ -199,7 +213,10 @@ NodeIndex SageParser::parse_value_dec_list() {
         NodeIndex value_dec = parse_value_dec();
 
         if (node_manager->get_host_nodetype(value_dec) == PN_TRINARY) {
-            raise_error("Cannot initialize value in value declaration list.\n");
+            ErrorLogger::get().log_error(
+                *current_token,
+                "Cannot initialize value in value declaration list.",
+                SYNTAX);
             return NULL_INDEX;
         }
 
@@ -210,7 +227,7 @@ NodeIndex SageParser::parse_value_dec_list() {
             break;
         }
 
-        consume(TT_COMMA, "Expected comma symbol after value declaration list.\n");
+        consume(TT_COMMA, "Expected comma symbol after value declaration list.");
         list_token_lexeme += node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
 
@@ -239,18 +256,18 @@ NodeIndex SageParser::parse_assign() {
         name_node = parse_struct_field_access();
         name_token.lexeme = node_manager->get_full_lexeme(name_node);
     }else {
-	// parse_struct_field_access leaves the current token cursor on the next token already
-	// so if it is a field access then calling this p.advance() would be unnecessary
+        // parse_struct_field_access leaves the current token cursor on the next token already
+	    // so if it is a field access then calling this p.advance() would be unnecessary
         advance(); // advance past the current identifier
     }
 
     // it could be that we are referencing the field in some expression
     if (is_field_access && current_token->token_type != TT_ASSIGN) {
         node_cache = name_node; // save parsed node for further expression parsing
-        return NULL_INDEX;         // return null to signify that we actually are parsing a different kind of statement
+        return NULL_INDEX; // return null to signify that we actually are parsing a different kind of statement
     }
 
-    consume(TT_ASSIGN, "Expected '=' symbol in assign statement.\n");
+    consume(TT_ASSIGN, "Expected '=' symbol in assign statement.");
 
     NodeIndex value_node = parse_expression();
 
@@ -270,33 +287,39 @@ NodeIndex SageParser::parse_keyword_statement() {
     };
 
     switch (lexeme_map[current_token->lexeme]) {
-    case 1: {
-        return_token.fill_with(*current_token);
-        auto lookahead = peek();
-        if (match_types(lookahead.token_type, TT_NEWLINE)) {
-            advance();
-            // return void
-            return node_manager->create_unary(return_token, PN_KEYWORD);
+        case 1: {
+            return_token.fill_with(*current_token);
+            auto lookahead = peek();
+            if (match_types(lookahead.token_type, TT_NEWLINE)) {
+                advance();
+                // return void
+                return node_manager->create_unary(return_token, PN_KEYWORD);
+            }
+
+            advance(); // advance past return token
+            NodeIndex expression = parse_expression();
+            Token new_token = Token(TT_KEYWORD, "ret", return_token.linenum);
+            // return expression
+            return node_manager->create_unary(new_token, PN_KEYWORD, expression);
         }
-        
-        advance(); // advance past return token
-        NodeIndex expression = parse_expression();
-        Token new_token = Token(TT_KEYWORD, "ret " + node_manager->to_string(expression), return_token.linenum);
-        // return expression
-        return node_manager->create_unary(new_token, PN_KEYWORD, expression);
+
+        case 2:
+            return parse_if_statement();
+
+        case 3:
+            return parse_while_statement();
+
+        case 4:
+            return parse_for_statement();
+
+        default:
+            break;
     }
 
-    case 2: 
-        return parse_if_statement();
-
-    case 3:
-        return parse_while_statement();
-
-    case 4:
-        return parse_for_statement();
-    }
-
-    raise_error("Could not recognize statement.\n");
+    ErrorLogger::get().log_error(
+        *current_token,
+        "Could not recognize statement.",
+        SYNTAX);
     return NULL_INDEX;
 }
 
@@ -319,7 +342,10 @@ NodeIndex SageParser::parse_if_statement() {
         advance(); // move past else
         
         if (current_token->lexeme != "if" && current_token->lexeme != "{") {
-            raise_error("Expected body or if statements after else keywords.\n");
+            ErrorLogger::get().log_error(
+                *current_token,
+                "Expected body or if statements after else keywords.",
+                SYNTAX);
             return NULL_INDEX;
         }
 
@@ -351,7 +377,7 @@ NodeIndex SageParser::parse_if_statement() {
 }
 
 NodeIndex SageParser::parse_while_statement() {
-    consume(TT_KEYWORD, "Expected 'while' keyword in while statement.\n");
+    consume(TT_KEYWORD, "Expected 'while' keyword in while statement.");
 
     NodeIndex condition_node = parse_expression();
     auto node_token = node_manager->get_token(condition_node);
@@ -363,10 +389,13 @@ NodeIndex SageParser::parse_while_statement() {
 }
 
 NodeIndex SageParser::parse_for_statement() {
-    consume(TT_KEYWORD, "Expected 'for' keyword in for statement.\n");
+    consume(TT_KEYWORD, "Expected 'for' keyword in for statement.");
 
     if (match_types(current_token->token_type, TT_IDENT)) {
-        raise_error("For statement expects iterator name.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "For statement expects iterator name.",
+            SYNTAX);
         return NULL_INDEX;
     }
 
@@ -383,7 +412,10 @@ NodeIndex SageParser::parse_for_statement() {
     advance(); // move past iterator
     
     if (current_token->lexeme != "in") {
-        raise_error("Expected 'in' keyword in for statement.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Expected 'in' keyword in for statement.",
+            SYNTAX);
         return NULL_INDEX;
     }
     advance(); // move past in keyword
@@ -393,7 +425,7 @@ NodeIndex SageParser::parse_for_statement() {
 
     NodeIndex body_node = parse_body();
 
-    string for_lexeme = "for " + iterator_variable_token.lexeme + " in " + range_lexeme + "{ ... }";
+    string for_lexeme = sen("for", iterator_variable_token.lexeme, "in", range_lexeme, "{...}");
     Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum);
     return node_manager->create_trinary(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
 }
@@ -402,7 +434,7 @@ NodeIndex SageParser::parse_range() {
     NodeIndex lhs = parse_expression();
     Token left_token = node_manager->get_token(lhs);
 
-    consume(TT_RANGE, "Expected '...' operator in range statement.\n");
+    consume(TT_RANGE, "Expected '...' operator in range statement.");
 
     NodeIndex rhs = parse_expression();
 
@@ -414,7 +446,10 @@ NodeIndex SageParser::parse_range() {
 
 NodeIndex SageParser::parse_construct() {
     if (!match_types(current_token->token_type, TT_IDENT)) {
-        raise_error("Expected identifier name at the beginning of construct statement.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Expected identifier name at the beginning of construct statement.",
+            SYNTAX);
         return NULL_INDEX;
     }
 
@@ -449,29 +484,32 @@ NodeIndex SageParser::parse_construct() {
         return NULL_INDEX;
     }
 
-    string token_lexeme = name_identifier_token.lexeme + " :: " + node_manager->get_lexeme(binding_node);
+    string token_lexeme = sen(name_identifier_token.lexeme, "::", node_manager->get_lexeme(binding_node));
     Token construct_token = Token(TT_COMPILER_CREATED, token_lexeme, name_identifier_token.linenum);
     return node_manager->create_binary(construct_token, nodetype, name_identifier_node, binding_node);
 }
 
 NodeIndex SageParser::parse_struct() {
     if (current_token->lexeme != "struct") {
-        raise_error("Expected 'struct' keyword in structure definition.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            "Expected 'struct' keyword in structure definition.",
+            SYNTAX);
         return NULL_INDEX;
     }
     advance(); // advance past the struct keyword
     
-    consume(TT_LBRACE, "Expected LBRACE in structure definition.\n");
+    consume(TT_LBRACE, "Expected LBRACE in structure definition.");
 
     NodeIndex struct_contents = parse_value_dec_list();
 
-    consume(TT_RBRACE, "Expected RBRACE in structure definition.\n");
+    consume(TT_RBRACE, "Expected RBRACE in structure definition.");
 
     return node_manager->create_unary(node_manager->get_token(struct_contents), PN_STRUCT, struct_contents);
 }
 
 NodeIndex SageParser::parse_function() {
-    consume(TT_LPAREN, "Expected LPAREN in function definition.\n");
+    consume(TT_LPAREN, "Expected LPAREN in function definition.");
 
     string signature_lexeme = "(";
     NodeIndex parameter_list = parse_value_dec_list();
@@ -482,29 +520,49 @@ NodeIndex SageParser::parse_function() {
 
     signature_lexeme += parameter_token.lexeme;
 
-    consume(TT_RPAREN, "Expected RPAREN in function definition.\n");
-    consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.\n");
-    signature_lexeme += " ) -> ";
+    consume(TT_RPAREN, "Expected RPAREN in function definition.");
+
+    Token return_type_token = Token();
+    if (current_token->token_type != TT_FUNC_RETURN_TYPE) {
+        if (current_token->token_type != TT_LBRACE) {
+            ErrorLogger::get().log_error(
+                *current_token,
+                sen("function that implicitly returns void expected to have '{ ... }' body found", current_token->lexeme, "instead."),
+                SYNTAX);
+            return NULL_INDEX;
+        }
+
+        return_type_token.lexeme = "void";
+        return_type_token.linenum = current_token->linenum;
+        return_type_token.filename = current_token->filename;
+        return_type_token.linedepth = current_token->linedepth;
+
+        signature_lexeme += ") -> void";
+        NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
+        Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
+
+        NodeIndex body_node = parse_body();
+        return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
+    }
+
+    consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.");
 
     if (!match_types(current_token->token_type, TT_KEYWORD)) {
-        raise_error("Function must have a return type.\n");
+        ErrorLogger::get().log_error(
+            *current_token,
+            sen("function must have a return type."),
+            SYNTAX);
         return NULL_INDEX;
     }
 
-    Token return_type_token = Token();
     return_type_token.fill_with(*current_token);
 
+    signature_lexeme += ") -> ";
     NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
     signature_lexeme += return_type_token.lexeme;
     advance(); // move past type keyword
-    
-    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
-    // if there is no brace and instead is immidiately followed by a NEWLINE then there is no body
-    if (match_types(current_token->token_type, TT_NEWLINE)) {
-        advance(); // move past the newline
-        return node_manager->create_binary(function_signature, PN_FUNCDEC, parameter_list, return_type_node);
-    }
+    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
     NodeIndex body_node = parse_body();
     return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
@@ -515,7 +573,7 @@ NodeIndex SageParser::parse_function_call() {
     function_name_token.fill_with(*current_token);
     advance(); // move past func name identifier
     
-    consume(TT_LPAREN, "Expected function call to include opening '(' bracket\n");
+    consume(TT_LPAREN, "Expected function call to include opening '(' bracket.");
 
     Token params_token = Token(TT_COMPILER_CREATED, "", -1);
     NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
@@ -531,17 +589,16 @@ NodeIndex SageParser::parse_function_call() {
         advance();
     }
 
-    consume(TT_RPAREN, "Expected function call to include closing ')' bracket.\n");
+    consume(TT_RPAREN, "Expected function call to include closing ')' bracket.");
 
     return node_manager->create_unary(function_name_token, PN_FUNCCALL, params_node);
 }
 
 NodeIndex SageParser::parse_body() {
-    consume(TT_LBRACE, "Expected LBRACE in body definition statement\n");
+    consume(TT_LBRACE, "Expected LBRACE in body definition statement");
 
     Token body_token = Token(TT_COMPILER_CREATED, "{ ... }", current_token->linenum);
     NodeIndex body_node = node_manager->create_block(body_token, PN_BLOCK);
-    // body_node->token = body_token;
 
     while (true) {
         while (match_types(current_token->token_type, TT_NEWLINE)) {
@@ -559,9 +616,12 @@ NodeIndex SageParser::parse_body() {
         node_manager->add_child(body_node, next_statement);
     }
 
-    consume(TT_RBRACE, "Expected RBRACE in body definition statement.\n");
+    if (ErrorLogger::get().has_errors()) {
+        return body_node;
+    }
 
-    // body_node->host_nodetype = PN_BLOCK;
+    consume(TT_RBRACE, "Expected RBRACE in body definition statement.");
+
     return body_node;
 }
 
@@ -574,7 +634,8 @@ NodeIndex SageParser::parse_type() {
         return_node = node_manager->create_unary(node_manager->get_token(function_type), PN_TYPE, function_type);
 
         return return_node;
-    }else if (match_types(current_token->token_type, TT_LBRACKET)) {
+    }
+    if (match_types(current_token->token_type, TT_LBRACKET)) {
         // keep track of how many dims this array has
         int lbracket_nest_count = 0;
         string token_lexeme = "";
@@ -586,7 +647,7 @@ NodeIndex SageParser::parse_type() {
 
         TokenType slice[2] = {TT_KEYWORD, TT_IDENT};
         if (!matches_any(current_token->token_type, slice, 2)) {
-            raise_error("Expected valid type identifier in array type.\n");
+            ErrorLogger::get().log_error(*current_token, "Expected valid type identifier in array type.", SYNTAX);
             return NULL_INDEX;
         }
 
@@ -600,7 +661,10 @@ NodeIndex SageParser::parse_type() {
             advance(); // advance past the colon 
             
             if (!match_types(current_token->token_type, TT_NUM)) {
-                raise_error("Expected a number to define the length of the array type declaration.\n");
+                ErrorLogger::get().log_error(
+                    *current_token,
+                    "Expected a number to define the length of the array type declaration.",
+                    SYNTAX);
                 node_manager->delete_node(array_type_node);
                 return NULL_INDEX;
             }
@@ -615,7 +679,10 @@ NodeIndex SageParser::parse_type() {
         }
 
         if (lbracket_nest_count != 0) {
-            raise_error("Unambiguous array nesting found, please ensure all '[' have a matching ']'.\n");
+            ErrorLogger::get().log_error(
+                *current_token,
+                "Unambiguous array nesting found, please ensure all '[' have a matching ']'.",
+                SYNTAX);
             return NULL_INDEX;
         }
 
@@ -720,7 +787,8 @@ NodeIndex SageParser::parse_primary() {
             lookahead = peek();
             if (match_types(lookahead.token_type, TT_FIELD_ACCESSOR)) {
                 return parse_struct_field_access();
-            }else if (match_types(lookahead.token_type, TT_LPAREN)) {
+            }
+            if (match_types(lookahead.token_type, TT_LPAREN)) {
                 return parse_function_call();
             }
 
@@ -741,8 +809,6 @@ NodeIndex SageParser::parse_primary() {
             return ret;
         
         default:
-            printf("current tok : %s\n", current_token->lexeme.c_str());
-            raise_error("Unrecognized statement; could not find valid primary.\n");
             return NULL_INDEX;
     }
 }
@@ -755,7 +821,10 @@ NodeIndex SageParser::parse_struct_field_access() {
     while (match_types(current_token->token_type, TT_FIELD_ACCESSOR)) {
         advance();
         if (!match_types(current_token->token_type, TT_IDENT)) {
-            raise_error("Expected identifier in struct field accessor statement.\n");
+            ErrorLogger::get().log_error(
+                *current_token,
+                "Expected identifier in struct field accessor statement.",
+                SYNTAX);
             return NULL_INDEX;
         }
 
@@ -768,11 +837,11 @@ NodeIndex SageParser::parse_struct_field_access() {
 }
 
 // parser utility methods
-void SageParser::raise_error(string message) {
-    Token error_token = Token(message, current_token->linenum);
-    error_token.filename = filename;
-    errors.push_back(error_token);
-}
+// void SageParser::raise_error(string message) {
+//     Token error_token = Token(message, current_token->linenum);
+//     error_token.filename = filename;
+//     errors.push_back(error_token);
+// }
 
 bool SageParser::match_types(TokenType type_a, TokenType type_b) {
     return type_a == type_b;
@@ -792,7 +861,7 @@ bool SageParser::matches_any(TokenType type_a, TokenType* possible_types, int ty
 // used to expected certain tokens in the input
 void SageParser::consume(TokenType tokentype, string message) {
     if (current_token->token_type == TT_EOF) {
-        raise_error(message);
+        ErrorLogger::get().log_error(*current_token, message, SYNTAX);
         return;
     }
 
@@ -801,7 +870,7 @@ void SageParser::consume(TokenType tokentype, string message) {
         return;
     }
 
-    raise_error(message);
+    ErrorLogger::get().log_error(*current_token, message, SYNTAX);
 }
 
 void SageParser::advance() {

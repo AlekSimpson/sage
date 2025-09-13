@@ -2,15 +2,26 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <set>
 #include "token.h"
 using namespace std;
+
+#define current_linenum __LINE__
 
 template<typename... T>
 string str(T... args) {
     ostringstream oss;
+    ((oss << args), ...);
+    string result = oss.str();
+    return result;
+}
+
+template<typename... T>
+string sen(T... args) {
+    ostringstream oss;
     ((oss << args << " "), ...);
     string result = oss.str();
-    if (!result.empty()) result.pop_back(); // Remove trailing space
+    if (!result.empty()) result.pop_back(); // remove trailing space
     return result;
 }
 
@@ -20,7 +31,8 @@ enum ErrorType {
   SYNTAX,
   SEMANTIC,
   TYPE,
-  INTERNAL
+  INTERNAL,
+  RUNTIME
 };
 
 struct SageError;
@@ -29,10 +41,12 @@ class ErrorLogger {
 private:
   vector<SageError*> errors;
   vector<SageError*> internal_errors;
+  set<size_t> error_hashes;
   int error_amount = 0;
   int warning_amount = 0;
   bool warnings_are_errors = false;
   string outfile_name = "./compiler_dev_log.log";
+  bool errors_logged = false;
 
   ErrorLogger();
   ~ErrorLogger();
@@ -71,6 +85,7 @@ struct SageError {
   vector<string> read_file_lines();
   string print();
   void print_error();
+  size_t hash() const;
 };
 
 

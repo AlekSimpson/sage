@@ -15,6 +15,10 @@ int32_t unpack_int(ui64 reg) {
     return static_cast<int32_t>(reg >> 32);
 }
 
+int unpack_int64(ui64 reg) {
+    return static_cast<int>(reg >> 32);
+}
+
 ui64 int_reg_inc(ui64 reg, int increment) {
     int32_t value = unpack_int(reg);
     ui64 packed = pack_int(value + increment);

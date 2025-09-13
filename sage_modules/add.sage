@@ -1,11 +1,19 @@
-#run {
-    executable_name char* = "output"
-    platform char* = "LINUX"
-    architecture char* = "X86"
-    bitsize int = 64
+
+add :: (x: int, y: int) -> int {
+    ret x + y
 }
 
-main :: () -> void {
-    result i64 = 2 + 2 * 10
+main :: () {
+
+
+    result: int = add(5, 10)
+    puts("tests\n", 6)
+
+    puts("other\n", 6)
+    puti(result, 2)
+
+
 }
+
+
 
