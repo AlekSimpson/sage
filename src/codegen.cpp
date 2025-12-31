@@ -7,7 +7,6 @@
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 
-#include <boost/function/function_template.hpp>
 
 #include "../include/depgraph.h"
 
@@ -143,7 +142,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     // so that we can inform this code section with what IR generation to use
 
     NodeIndex LHS = node_manager->get_left(node);
-    SageSymbol* variable_symbol = symbol_table.lookup(node_manager->get_lexeme(LHS));
+    auto variable_symbol = symbol_table.lookup(node_manager->get_lexeme(LHS));
     if (variable_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
         return -1;
@@ -153,7 +152,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     ui32 RHS = visit_expression(RHS_idx);
 
     // check expression type against variable type
-    SageSymbol* expression_symbol = symbol_table.lookup(RHS);
+    auto expression_symbol = symbol_table.lookup(RHS);
     if (expression_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("unrecognized symbol: ", RHS_idx));
         return -1;

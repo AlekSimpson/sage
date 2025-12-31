@@ -66,10 +66,8 @@ public:
   DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
   void register_allocation(DependencyGraph*);
   bool node_is_precompiled(NodeIndex);
-  ui32 process_expression(NodeIndex);
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
-  void add_mov(int op1, int op2, int (&map)[4]);
   void create_puts();
   void create_puti();
   void print_bytecode(bytecode&);

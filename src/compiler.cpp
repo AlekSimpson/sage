@@ -310,7 +310,8 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 get_expression_identifiers(idents, node_manager->get_left(node_manager->get_right(child)));
                 for (int i = 0; i < (int)idents.size(); ++i) {
                     nested_dependency->add_param_node(node_manager->get_lexeme(idents[i]), INI, idents[i]);
-                    symbol_table.declare_parameter_symbol(node_manager->get_lexeme(idents[i]), i);
+                    auto entry_idx = symbol_table.declare_symbol(node_manager->get_lexeme(idents[i]), i);
+                    symbol_table.entries[entry_idx].is_parameter = true;
                 }
 
                 dependencies->add_scope_node(name, INI, child, nested_dependency);

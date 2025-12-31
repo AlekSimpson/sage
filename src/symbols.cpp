@@ -1,33 +1,184 @@
 #include <string>
-#include <map>
-#include <vector>
 #include <set>
 #include <stack>
-#include <algorithm>
 
 #include "../include/symbols.h"
 #include "../include/node_manager.h"
-#include "../include/codegen.h"
 #include "../include/sage_types.h"
 
-SageSymbol::SageSymbol()
-: value(SageValue()), type(nullptr), identifier(""), is_variable(false), is_parameter(false), assigned_register(-1), spilled(false), spill_offset(0) {}
+symbol_entry::symbol_entry() :
+    value(SageValue()),
+    type(nullptr),
+    identifier(""),
+    is_variable(false),
+    is_parameter(false),
+    spilled(false),
+    assigned_register(-1),
+    spill_offset(0){}
 
-SageSymbol::SageSymbol(SageValue rawvalue, string _identifier) 
-: value(rawvalue), type(rawvalue.valuetype), identifier(_identifier), is_variable(false), is_parameter(false), assigned_register(-1), spilled(false), spill_offset(0) {}
+symbol_entry::symbol_entry(SageValue sval, string ident) :
+    value(sval),
+    type(sval.valuetype),
+    identifier(ident),
+    is_variable(false),
+    is_parameter(false),
+    spilled(false),
+    assigned_register(-1),
+    spill_offset(0){}
+
+
+tablecell::tablecell():
+    fulltable(nullptr),
+    entries(vector<int>()),
+    parent(nullptr),
+    current_offset(0) {}
+
+tablecell::tablecell(SageSymbolTable* root, tablecell* parent, int offset):
+    fulltable(root),
+    entries(vector<int>()),
+    parent(parent),
+    current_offset(offset) {}
+
+int tablecell::declare_symbol(const string& name, SageValue value) {
+    auto entries = fulltable->entries;
+    int capacity = fulltable->capacity;
+
+    entries[capacity].value = value;
+    entries[capacity].type = value.valuetype;
+    entries[capacity].identifier = name;
+    entries[capacity].is_variable = true;
+    entries[capacity].is_parameter = false;
+
+    fulltable->capacity++;
+    return capacity;
+}
+
+int tablecell::declare_symbol(const string& name, SageType* valuetype) {
+    auto entries = fulltable->entries;
+    int capacity = fulltable->capacity;
+
+    entries[capacity].type = valuetype;
+    entries[capacity].identifier = name;
+    entries[capacity].is_variable = true;
+    entries[capacity].is_parameter = false;
+
+    fulltable->capacity++;
+    return capacity;
+}
+
+int tablecell::declare_symbol(const string& name, int register_alloc) {
+    auto entries = fulltable->entries;
+    int capacity = fulltable->capacity;
+
+    entries[capacity].type = nullptr;
+    entries[capacity].assigned_register = register_alloc;
+    entries[capacity].identifier = name;
+    entries[capacity].is_variable = true;
+    entries[capacity].is_parameter = false;
+
+    fulltable->capacity++;
+    return capacity;
+}
+
+int tablecell::lookup_idx(const string& name) {
+    // double pointer search for name
+    int b = entries.size()-1;
+    for (int a = 0; a < entries.size(); ++a) {
+        if (fulltable->entries[entries[a]].identifier == name) {
+            return entries[a];
+        }
+        if (fulltable->entries[entries[b]].identifier == name) {
+            return entries[b];
+        }
+        b++;
+    }
+
+    // otherwise continue search in parent
+    if (parent == nullptr) {
+        return -1;
+    }
+
+    return parent->lookup_idx(name);
+}
+
+symbol_entry* tablecell::lookup(const string& name) {
+    // double pointer search for name
+    int b = entries.size()-1;
+    for (int a = 0; a < entries.size(); ++a) {
+        if (fulltable->entries[entries[a]].identifier == name) {
+            return &fulltable->entries[entries[a]];
+        }
+        if (fulltable->entries[entries[b]].identifier == name) {
+            return &fulltable->entries[entries[b]];
+        }
+        b++;
+    }
+
+    // otherwise continue search in parent
+    if (parent == nullptr) {
+        return nullptr;
+    }
+
+    return parent->lookup(name);
+}
+
+symbol_entry* tablecell::lookup(int entry_index) {
+    return &fulltable->entries[entry_index];
+}
+
+SageType* tablecell::resolve_sage_type(NodeManager* man, NodeIndex typenode) {
+    string name = man->get_lexeme(typenode);
+
+    // double pointer search for name
+    int b = entries.size()-1;
+    for (int a = 0; a < entries.size(); ++a) {
+        if (fulltable->entries[entries[a]].identifier == name) {
+            return fulltable->entries[entries[a]].type;
+        }
+        if (fulltable->entries[entries[b]].identifier == name) {
+            return fulltable->entries[entries[b]].type;
+        }
+        b++;
+    }
+
+    // otherwise continue search in parent
+    if (parent == nullptr) {
+        return nullptr;
+    }
+
+    return parent->resolve_sage_type(man, typenode);
+}
+
+
+
+
+
+
+
 
 SageSymbolTable::SageSymbolTable() {
-    function_visitor_state = stack<function_visit>();
-    //current_function_has_returned = false;
+    this->function_visitor_state = stack<function_visit>();
+    this->size = 0;
+    this->capacity = 0;
+    this->entries = nullptr;
+    this->global_scope = nullptr;
+    this->current = nullptr;
 }
 
-SageSymbolTable::~SageSymbolTable() {
-    for (auto symbol : symbol_table) {
-        if (symbol != nullptr) {
-            delete symbol;
-        }
+SageSymbolTable::SageSymbolTable(int size) {
+    this->function_visitor_state = stack<function_visit>();
+    this->size = size;
+    this->capacity = 0;
+    this->global_scope = new tablecell(this, nullptr, 0);
+    this->current = global_scope;
+
+    this->entries = new symbol_entry[size];
+    for (int i = 0; i < size; ++i) {
+        entries[i] = symbol_entry();
     }
 }
+
+SageSymbolTable::~SageSymbolTable(){}
 
 void SageSymbolTable::initialize() {
     // initialize root stack with sage built in datatypes and methods
@@ -60,160 +211,55 @@ void SageSymbolTable::initialize() {
     // type_scope = root_scope;
 }
 
-void SageSymbolTable::declare_symbol(const string& name, SageValue value) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->value = value;
-    new_symbol->type = value.valuetype;
-    new_symbol->identifier = name;
-    new_symbol->is_variable = true;
-    new_symbol->is_parameter = false;
-
-    symbol_table.push_back(new_symbol);
-    symbol_map[name] = static_cast<uint32_t>(symbol_table.size() - 1);
+void SageSymbolTable::enter_scope(int offset) {
+    this->current = new tablecell(this, this->current, offset);
 }
 
-void SageSymbolTable::declare_symbol(const string& name, SageType* valuetype) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->type = valuetype;
-    new_symbol->identifier = name;
-    new_symbol->is_variable = true;
-    new_symbol->is_parameter = false;
+void SageSymbolTable::exit_scope() {
+    if (this->current == nullptr) {
+        return;
+    }
 
-    symbol_table.push_back(new_symbol);
-    symbol_map[name] = symbol_table.size() - 1;
+    auto old_current = this->current;
+    this->current = this->current->parent;
+    delete old_current;
 }
 
-void SageSymbolTable::declare_symbol(const string& name, int reg) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->type = nullptr;
-    new_symbol->assigned_register = reg;
-    new_symbol->identifier = name;
-    new_symbol->is_variable = true;
-    new_symbol->is_parameter = false;
-
-    symbol_table.push_back(new_symbol);
-    symbol_map[name] = symbol_table.size() - 1;
+int SageSymbolTable::declare_symbol(const string& name, SageValue value) {
+    return this->current->declare_symbol(name, value);
 }
 
-void SageSymbolTable::declare_parameter_symbol(const string& name, int reg) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->type = nullptr;
-    new_symbol->assigned_register = reg;
-    new_symbol->identifier = name;
-    new_symbol->is_variable = false;
-    new_symbol->is_parameter = true;
+int SageSymbolTable::declare_symbol(const string& name, SageType* valuetype) {
+    return this->current->declare_symbol(name, valuetype);
+}
 
-    symbol_table.push_back(new_symbol);
-    symbol_map[name] = symbol_table.size() - 1;
+int SageSymbolTable::declare_symbol(const string& name, int register_alloc) {
+    return this->current->declare_symbol(name, register_alloc);
+}
+
+int SageSymbolTable::lookup_idx(const string& name) {
+    return this->current->lookup_idx(name);
+}
+
+symbol_entry* SageSymbolTable::lookup(const string& name) {
+    return this->current->lookup(name);
+}
+
+symbol_entry* SageSymbolTable::lookup(int entry_index) {
+    return this->current->lookup(entry_index);
 }
 
 void SageSymbolTable::declare_type_symbol(const string& name, SageType* type) {
+    if (capacity >= size) { return; }
+
     types.insert(name);
 
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->type = type;
-    new_symbol->identifier = name;
-    new_symbol->is_variable = false;
-    new_symbol->is_parameter = false;
+    entries[capacity].type = type;
+    entries[capacity].identifier = name;
+    entries[capacity].is_variable = false;
+    entries[capacity].is_parameter = false;
 
-    symbol_table.push_back(new_symbol);
-    symbol_map[name] = static_cast<uint32_t>(symbol_table.size() - 1);
-}
-
-uint32_t SageSymbolTable::declare_string_symbol(const string& name, SageValue value) {
-    string_pool.push_back(value.value.string_value);
-
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->is_variable = false;
-    new_symbol->is_parameter = false;
-    new_symbol->value = SageValue(64, (int)string_pool.size()-1, TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)));
-    new_symbol->identifier = name;
-    new_symbol->type = value.valuetype;
-
-    symbol_table.push_back(new_symbol);
-    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
-    symbol_map[str("string__", new_symbol->identifier)] = symbol_id;
-
-    return symbol_id;
-}
-
-uint32_t SageSymbolTable::declare_internal_symbol(const string& name, SageValue value) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->is_variable = false;
-    new_symbol->is_parameter = false;
-    new_symbol->value = value;
-    new_symbol->identifier = name;
-    new_symbol->type = value.valuetype;
-
-    symbol_table.push_back(new_symbol);
-    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
-    symbol_map[new_symbol->identifier] = symbol_id;
-
-    return symbol_id;
-}
-
-uint32_t SageSymbolTable::declare_internal_symbol(int register_value) {
-    SageSymbol* new_symbol = new SageSymbol;
-    new_symbol->is_variable = false;
-    new_symbol->is_parameter = false;
-    new_symbol->assigned_register = register_value;
-    new_symbol->identifier = str("temp_", to_string(symbol_table.size()));
-
-    symbol_table.push_back(new_symbol);
-    uint32_t symbol_id = static_cast<uint32_t>(symbol_table.size() - 1);
-    symbol_map[new_symbol->identifier] = symbol_id;
-    
-    return symbol_id;
-}
-
-// void SageSymbolTable::push_scope() {
-//     auto topscope = symbol_stack.top();
-//     symbol_stack.push(topscope);
-// }
-//
-// void SageSymbolTable::pop_scope() {
-//     auto current_scope = symbol_stack.top();
-//     symbol_stack.pop();
-//     auto previous_scope = symbol_stack.top();
-//
-//     set<string> scopediff;
-//     set_difference(current_scope.begin(), current_scope.end(),
-//                    previous_scope.begin(), previous_scope.end(),
-//                    std::inserter(scopediff, scopediff.begin()));
-//
-//     // any symbols declared in the scope to pop should be removed from the symbol table
-//     for (string symbol: scopediff) {
-//         if (previous_scope.find(symbol) != previous_scope.end()) {
-//             delete symbol_table[symbol_map[symbol]];
-//             symbol_map.erase(symbol);
-//         }
-//     }
-// }
-
-uint32_t SageSymbolTable::lookup_id(string name) {
-    auto search = symbol_map.find(name);
-    if (search == symbol_map.end()) {
-        return 0;
-    }
-
-    return symbol_map[name];
-}
-
-SageSymbol* SageSymbolTable::lookup(const string& name) {
-    auto search = symbol_map.find(name);
-    if (search == symbol_map.end()) {
-        return nullptr;
-    }
-
-    return symbol_table[symbol_map[name]];
-}
-
-SageSymbol* SageSymbolTable::lookup(uint32_t id) {
-    if (id >= symbol_table.size()) {
-        return nullptr;
-    }
-
-    return symbol_table[id];
+    capacity++;
 }
 
 SageType* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex typenode) {
@@ -234,16 +280,10 @@ SageType* SageSymbolTable::derive_sage_type(NodeManager* manager, NodeIndex type
 }
 
 SageType* SageSymbolTable::resolve_sage_type(NodeManager* manager, NodeIndex typenode) {
-    string type_name = manager->get_lexeme(typenode);
-    auto it = symbol_map.find(type_name);
-    if (it == symbol_map.end()) {
-        return TypeRegistery::get_builtin_type(VOID);
-    }
-
-    return symbol_table[symbol_map[type_name]]->type;
+    return this->current->resolve_sage_type(manager, typenode);
 }
 
-int SageSymbolTable::size() {
-    return symbol_table.size();
-}
+
+
+
 

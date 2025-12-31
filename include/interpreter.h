@@ -1,5 +1,7 @@
 #pragma once
 
+#include <map>
+
 #include "sage_types.h"
 #include "sage_bytecode.h"
 #include "symbols.h"

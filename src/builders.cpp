@@ -286,8 +286,8 @@ void BytecodeBuilder::build_puts() {
 }
 
 ui32 SageCompiler::build_store(ui32 rhs, string variable_name) {
-    SageSymbol* var_symbol = symbol_table.lookup(variable_name);
-    SageSymbol* rhs_symbol = symbol_table.lookup(rhs);
+    auto var_symbol = symbol_table.lookup(variable_name);
+    auto rhs_symbol = symbol_table.lookup(rhs);
 
     // is it a variable
     //   is it spilled -> is it stale?
@@ -338,7 +338,7 @@ ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
         return 0;
     }
 
-    SageSymbol* return_symbol = symbol_table.lookup(return_value_id);
+    auto return_symbol = symbol_table.lookup(return_value_id);
 
     // is it a variable
     //   is it spilled -> is it stale?
@@ -375,7 +375,7 @@ ui32 SageCompiler::build_function_with_block(string function_name) {
 }
 
 ui32 SageCompiler::build_alloca(string var_name) {
-    SageSymbol* var_symbol = symbol_table.lookup(var_name);
+    auto var_symbol = symbol_table.lookup(var_name);
     if (var_symbol->spilled) {
         builder.build_im_im_im(OP_ADD, STACK_POINTER, STACK_POINTER, 1);
     }
@@ -384,8 +384,8 @@ ui32 SageCompiler::build_alloca(string var_name) {
 }
 
 ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
-    SageSymbol* lhs_symbol = symbol_table.lookup(value1_id);
-    SageSymbol* rhs_symbol = symbol_table.lookup(value2_id);
+    auto lhs_symbol = symbol_table.lookup(value1_id);
+    auto rhs_symbol = symbol_table.lookup(value2_id);
     SageValue lhs = SageValue();
     SageValue rhs = SageValue();
 
@@ -418,7 +418,7 @@ ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opc
         builder.build_im_im_im(opcode, result_register, lhs, rhs);
     }
 
-    ui32 result_symbol_id = symbol_table.declare_internal_symbol(result_register);
+    ui32 result_symbol_id = symbol_table.declare_symbol("", result_register);
     return result_symbol_id;
 }
 
@@ -447,7 +447,7 @@ ui32 SageCompiler::build_or(ui32 value1, ui32 value2) {
 }
 
 ui32 SageCompiler::build_load(string reference_name) {
-    SageSymbol* symbol = symbol_table.lookup(reference_name);
+    auto symbol = symbol_table.lookup(reference_name);
 
     if (symbol->spilled) {
         int volatile_reg = get_volatile();
@@ -455,7 +455,7 @@ ui32 SageCompiler::build_load(string reference_name) {
         symbol->assigned_register = volatile_reg;
     }
 
-    return symbol_table.lookup_id(reference_name);
+    return symbol_table.lookup_idx(reference_name);
 }
 
 ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) {
@@ -467,7 +467,7 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
         return 0;
     }
 
-    SageSymbol* symbol;
+    symbol_entry* symbol;
     for (int i = 0; i < args.size(); ++i) {
         symbol = symbol_table.lookup(args[i]);
 
@@ -484,19 +484,19 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
     builder.build_im(OP_CALL, hash_djb2(function_name));
 
     symbol_table.lookup(function_name)->assigned_register = 6; // TEMP: when we support more than one return value we will need to beef up the logic around this
-    return symbol_table.lookup_id(function_name);
+    return symbol_table.lookup_idx(function_name);
 }
 
 ui32 SageCompiler::build_constant_int(string value) {
     auto* builtin_type = TypeRegistery::get_builtin_type(I64);
-    symbol_table.declare_internal_symbol(value, SageValue(64, stoi(value), builtin_type));
-    return symbol_table.lookup_id(value);
+    ui32 table_idx = symbol_table.declare_symbol(value, SageValue(64, stoi(value), builtin_type));
+    return table_idx;
 }
 
 ui32 SageCompiler::build_constant_float(string value) {
     auto* builtin_type = TypeRegistery::get_builtin_type(F64);
-    symbol_table.declare_internal_symbol(value, SageValue(64, stof(value), builtin_type));
-    return symbol_table.lookup_id(value);
+    ui32 table_idx = symbol_table.declare_symbol(value, SageValue(64, stof(value), builtin_type));
+    return table_idx;
 }
 
 void process_escape_sequences(string& str) {
@@ -542,8 +542,8 @@ ui32 SageCompiler::build_string_pointer(string value) {
     auto* array_type = TypeRegistery::get_pointer_type(char_type);
     string* strcopy = new string(value);
     process_escape_sequences(*strcopy); // todo: might want to have a convenient syntax in the future to declare raw arrays of characters that aren't escaped and don't end in null terminators
-    symbol_table.declare_string_symbol(value, SageValue(64, strcopy, array_type));
-    return symbol_table.lookup_id(str("string__", value));
+    ui32 table_index = symbol_table.declare_symbol(value, SageValue(64, strcopy, array_type));
+    return table_index;
 }
 
 
