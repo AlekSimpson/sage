@@ -12,6 +12,36 @@
 
 using namespace std;
 
+// Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
+symbol_entry* SageCompiler::resolve_symbol(NodeIndex node) {
+    // Fast path: check for early-bound resolved symbol
+    int resolved = node_manager->get_resolved_symbol(node);
+    if (resolved != -1) {
+        return symbol_table.lookup_by_index(resolved);
+    }
+    
+    // Lazy lookup using scope_id
+    int scope_id = node_manager->get_scope_id(node);
+    string name = node_manager->get_lexeme(node);
+    int idx = symbol_table.lookup_from_scope(name, scope_id);
+    
+    if (idx != -1) {
+        // Cache the resolved symbol for future lookups
+        node_manager->set_resolved_symbol(node, idx);
+        return symbol_table.lookup_by_index(idx);
+    }
+    
+    return nullptr;
+}
+
+symbol_entry* SageCompiler::resolve_symbol_by_name(const string& name, int scope_id) {
+    int idx = symbol_table.lookup_from_scope(name, scope_id);
+    if (idx != -1) {
+        return symbol_table.lookup_by_index(idx);
+    }
+    return nullptr;
+}
+
 void SageCompiler::compile_dependency_resolution_order(DependencyGraph* dep_graph) {
     if (dep_graph == nullptr || doing_dependency_resolution_order) {
         return;
@@ -142,7 +172,8 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     // so that we can inform this code section with what IR generation to use
 
     NodeIndex LHS = node_manager->get_left(node);
-    auto variable_symbol = symbol_table.lookup(node_manager->get_lexeme(LHS));
+    // Use hybrid symbol resolution - fast path if early-bound, else scope-based lookup
+    auto variable_symbol = resolve_symbol(LHS);
     if (variable_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
         return -1;
@@ -152,7 +183,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     ui32 RHS = visit_expression(RHS_idx);
 
     // check expression type against variable type
-    auto expression_symbol = symbol_table.lookup(RHS);
+    auto expression_symbol = symbol_table.lookup_by_index(RHS);
     if (expression_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("unrecognized symbol: ", RHS_idx));
         return -1;

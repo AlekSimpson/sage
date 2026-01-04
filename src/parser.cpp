@@ -3,6 +3,7 @@
 #include "../include/token.h"
 #include "../include/parser.h"
 #include "../include/error_logger.h"
+#include "../include/scope_manager.h"
 
 #include <unordered_map>
 #include <stdio.h>
@@ -16,14 +17,16 @@ int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
 
 SageParser::SageParser(){}
 
-SageParser::SageParser(NodeManager* _node_manager, string _filename) {
-    lexer = new SageLexer(_filename);
+SageParser::SageParser(ScopeManager* scope_manager, NodeManager* node_manager, string filename) {
+    lexer = new SageLexer(filename);
 
-    node_manager = _node_manager;
-    filename = _filename;
+    this->scope_manager = scope_manager;
+    this->node_manager = node_manager;
+    this->filename = filename;
     current_token = nullptr;
     node_cache = NULL_INDEX;
     errors = vector<Token>();
+    symbol_count = 0;
 }
 
 SageParser::~SageParser() {
@@ -34,6 +37,8 @@ SageParser::~SageParser() {
 
 NodeIndex SageParser::parse_program(bool debug_lexer) {
     current_token = lexer->get_token();
+
+    // Global scope is already created in ScopeManager constructor
 
     if (debug_lexer) {
         Token* walk_token = current_token;
@@ -56,6 +61,8 @@ NodeIndex SageParser::parse_program(bool debug_lexer) {
 
         return NULL_INDEX;
     }
+
+    // Global scope doesn't need to be exited
 
     return program_root;
 }
@@ -128,6 +135,8 @@ NodeIndex SageParser::parse_statement() {
 NodeIndex SageParser::parse_run_directive() {
     consume(TT_POUND, "Expected 'run' directive to begin with '#' symbol");
 
+    scope_manager->enter_scope("#run", current_token->linenum);
+
     if (current_token->token_type != TT_KEYWORD || current_token->lexeme != "run") {
         ErrorLogger::get().log_error(
             *current_token,
@@ -139,6 +148,7 @@ NodeIndex SageParser::parse_run_directive() {
 
     Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum);
     NodeIndex run_body = parse_body();
+    scope_manager->exit_scope(current_token->linenum);
 
     return node_manager->create_unary(run_token, PN_RUN_DIRECTIVE, run_body);
 }
@@ -149,6 +159,8 @@ NodeIndex SageParser::parse_value_dec() {
 
     NodeIndex name_identifier_node = node_manager->create_unary(name_identifier_token, PN_IDENTIFIER);
     advance(); // move past identifier
+
+    symbol_count += 1;
 
     consume(TT_COLON, "Expected ':' in variable declaration");
 
@@ -324,6 +336,8 @@ NodeIndex SageParser::parse_keyword_statement() {
 }
 
 NodeIndex SageParser::parse_if_statement() {
+    scope_manager->enter_scope("if", current_token->linenum);
+
     advance(); // advance past the "if" keyword
     
     vector<NodeIndex> elif_statements = vector<NodeIndex>();
@@ -332,6 +346,7 @@ NodeIndex SageParser::parse_if_statement() {
     Token expression_token = node_manager->get_token(condition_expression);
 
     NodeIndex condition_body = parse_body();
+    scope_manager->exit_scope(current_token->linenum);
 
     Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum);
     NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression, condition_body);
@@ -340,7 +355,8 @@ NodeIndex SageParser::parse_if_statement() {
 
     while (current_token->lexeme == "else") {
         advance(); // move past else
-        
+        scope_manager->enter_scope("else", current_token->linenum);
+
         if (current_token->lexeme != "if" && current_token->lexeme != "{") {
             ErrorLogger::get().log_error(
                 *current_token,
@@ -355,7 +371,7 @@ NodeIndex SageParser::parse_if_statement() {
             NodeIndex condition_exp = parse_expression();
             Token exp_token = node_manager->get_token(condition_exp);
 
-            NodeIndex condition_body = parse_body();
+            condition_body = parse_body();
             // TODO: more detailed token lexeme
             Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum);
             NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp, condition_body);
@@ -371,6 +387,7 @@ NodeIndex SageParser::parse_if_statement() {
 
             break;
         }
+        scope_manager->exit_scope(current_token->linenum);
     }
 
     return node_manager->create_block(expression_token, PN_IF, elif_statements);
@@ -381,8 +398,9 @@ NodeIndex SageParser::parse_while_statement() {
 
     NodeIndex condition_node = parse_expression();
     auto node_token = node_manager->get_token(condition_node);
-
+    scope_manager->enter_scope("while", current_token->linenum);
     NodeIndex body_node = parse_body();
+    scope_manager->exit_scope(current_token->linenum);
 
     Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", node_token.linenum);
     return node_manager->create_binary(token, PN_WHILE, condition_node, body_node);
@@ -390,6 +408,7 @@ NodeIndex SageParser::parse_while_statement() {
 
 NodeIndex SageParser::parse_for_statement() {
     consume(TT_KEYWORD, "Expected 'for' keyword in for statement.");
+    scope_manager->enter_scope("for", current_token->linenum);
 
     if (match_types(current_token->token_type, TT_IDENT)) {
         ErrorLogger::get().log_error(
@@ -399,7 +418,8 @@ NodeIndex SageParser::parse_for_statement() {
         return NULL_INDEX;
     }
 
-    Token iterator_variable_token = Token();
+    symbol_count += 1;
+    Token iterator_variable_token;
     iterator_variable_token.fill_with(*current_token);
     NodeIndex identifier_token = node_manager->create_unary(iterator_variable_token, PN_IDENTIFIER);
     NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
@@ -425,6 +445,7 @@ NodeIndex SageParser::parse_for_statement() {
 
     NodeIndex body_node = parse_body();
 
+    scope_manager->exit_scope(current_token->linenum);
     string for_lexeme = sen("for", iterator_variable_token.lexeme, "in", range_lexeme, "{...}");
     Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum);
     return node_manager->create_trinary(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
@@ -497,19 +518,26 @@ NodeIndex SageParser::parse_struct() {
             SYNTAX);
         return NULL_INDEX;
     }
+    scope_manager->enter_scope("struct", current_token->linenum);
+
     advance(); // advance past the struct keyword
+    symbol_count+=1;
     
     consume(TT_LBRACE, "Expected LBRACE in structure definition.");
 
     NodeIndex struct_contents = parse_value_dec_list();
 
     consume(TT_RBRACE, "Expected RBRACE in structure definition.");
+    scope_manager->exit_scope(current_token->linenum);
 
     return node_manager->create_unary(node_manager->get_token(struct_contents), PN_STRUCT, struct_contents);
 }
 
 NodeIndex SageParser::parse_function() {
     consume(TT_LPAREN, "Expected LPAREN in function definition.");
+
+    scope_manager->enter_scope("function", current_token->linenum);
+    symbol_count+=1;
 
     string signature_lexeme = "(";
     NodeIndex parameter_list = parse_value_dec_list();
@@ -542,6 +570,7 @@ NodeIndex SageParser::parse_function() {
         Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
         NodeIndex body_node = parse_body();
+        scope_manager->exit_scope(current_token->linenum);
         return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
     }
 
@@ -565,6 +594,7 @@ NodeIndex SageParser::parse_function() {
     Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
     NodeIndex body_node = parse_body();
+    scope_manager->exit_scope(current_token->linenum);
     return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
 }
 
@@ -773,12 +803,14 @@ NodeIndex SageParser::parse_primary() {
         case TT_NUM:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_NUMBER);
+            symbol_count+=1;
             advance();
             return ret;
 
         case TT_FLOAT:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_FLOAT);
+            symbol_count+=1;
             advance();
             return ret;
 
@@ -805,6 +837,7 @@ NodeIndex SageParser::parse_primary() {
         case TT_STRING:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_STRING);
+            symbol_count+=1;
             advance();
             return ret;
         

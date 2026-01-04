@@ -5,6 +5,7 @@
 #include "node_manager.h"
 #include <set>
 #include <stack>
+#include <cstdint>
 
 /*
  * Dependency mapping strategy idea:

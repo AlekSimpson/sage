@@ -9,6 +9,7 @@
 #include "../include/symbols.h"
 #include "../include/sage_bytecode.h"
 #include "../include/depgraph.h"
+#include "../include/scope_manager.h"
 
 using namespace std;
 
@@ -22,11 +23,14 @@ SageCompiler::SageCompiler(string mainfile)
     : ast(NULL_INDEX),
       debug(COMPILATION),
       node_manager(new NodeManager()),
-      parser(SageParser(node_manager, mainfile)),
+      scope_manager(ScopeManager()),
+      parser(SageParser(&scope_manager, node_manager, mainfile)),
       symbol_table(SageSymbolTable()),
-      interpreter(new SageInterpreter(4046, &symbol_table.string_pool)),
+      interpreter(nullptr),
       builder(BytecodeBuilder()) {
-    symbol_table.initialize();
+
+    // Set scope_manager on node_manager for automatic scope_id assignment
+    node_manager->set_scope_manager(&scope_manager);
 
     volatile_register_state = {
         {10, SageValue()},
@@ -104,6 +108,12 @@ void SageCompiler::begin_compilation(string mainfile) {
         logger.report_errors();
         return;
     }
+
+    int symbol_count = BUILTIN_COUNT + parser.symbol_count + symbol_table.string_pool.size();
+    symbol_table = SageSymbolTable(&scope_manager, symbol_count);
+    symbol_table.initialize();
+
+    interpreter = new SageInterpreter(4046, &symbol_table.string_pool);
 
     // setup builtin functions
     vector<SageType*> puti_params = {
@@ -309,13 +319,23 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 vector<NodeIndex> idents;
                 get_expression_identifiers(idents, node_manager->get_left(node_manager->get_right(child)));
                 for (int i = 0; i < (int)idents.size(); ++i) {
-                    nested_dependency->add_param_node(node_manager->get_lexeme(idents[i]), INI, idents[i]);
-                    auto entry_idx = symbol_table.declare_symbol(node_manager->get_lexeme(idents[i]), i);
+                    string param_name = node_manager->get_lexeme(idents[i]);
+                    nested_dependency->add_param_node(param_name, INI, idents[i]);
+                    auto entry_idx = symbol_table.declare_symbol(param_name, i);
                     symbol_table.entries[entry_idx].is_parameter = true;
+                    
+                    // Early-bind parameter
+                    node_manager->set_resolved_symbol(idents[i], entry_idx);
                 }
 
                 dependencies->add_scope_node(name, INI, child, nested_dependency);
-                symbol_table.declare_symbol(name, -1);
+                int func_symbol_idx = symbol_table.declare_symbol(name, -1);
+                
+                // Early-bind the function name identifier
+                NodeIndex func_name_node = node_manager->get_left(child);
+                if (func_name_node != NULL_INDEX) {
+                    node_manager->set_resolved_symbol(func_name_node, func_symbol_idx);
+                }
                 continue;
             }
             case PN_STRUCT: {
@@ -381,10 +401,26 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 // caller depends on its parameters
                 string function_name = node_manager->get_identifier(child);
                 dependencies->add_node(function_name, REF, child);
+                
+                // Early-bind function reference if possible
+                int func_scope = node_manager->get_scope_id(child);
+                int func_symbol_idx = symbol_table.lookup_from_scope(function_name, func_scope);
+                if (func_symbol_idx != -1) {
+                    node_manager->set_resolved_symbol(child, func_symbol_idx);
+                }
+                
                 vector<NodeIndex> idents;
                 get_expression_identifiers(idents, node_manager->get_branch(child));
                 for (auto ident : idents) {
                     dependencies->add_connection(function_name, node_manager->get_lexeme(ident), ident);
+                    
+                    // Early-bind argument identifiers
+                    string ident_name = node_manager->get_lexeme(ident);
+                    int ident_scope = node_manager->get_scope_id(ident);
+                    int ident_symbol_idx = symbol_table.lookup_from_scope(ident_name, ident_scope);
+                    if (ident_symbol_idx != -1) {
+                        node_manager->set_resolved_symbol(ident, ident_symbol_idx);
+                    }
                 }
 
                 continue;
@@ -392,11 +428,21 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
             case PN_ASSIGN: {
                 // assigned depends on its assignees
                 string assigned_var_name = node_manager->get_identifier(child);
+                int symbol_idx;
                 if (node_manager->get_host_nodetype(child) == PN_BINARY) {
                     dependencies->add_node(assigned_var_name, REF, child);
+                    // Early-bind the assigned variable reference
+                    int child_scope = node_manager->get_scope_id(child);
+                    symbol_idx = symbol_table.lookup_from_scope(assigned_var_name, child_scope);
                 }else {
                     dependencies->add_node(assigned_var_name, INI, child);
-                    symbol_table.declare_symbol(assigned_var_name, -1);
+                    symbol_idx = symbol_table.declare_symbol(assigned_var_name, -1);
+                }
+                
+                // Early-bind the LHS identifier
+                NodeIndex lhs = node_manager->get_left(child);
+                if (lhs != NULL_INDEX && symbol_idx != -1) {
+                    node_manager->set_resolved_symbol(lhs, symbol_idx);
                 }
 
                 // rhs is a tree of unary, binary and trinary nodes representing operations and operands (or just a single value)
@@ -404,19 +450,44 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 get_expression_identifiers(referenced_identifiers, node_manager->get_right(child));
                 for (NodeIndex ident : referenced_identifiers) {
                     dependencies->add_connection(assigned_var_name, node_manager->get_lexeme(ident), ident);
+                    
+                    // Early-bind RHS identifiers
+                    string ident_name = node_manager->get_lexeme(ident);
+                    int ident_scope = node_manager->get_scope_id(ident);
+                    int ident_symbol_idx = symbol_table.lookup_from_scope(ident_name, ident_scope);
+                    if (ident_symbol_idx != -1) {
+                        node_manager->set_resolved_symbol(ident, ident_symbol_idx);
+                    }
                 }
                 
                 continue;
             }
 
-            case PN_VAR_DEC:
-                dependencies->add_node(node_manager->get_identifier(child), INI, child);
-                symbol_table.declare_symbol(node_manager->get_identifier(child), -1);
+            case PN_VAR_DEC: {
+                string var_name = node_manager->get_identifier(child);
+                dependencies->add_node(var_name, INI, child);
+                int symbol_idx = symbol_table.declare_symbol(var_name, -1);
+                
+                // Early-bind the declared variable
+                NodeIndex name_node = node_manager->get_left(child);
+                if (name_node != NULL_INDEX) {
+                    node_manager->set_resolved_symbol(name_node, symbol_idx);
+                }
                 continue;
+            }
 
-            case PN_VAR_REF:
-                dependencies->add_node(node_manager->get_identifier(child), REF, child);
+            case PN_VAR_REF: {
+                string var_name = node_manager->get_identifier(child);
+                dependencies->add_node(var_name, REF, child);
+                
+                // Early-bind the variable reference
+                int child_scope = node_manager->get_scope_id(child);
+                int symbol_idx = symbol_table.lookup_from_scope(var_name, child_scope);
+                if (symbol_idx != -1) {
+                    node_manager->set_resolved_symbol(child, symbol_idx);
+                }
                 continue;
+            }
 
             case PN_KEYWORD: {
                 if (node_manager->get_lexeme(child) != "ret") {
@@ -426,7 +497,15 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
                 vector<NodeIndex> idents;
                 get_expression_identifiers(idents, node_manager->get_branch(child));
                 for (auto ident : idents) {
-                    dependencies->add_node(node_manager->get_identifier(ident), REF, child);
+                    string ident_name = node_manager->get_identifier(ident);
+                    dependencies->add_node(ident_name, REF, child);
+                    
+                    // Early-bind return expression identifiers
+                    int ident_scope = node_manager->get_scope_id(ident);
+                    int symbol_idx = symbol_table.lookup_from_scope(ident_name, ident_scope);
+                    if (symbol_idx != -1) {
+                        node_manager->set_resolved_symbol(ident, symbol_idx);
+                    }
                 }
 
                 continue;
@@ -439,6 +518,94 @@ DependencyGraph* SageCompiler::generate_ident_dependencies(
     }
 
     return dependencies;
+}
+
+void SageCompiler::allocate_registers(
+    DependencyGraph* graph,
+    vector<int>* prioritized_vars,
+    set<int>* available_general_regs,
+    stack<int>* virtual_stack_frame,
+    set<string>* currently_allocated) {
+    for (auto var : *prioritized_vars) {
+        if (graph->nodes[var].is_parameter) continue;
+
+        auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
+        if (var_symbol->type != nullptr && var_symbol->type->identify() == FUNC) continue;
+
+        if (available_general_regs->size() == 0) {
+            var_symbol->assigned_register = -1;
+            var_symbol->spilled = true;
+            var_symbol->spill_offset = virtual_stack_frame->top();
+            virtual_stack_frame->top()++;
+            continue;
+        }
+        int chosen = *available_general_regs->begin();
+        available_general_regs->erase(chosen);
+        var_symbol->assigned_register = chosen;
+        currently_allocated->insert(graph->nodes[var].name);
+    }
+}
+
+void SageCompiler::expire_old_intervals(
+    DependencyGraph* walk,
+    set<string>* currently_allocated,
+    set<int>* available_general_regs
+    ) {
+    set<string> fullscope;
+    fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
+    fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
+
+    set<string> expired_values;
+    set_difference(currently_allocated->begin(), currently_allocated->end(),
+                   fullscope.begin(), fullscope.end(),
+                   inserter(expired_values, expired_values.begin()));
+    for (string value : expired_values) {
+        int value_register = symbol_table.lookup(value)->assigned_register;
+        available_general_regs->insert(value_register);
+        currently_allocated->erase(value);
+    }
+
+    set_difference(fullscope.begin(), fullscope.end(),
+                   expired_values.begin(), expired_values.end(),
+                   inserter(*currently_allocated, currently_allocated->begin()));
+}
+
+void SageCompiler::update_scope(
+    DependencyGraph* walk,
+    set<string>* currently_allocated,
+    stack<int>* virtual_stack_frame
+    ) {
+    auto push_vframe = [virtual_stack_frame] {
+        virtual_stack_frame->push(0);
+    };
+
+    auto pop_vframe = [virtual_stack_frame]() {
+        virtual_stack_frame->pop();
+    };
+
+    set<string> fullscope;
+    fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
+    fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
+
+    set<string> expired_values;
+    set_difference(currently_allocated->begin(), currently_allocated->end(),
+                   fullscope.begin(), fullscope.end(),
+                   inserter(expired_values, expired_values.begin()));
+
+    // if we have expired values then something went out of scope -> pop
+    if (expired_values.size() > 0) {
+        pop_vframe();
+        return;
+    }
+
+    set<string> result;
+    // if there are things in fullscope that are not currently allocated -> push
+    set_difference(fullscope.begin(), fullscope.end(),
+                   currently_allocated->begin(), currently_allocated->end(),
+                   inserter(result, result.begin()));
+    if (result.size() > 0) {
+        push_vframe();
+    }
 }
 
 void SageCompiler::register_allocation(DependencyGraph* dependencies) {
@@ -459,15 +626,6 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
      */
 
     stack<int> virtual_stack_frame;
-
-    auto push_vframe = [&virtual_stack_frame]() {
-        virtual_stack_frame.push(0);
-    };
-
-    auto pop_vframe = [&virtual_stack_frame]() {
-        virtual_stack_frame.pop();
-    };
-
     set<int> available_general_regs;
     for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
         available_general_regs.insert(r);
@@ -475,86 +633,19 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
 
     set<string> currently_allocated;
 
-    auto allocate_registers = [&, this](DependencyGraph* graph, vector<int>* prioritized_vars) {
-        for (auto var : *prioritized_vars) {
-            if (graph->nodes[var].is_parameter) continue;
-
-            auto var_symbol = symbol_table.lookup(graph->nodes[var].name);
-            if (var_symbol->type != nullptr && var_symbol->type->identify() == FUNC) continue;
-
-            if (available_general_regs.size() == 0) {
-                var_symbol->assigned_register = -1;
-                var_symbol->spilled = true;
-                var_symbol->spill_offset = virtual_stack_frame.top();
-                virtual_stack_frame.top()++;
-                continue;
-            }
-            int chosen = *available_general_regs.begin();
-            available_general_regs.erase(chosen);
-            var_symbol->assigned_register = chosen;
-            currently_allocated.insert(graph->nodes[var].name);
-        }
-    };
-
-    auto expire_old_intervals = [&, this](DependencyGraph* walk) {
-        set<string> fullscope;
-        fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
-        fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
-
-        set<string> expired_values;
-        set_difference(currently_allocated.begin(), currently_allocated.end(),
-                       fullscope.begin(), fullscope.end(),
-                       inserter(expired_values, expired_values.begin()));
-        for (string value : expired_values) {
-            int value_register = symbol_table.lookup(value)->assigned_register;
-            available_general_regs.insert(value_register);
-            currently_allocated.erase(value);
-        }
-
-        set_difference(fullscope.begin(), fullscope.end(),
-                       expired_values.begin(), expired_values.end(),
-                       inserter(currently_allocated, currently_allocated.begin()));
-    };
-
-    auto update_scope = [&](DependencyGraph* walk) {
-        set<string> fullscope;
-        fullscope.insert(walk->parent_scope->begin(), walk->parent_scope->end());
-        fullscope.insert(walk->local_scope.begin(), walk->local_scope.end());
-
-        set<string> expired_values;
-        set_difference(currently_allocated.begin(), currently_allocated.end(),
-                       fullscope.begin(), fullscope.end(),
-                       inserter(expired_values, expired_values.begin()));
-
-        // if we have expired values then something went out of scope -> pop
-        if (expired_values.size() > 0) {
-            pop_vframe();
-            return;
-        }
-
-        set<string> result;
-        // if there are things in fullscope that are not currently allocated -> push
-        set_difference(fullscope.begin(), fullscope.end(),
-                       currently_allocated.begin(), currently_allocated.end(),
-                       inserter(result, result.begin()));
-        if (result.size() > 0) {
-            push_vframe();
-        }
-    };
-
     stack<DependencyGraph*> fringe;
     DependencyGraph* walk;
     fringe.push(dependencies);
     while (!fringe.empty()) {
         walk = fringe.top();
         fringe.pop();
-        update_scope(walk);
+        update_scope(walk, &currently_allocated, &virtual_stack_frame);
 
         vector<int> buffer;
         buffer.reserve(walk->nodes.size());
 
         if (available_general_regs.size() != 100) {
-            expire_old_intervals(walk);
+            expire_old_intervals(walk, &currently_allocated, &available_general_regs);
         }
 
         for (auto [key, node] : walk->nodes) {
@@ -568,7 +659,7 @@ void SageCompiler::register_allocation(DependencyGraph* dependencies) {
         }
         if (!buffer.empty()) {
             walk->quicksort(&buffer);
-            allocate_registers(walk, &buffer);
+            allocate_registers(walk, &buffer, &available_general_regs, &virtual_stack_frame, &currently_allocated);
         }
     }
 }

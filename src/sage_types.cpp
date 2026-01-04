@@ -1,7 +1,7 @@
 #include "../include/sage_types.h"
 #include "../include/registers.h"
 #include <error_logger.h>
-
+#include <cstdint>
 
 SageBuiltinType::SageBuiltinType(CanonicalType type) {
     canonical_type = type;

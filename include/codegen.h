@@ -16,6 +16,7 @@
 #define GENERAL_REGISTER_COUNT 100
 #define GENERAL_REG_RANGE_BEGIN 24
 #define GENERAL_REG_RANGE_END 124
+#define BUILTIN_COUNT 10
 
 #define SAGESYS_write_int 600
 
@@ -40,6 +41,7 @@ public:
   debug_level debug;
 
   NodeManager* node_manager;
+  ScopeManager scope_manager;
   ErrorLogger& logger = ErrorLogger::get();
   SageParser parser;
   SageSymbolTable symbol_table;
@@ -56,21 +58,26 @@ public:
   SageCompiler(string mainfile);
   ~SageCompiler();
 
-  /* general compiler utilities */
   bool check_filename_valid(string filename);
   NodeIndex parse_codefile(string target_file);
   void begin_compilation(string mainfile);
   bytecode compile(NodeIndex ast);
   void compile_dependency_resolution_order(DependencyGraph*);
+
   void get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root);
   DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
+  void allocate_registers(DependencyGraph*, vector<int>*, set<int>*, stack<int>*, set<string>*);
+  void expire_old_intervals(DependencyGraph*, set<string>*, set<int>*);
+  void update_scope(DependencyGraph*, set<string>*, stack<int>*);
   void register_allocation(DependencyGraph*);
   bool node_is_precompiled(NodeIndex);
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
-  void create_puts();
-  void create_puti();
   void print_bytecode(bytecode&);
+  
+  // Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
+  symbol_entry* resolve_symbol(NodeIndex node);
+  symbol_entry* resolve_symbol_by_name(const string& name, int scope_id);
 
   /* builders */
   ui32 build_store(ui32 rhs, string variable_symbol);

@@ -287,7 +287,7 @@ void BytecodeBuilder::build_puts() {
 
 ui32 SageCompiler::build_store(ui32 rhs, string variable_name) {
     auto var_symbol = symbol_table.lookup(variable_name);
-    auto rhs_symbol = symbol_table.lookup(rhs);
+    auto rhs_symbol = symbol_table.lookup_by_index(rhs);
 
     // is it a variable
     //   is it spilled -> is it stale?
@@ -338,7 +338,7 @@ ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
         return 0;
     }
 
-    auto return_symbol = symbol_table.lookup(return_value_id);
+    auto return_symbol = symbol_table.lookup_by_index(return_value_id);
 
     // is it a variable
     //   is it spilled -> is it stale?
@@ -384,8 +384,8 @@ ui32 SageCompiler::build_alloca(string var_name) {
 }
 
 ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
-    auto lhs_symbol = symbol_table.lookup(value1_id);
-    auto rhs_symbol = symbol_table.lookup(value2_id);
+    auto lhs_symbol = symbol_table.lookup_by_index(value1_id);
+    auto rhs_symbol = symbol_table.lookup_by_index(value2_id);
     SageValue lhs = SageValue();
     SageValue rhs = SageValue();
 
@@ -468,8 +468,8 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
     }
 
     symbol_entry* symbol;
-    for (int i = 0; i < args.size(); ++i) {
-        symbol = symbol_table.lookup(args[i]);
+    for (int i = 0; i < (int)args.size(); ++i) {
+        symbol = symbol_table.lookup_by_index(args[i]);
 
         if (symbol->spilled) {
             // is either a parameter or variable

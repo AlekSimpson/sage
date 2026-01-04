@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <cstdint>
 #include <string>
 
 using namespace std;

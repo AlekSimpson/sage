@@ -2,6 +2,7 @@
 
 #include <string>
 #include "parse_node.h"
+#include "scope_manager.h"
 
 #define NULL_INDEX -1
 
@@ -20,10 +21,14 @@ private:
     vector<NodeIndex> free_spaces;
 
     NodeIndex root_node;
+    ScopeManager* scope_manager;  // Reference for auto-assigning scope IDs
 
 public:
     ~NodeManager();
     NodeManager();
+    
+    // Set scope manager for automatic scope_id assignment
+    void set_scope_manager(ScopeManager* sm);
 
     BlockParseNode* unbox(NodeIndex index);
 
@@ -50,6 +55,12 @@ public:
     void bind_dependency(NodeIndex, DependencyGraph*);
     void add_child(NodeIndex self, NodeIndex new_child);
     void delete_node(NodeIndex index);
+    
+    // Scope and symbol binding accessors
+    void set_scope_id(NodeIndex node, int scope_id);
+    int get_scope_id(NodeIndex node);
+    void set_resolved_symbol(NodeIndex node, int symbol_index);
+    int get_resolved_symbol(NodeIndex node);
 
     NodeIndex create(AbstractParseNode*, ParseNodeType);
     NodeIndex create_block();

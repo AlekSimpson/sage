@@ -50,6 +50,12 @@ public:
   virtual Token get_token() = 0;
   virtual ParseNodeType get_rep_nodetype() = 0;
   virtual ParseNodeType get_host_nodetype() = 0;
+  
+  // Scope and symbol binding for multi-phase compilation
+  virtual int get_scope_id() = 0;
+  virtual void set_scope_id(int id) = 0;
+  virtual int get_resolved_symbol() = 0;
+  virtual void set_resolved_symbol(int symbol_idx) = 0;
 };
 
 class BlockParseNode : public AbstractParseNode {
@@ -59,6 +65,8 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
   DependencyGraph* block_dependencies = nullptr;
+  int scope_id = -1;           // Scope this node belongs to
+  int resolved_symbol = -1;    // Pre-resolved symbol index (-1 = unresolved)
 
   vector<int> children;
 
@@ -72,6 +80,10 @@ public:
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  int get_scope_id() override { return scope_id; }
+  void set_scope_id(int id) override { scope_id = id; }
+  int get_resolved_symbol() override { return resolved_symbol; }
+  void set_resolved_symbol(int symbol_idx) override { resolved_symbol = symbol_idx; }
 };
 
 class BinaryParseNode : public AbstractParseNode {
@@ -80,6 +92,8 @@ public:
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
+  int scope_id = -1;           // Scope this node belongs to
+  int resolved_symbol = -1;    // Pre-resolved symbol index (-1 = unresolved)
 
   int left;
   int right;
@@ -92,6 +106,10 @@ public:
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  int get_scope_id() override { return scope_id; }
+  void set_scope_id(int id) override { scope_id = id; }
+  int get_resolved_symbol() override { return resolved_symbol; }
+  void set_resolved_symbol(int symbol_idx) override { resolved_symbol = symbol_idx; }
 };
 
 class TrinaryParseNode : public AbstractParseNode {
@@ -100,6 +118,8 @@ public:
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
+  int scope_id = -1;           // Scope this node belongs to
+  int resolved_symbol = -1;    // Pre-resolved symbol index (-1 = unresolved)
 
   int left;
   int middle;
@@ -113,6 +133,10 @@ public:
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  int get_scope_id() override { return scope_id; }
+  void set_scope_id(int id) override { scope_id = id; }
+  int get_resolved_symbol() override { return resolved_symbol; }
+  void set_resolved_symbol(int symbol_idx) override { resolved_symbol = symbol_idx; }
 };
 
 class UnaryParseNode : public AbstractParseNode {
@@ -122,6 +146,8 @@ public:
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
   vector<string> lexemes;
+  int scope_id = -1;           // Scope this node belongs to
+  int resolved_symbol = -1;    // Pre-resolved symbol index (-1 = unresolved)
 
   int branch;
 
@@ -135,4 +161,8 @@ public:
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
   ParseNodeType get_host_nodetype() override;
+  int get_scope_id() override { return scope_id; }
+  void set_scope_id(int id) override { scope_id = id; }
+  int get_resolved_symbol() override { return resolved_symbol; }
+  void set_resolved_symbol(int symbol_idx) override { resolved_symbol = symbol_idx; }
 };

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <typeinfo>
 #include "../include/node_manager.h"
+#include "../include/scope_manager.h"
 
 NodeManager::NodeManager() {
     box_count = 0;
@@ -14,6 +15,11 @@ NodeManager::NodeManager() {
     }
 
     root_node = -1;
+    scope_manager = nullptr;
+}
+
+void NodeManager::set_scope_manager(ScopeManager* sm) {
+    scope_manager = sm;
 }
 
 NodeManager::~NodeManager() {
@@ -395,6 +401,11 @@ NodeIndex NodeManager::create(AbstractParseNode* node, ParseNodeType hosttype) {
     free_spaces.erase(free_spaces.begin());
 
     container[index] = nodebox{node, hosttype};
+    
+    // Automatically assign scope_id from scope_manager if available
+    if (scope_manager != nullptr) {
+        node->set_scope_id(scope_manager->get_current_scope());
+    }
 
     return index;
 }
@@ -422,6 +433,38 @@ void NodeManager::expand_container() {
     container = nullptr;
     
     container = new_container;
+}
+
+void NodeManager::set_scope_id(NodeIndex node, int scope_id) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        return;
+    }
+    box.node->set_scope_id(scope_id);
+}
+
+int NodeManager::get_scope_id(NodeIndex node) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        return -1;
+    }
+    return box.node->get_scope_id();
+}
+
+void NodeManager::set_resolved_symbol(NodeIndex node, int symbol_index) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        return;
+    }
+    box.node->set_resolved_symbol(symbol_index);
+}
+
+int NodeManager::get_resolved_symbol(NodeIndex node) {
+    auto box = get_node(node);
+    if (box.node == nullptr) {
+        return -1;
+    }
+    return box.node->get_resolved_symbol();
 }
 
 

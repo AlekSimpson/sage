@@ -3,6 +3,7 @@
 #include "lexer.h"
 #include "node_manager.h"
 #include "token.h"
+#include "scope_manager.h"
 
 #include <vector>
 #include <string>
@@ -15,9 +16,11 @@ public:
   vector<Token> errors;
   string filename;
   NodeManager* node_manager;
+  ScopeManager* scope_manager;
+  int symbol_count;
 
   SageParser();
-  SageParser(NodeManager*, string filename);
+  SageParser(ScopeManager* scope_manager, NodeManager* node_manager, string filename);
   ~SageParser();
 
   NodeIndex parse_program(bool debug_lexer);
