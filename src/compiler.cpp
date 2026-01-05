@@ -84,9 +84,13 @@ bytecode SageCompiler::compile(NodeIndex ast_index) {
     // }
     visit(ast_index);
     bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
-    // printf("======================\n");
-    // print_bytecode(output);
-    // printf("======================\n");
+    
+    // Transfer constant pool to interpreter (contains 64-bit values like pointers)
+    interpreter->load_constant_pool(builder.get_constant_pool());
+    
+    printf("======================\n");
+    print_bytecode(output);
+    printf("======================\n");
     builder.reset();
 
     return output;
@@ -109,11 +113,11 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    int symbol_count = BUILTIN_COUNT + parser.symbol_count + symbol_table.string_pool.size();
+    int symbol_count = BUILTIN_COUNT + parser.symbol_count;
     symbol_table = SageSymbolTable(&scope_manager, symbol_count);
     symbol_table.initialize();
 
-    interpreter = new SageInterpreter(4046, &symbol_table.string_pool);
+    interpreter = new SageInterpreter(4046);
 
     // setup builtin functions
     vector<SageType*> puti_params = {

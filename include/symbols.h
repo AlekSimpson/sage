@@ -25,10 +25,12 @@ struct symbol_entry {
     bool is_variable;
     bool is_parameter;
     bool spilled;
+    bool in_constant_pool;   // True if value is stored in constant pool (for 64-bit values like pointers)
     int assigned_register;
     int spill_offset;
-    int scope_id;          // Scope where symbol was declared
-    int symbol_id;         // Unique ID for this symbol
+    int constant_pool_index; // Index into constant pool (valid when in_constant_pool is true)
+    int scope_id;            // Scope where symbol was declared
+    int symbol_id;           // Unique ID for this symbol
 
     symbol_entry();
     symbol_entry(SageValue, string);

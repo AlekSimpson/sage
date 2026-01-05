@@ -21,10 +21,15 @@ struct BytecodeBuilder {
     vector<string> procs;
     vector<string> builtins;
     stack<int> procedure_stack;
+    vector<SageValue> constant_pool;  // Stores 64-bit values that can't fit in bytecode operands
     int total_instruction_count = 0;
     bool has_main_function = false;
 
     BytecodeBuilder();
+
+    // Add a value to constant pool and return its index
+    int add_constant(SageValue value);
+    vector<SageValue>& get_constant_pool();
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);
@@ -39,6 +44,9 @@ struct BytecodeBuilder {
     void build_im_reg(SageOpCode, SageValue, int);
     void build_im_im(SageOpCode, SageValue, SageValue);
     void build_im(SageOpCode, SageValue);
+
+    // Constant pool variants - operand is an index into constant_pool
+    void build_constpool_im(SageOpCode, int pool_index, SageValue);
 
     void build_puti();
     void build_puts();

@@ -23,9 +23,9 @@ StackFrame::StackFrame()
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() : frame_pointer(nullptr), string_pool(nullptr) {}
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
 
-SageInterpreter::SageInterpreter(int stack_size, vector<string*>* string_pool) : string_pool(string_pool) {
+SageInterpreter::SageInterpreter(int stack_size) {
     stack.reserve(stack_size);
 
     frame_pointer = new StackFrame();
@@ -73,13 +73,32 @@ vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]
     }
 
     for (int i = 0; i < raw_operands.size(); ++i) {
-        if (map[i] == 0) {
-            return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
-            continue;
+        switch (map[i]) {
+            case 0:
+                // Raw immediate value
+                return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
+                break;
+            case 1:
+                // Dereference register
+                return_values.push_back(SageValue(registers[raw_operands[i]]));
+                break;
+            case 4:
+                // Dereference constant pool - operand is index into constant_pool
+                if (raw_operands[i] >= 0 && raw_operands[i] < (int)constant_pool.size()) {
+                    return_values.push_back(constant_pool[raw_operands[i]]);
+                } else {
+                    ErrorLogger::get().log_internal_error(
+                        "interpreter.cpp",
+                        current_linenum,
+                        "constant pool index out of bounds");
+                    return_values.push_back(SageValue());
+                }
+                break;
+            default:
+                // Fallback for unhandled cases (2=stack, 3=heap - not yet implemented)
+                return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
+                break;
         }
-
-        // otherwise dereference register
-        return_values.push_back(SageValue(registers[raw_operands[i]]));
     }
 
     return return_values;
@@ -281,20 +300,22 @@ void SageInterpreter::execute_syscall() {
 
     switch (callcode) {
         case SYS_write: {
-            string* strvalue = (*string_pool)[unpack_int(registers[1])];
+            // todo: so this memory right now is leaking without the string pool, we'll need a VM cleanup function eventually
+            void* complex_value = unpack_pointer(registers[1]);  // Clear type tag bits
+            const char* text = static_cast<const char*>(complex_value);
             syscall(
                 callcode,
                 unpack_int(registers[0]),
-                strvalue->c_str(),
+                text,
                 unpack_int(registers[2]));
             break;
         }
         case SAGESYS_write_int: {
-            string x = to_string(unpack_int(registers[1]));
+            string text = to_string(unpack_int(registers[1]));
             syscall(
                 SYS_write,
                 unpack_int(registers[0]),
-                to_string(unpack_int(registers[1])).c_str(),
+                text.c_str(),
                 unpack_int(registers[2]));
             break;
         }
@@ -311,7 +332,6 @@ void SageInterpreter::execute() {
     vector<SageValue> operands;
     vm_running = true;
     bool prog_pointer_jump = false;
-    auto x = 0xA;
 
     while (vm_running && program_pointer < program.size()) {
         if (ErrorLogger::get().has_errors()) {
@@ -404,6 +424,16 @@ int SageInterpreter::store_in_heap(SageValue value) {
     int pointer = heap.size();
     heap[pointer] = value;
     return pointer;
+}
+
+int SageInterpreter::store_in_constant_pool(SageValue value) {
+    int index = constant_pool.size();
+    constant_pool.push_back(value);
+    return index;
+}
+
+void SageInterpreter::load_constant_pool(vector<SageValue> pool) {
+    constant_pool = std::move(pool);
 }
 
 void SageInterpreter::close() {

@@ -26,6 +26,16 @@ BytecodeBuilder::BytecodeBuilder() {
     build_puti();
 }
 
+int BytecodeBuilder::add_constant(SageValue value) {
+    int index = constant_pool.size();
+    constant_pool.push_back(value);
+    return index;
+}
+
+vector<SageValue>& BytecodeBuilder::get_constant_pool() {
+    return constant_pool;
+}
+
 void BytecodeBuilder::new_frame(string name) {
     procs.push_back(name);
     auto frame = procedure_frame(name);
@@ -45,6 +55,7 @@ void BytecodeBuilder::reset() {
     procedures.clear();
     procedure_stack = stack<int>();
     procs.clear();
+    constant_pool.clear();
 
     build_puts();
     build_puti();
@@ -250,6 +261,18 @@ void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageVal
         imm1.as_operand(),
         imm2.as_operand(),
         reg,
+        deref_encoding
+    ));
+    total_instruction_count++;
+}
+
+void BytecodeBuilder::build_constpool_im(SageOpCode opcode, int pool_index, SageValue immediate) {
+    int deref_encoding[4] = {4, 0, 0, 0};  // 4 = constant pool dereference
+
+    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
+        opcode,
+        pool_index,
+        immediate.as_operand(),
         deref_encoding
     ));
     total_instruction_count++;
@@ -474,9 +497,12 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, string function_name) 
         if (symbol->spilled) {
             // is either a parameter or variable
             builder.build_reg_im(OP_LOAD, i, symbol->spill_offset);
-        }else if (!symbol->value.is_null()) {
+        } else if (symbol->in_constant_pool) {
+            // Value is in constant pool - use constant pool dereference
+            builder.build_constpool_im(OP_MOV, symbol->constant_pool_index, i);
+        } else if (!symbol->value.is_null()) {
             builder.build_im_im(OP_MOV, symbol->value, i);
-        }else {
+        } else {
             builder.build_reg_im(OP_MOV, symbol->assigned_register, i);
         }
     }
@@ -542,7 +568,19 @@ ui32 SageCompiler::build_string_pointer(string value) {
     auto* array_type = TypeRegistery::get_pointer_type(char_type);
     string* strcopy = new string(value);
     process_escape_sequences(*strcopy); // todo: might want to have a convenient syntax in the future to declare raw arrays of characters that aren't escaped and don't end in null terminators
-    ui32 table_index = symbol_table.declare_symbol(value, SageValue(64, strcopy, array_type));
+    
+    // Create the SageValue with the pointer
+    SageValue ptr_value(64, const_cast<void*>(static_cast<const void*>(strcopy->c_str())), array_type);
+    
+    // Store in constant pool to preserve full 64-bit pointer
+    int pool_index = builder.add_constant(ptr_value);
+    
+    // Declare symbol and mark it as being in the constant pool
+    ui32 table_index = symbol_table.declare_symbol(value, ptr_value);
+    symbol_entry* entry = symbol_table.lookup_by_index(table_index);
+    entry->in_constant_pool = true;
+    entry->constant_pool_index = pool_index;
+    
     return table_index;
 }
 

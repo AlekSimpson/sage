@@ -160,13 +160,13 @@ SageValue::SageValue(int size, bool _value, SageType* valuetype) : bitsize(size)
     nullvalue = false;
 }
 
-SageValue::SageValue(int size, string* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
-    value.string_value = _value;
-    nullvalue = false;
-}
+// SageValue::SageValue(int size, string* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
+//     value.string_value = _value;
+//     nullvalue = false;
+// }
 
 SageValue::SageValue(int size, void* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
-    value.complex_type = _value;
+    value.complex_value = _value;
     nullvalue = false;
 }
 
@@ -198,7 +198,7 @@ SageValue::SageValue(ui64 register_value) {
         break;
         case PTR_REG:
             bitsize = 64;
-        value.complex_type = unpack_pointer(register_value);
+        value.complex_value = unpack_pointer(register_value);
         valuetype = TypeRegistery::get_builtin_type(POINTER);
         break;
     }
@@ -223,7 +223,7 @@ int SageValue::as_operand() const {
             return value.bool_value;
         case POINTER:
         case ARRAY:
-            return static_cast<int>(reinterpret_cast<uintptr_t>(value.complex_type));
+            return static_cast<int>(reinterpret_cast<uintptr_t>(value.complex_value));
         default:
             return 0;
     }
@@ -244,7 +244,7 @@ uint64_t SageValue::load() {
             return pack_float(value.float_value);
         case POINTER:
         case ARRAY:
-            return pack_ptr(value.complex_type);
+            return pack_ptr(value.complex_value);
         case FUNC:
             break;
         default:
@@ -278,7 +278,7 @@ bool SageValue::equals(const SageValue& other) {
             return value.float_value == other.value.float_value && this_type == other.valuetype->identify();
         case POINTER:
         case ARRAY:
-            return value.complex_type == other.value.complex_type && this_type == other.valuetype->identify();
+            return value.complex_value == other.value.complex_value && this_type == other.valuetype->identify();
         case FUNC:
             break;
         default:

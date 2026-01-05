@@ -13,8 +13,10 @@ symbol_entry::symbol_entry() :
     is_variable(false),
     is_parameter(false),
     spilled(false),
+    in_constant_pool(false),
     assigned_register(-1),
     spill_offset(0),
+    constant_pool_index(-1),
     scope_id(-1),
     symbol_id(-1) {}
 
@@ -25,8 +27,10 @@ symbol_entry::symbol_entry(SageValue sval, string ident) :
     is_variable(false),
     is_parameter(false),
     spilled(false),
+    in_constant_pool(false),
     assigned_register(-1),
     spill_offset(0),
+    constant_pool_index(-1),
     scope_id(-1),
     symbol_id(-1) {}
 

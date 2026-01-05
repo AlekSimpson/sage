@@ -154,9 +154,6 @@ ui32 SageCompiler::visit_keyword(NodeIndex node) {
     if (lexeme == "break") {
         return 0;
     }
-    if (lexeme == "fallthrough") {
-        return 0;
-    }
     if (lexeme == "include") {
         return 0;
     }

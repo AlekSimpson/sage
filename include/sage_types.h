@@ -78,8 +78,8 @@ union value_t {
     float float_value;
     char char_value;
     bool bool_value;
-    string* string_value;
-    void* complex_type;
+    //string* string_value;
+    void* complex_value;
 };
 
 class TypeRegistery {
@@ -109,7 +109,7 @@ public:
     SageValue(int, float, SageType*);
     SageValue(int, char, SageType*);
     SageValue(int, bool, SageType*);
-    SageValue(int, string*, SageType*);
+    // SageValue(int, string*, SageType*);
     SageValue(int, void*, SageType*);
     SageValue(uint64_t register_value);
     SageValue(int);
@@ -128,8 +128,8 @@ public:
     // Convenience getters with automatic conversion
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
-    void* as_ptr() const { return value.complex_type; }
-    const char* as_charbuff() const { return value.string_value->c_str(); }
+    void* as_ptr() const { return value.complex_value ; }
+    const char* as_charbuff() const { return static_cast<const char*>(value.complex_value); }
 };
 
 namespace std {

@@ -57,16 +57,17 @@ public:
     bytecode program;
     map<int, SageValue> heap;
     vector<SageValue> stack;
+    vector<SageValue> constant_pool;  // Stores 64-bit values (pointers, etc.) that can't fit in bytecode operands
     bool vm_running = false;
 
-    vector<string*>* string_pool;
-
     SageInterpreter();
-    SageInterpreter(int stack_size, vector<string*>* string_pool);
+    SageInterpreter(int stack_size);
 
     void close();
     int store_in_heap(SageValue value);
+    int store_in_constant_pool(SageValue value);
     void load_program(bytecode program);
+    void load_constant_pool(vector<SageValue> pool);
     void execute();
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame

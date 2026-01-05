@@ -78,10 +78,11 @@ struct instruction {
 struct command {
     instruction inst;
     int deref_map[4] = {0, 0, 0, 0};
-    // 0 - neutral, use raw
+    // 0 - neutral, use raw immediate
     // 1 - deref register
     // 2 - deref stack
     // 3 - deref heap
+    // 4 - deref constant pool (for 64-bit values like pointers)
 
     command();
     command(SageOpCode, uint32_t, int [4]);
