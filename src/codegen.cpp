@@ -1,4 +1,3 @@
-#include <unordered_map>
 #include <memory>
 #include <algorithm>
 
@@ -6,9 +5,6 @@
 #include "../include/sage_types.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
-
-
-#include "../include/depgraph.h"
 
 using namespace std;
 
@@ -40,25 +36,6 @@ symbol_entry* SageCompiler::resolve_symbol_by_name(const string& name, int scope
         return symbol_table.lookup_by_index(idx);
     }
     return nullptr;
-}
-
-void SageCompiler::compile_dependency_resolution_order(DependencyGraph* dep_graph) {
-    if (dep_graph == nullptr || doing_dependency_resolution_order) {
-        return;
-    }
-
-    // FIX: Really just need to rework the dependency resolution system, as it stands right
-    // now it doesn't work exactly right nor does it output the ideal program behavior
-
-    // doing_dependency_resolution_order = true;
-    // auto ident_exec_order = dep_graph->get_exec_order();
-    // NodeIndex ast_node;
-    // for (int identifier : ident_exec_order) {
-    //     ast_node = dep_graph->nodes[identifier].ast_pos;
-    //     visit(ast_node);
-    //     precompiled.insert(ast_node);
-    // }
-    // doing_dependency_resolution_order = false;
 }
 
 ui32 SageCompiler::visit(NodeIndex node) {
