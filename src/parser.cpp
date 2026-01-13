@@ -148,7 +148,7 @@ NodeIndex SageParser::parse_run_directive() {
 
     Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum);
     NodeIndex run_body = parse_body();
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, run_body);
 
     return node_manager->create_unary(run_token, PN_RUN_DIRECTIVE, run_body);
 }
@@ -346,7 +346,7 @@ NodeIndex SageParser::parse_if_statement() {
     Token expression_token = node_manager->get_token(condition_expression);
 
     NodeIndex condition_body = parse_body();
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, condition_body);
 
     Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum);
     NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression, condition_body);
@@ -376,6 +376,7 @@ NodeIndex SageParser::parse_if_statement() {
             Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum);
             NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp, condition_body);
             elif_statements.push_back(next_elif_statement);
+            scope_manager->exit_scope(current_token->linenum, condition_body);
 
         } else if (match_types(current_token->token_type, TT_LBRACE)) {
             NodeIndex else_body = parse_body();
@@ -385,9 +386,9 @@ NodeIndex SageParser::parse_if_statement() {
             NodeIndex new_node = node_manager->create_unary(node_token, PN_ELSE_BRANCH, else_body);
             elif_statements.push_back(new_node);
 
+            scope_manager->exit_scope(current_token->linenum, else_body);
             break;
         }
-        scope_manager->exit_scope(current_token->linenum);
     }
 
     return node_manager->create_block(expression_token, PN_IF, elif_statements);
@@ -400,7 +401,7 @@ NodeIndex SageParser::parse_while_statement() {
     auto node_token = node_manager->get_token(condition_node);
     scope_manager->enter_scope("while", current_token->linenum);
     NodeIndex body_node = parse_body();
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, body_node);
 
     Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", node_token.linenum);
     return node_manager->create_binary(token, PN_WHILE, condition_node, body_node);
@@ -445,7 +446,7 @@ NodeIndex SageParser::parse_for_statement() {
 
     NodeIndex body_node = parse_body();
 
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, body_node);
     string for_lexeme = sen("for", iterator_variable_token.lexeme, "in", range_lexeme, "{...}");
     Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum);
     return node_manager->create_trinary(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
@@ -528,7 +529,7 @@ NodeIndex SageParser::parse_struct() {
     NodeIndex struct_contents = parse_value_dec_list();
 
     consume(TT_RBRACE, "Expected RBRACE in structure definition.");
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, struct_contents);
 
     return node_manager->create_unary(node_manager->get_token(struct_contents), PN_STRUCT, struct_contents);
 }
@@ -570,7 +571,7 @@ NodeIndex SageParser::parse_function() {
         Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
         NodeIndex body_node = parse_body();
-        scope_manager->exit_scope(current_token->linenum);
+        scope_manager->exit_scope(current_token->linenum, body_node);
         return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
     }
 
@@ -594,7 +595,7 @@ NodeIndex SageParser::parse_function() {
     Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
     NodeIndex body_node = parse_body();
-    scope_manager->exit_scope(current_token->linenum);
+    scope_manager->exit_scope(current_token->linenum, body_node);
     return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
 }
 

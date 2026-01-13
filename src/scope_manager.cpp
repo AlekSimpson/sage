@@ -24,12 +24,13 @@ int ScopeManager::enter_scope(const string& name, int start_line) {
     return new_scope_id;
 }
 
-void ScopeManager::exit_scope(int end_line) {
+void ScopeManager::exit_scope(int end_line, int bodynode) {
     if (current_scope_id == 0) {
         // Cannot exit global scope
         return;
     }
     
+    scope_to_astroot[current_scope_id] = bodynode;
     scopes[current_scope_id].end_line = end_line;
     current_scope_id = scopes[current_scope_id].parent_id;
 }

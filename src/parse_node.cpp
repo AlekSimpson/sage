@@ -61,8 +61,6 @@ string nodetype_to_string(ParseNodeType nodetype) {
     	return "INCLUDE";
     case PN_VARARG:
     	return "VARARG";
-    case PN_FUNCDEC:
-    	return "FUNCDEC";
     default:
     	return "Unknown Node Type (Could have forgot to add String() impl for new type)";
     }

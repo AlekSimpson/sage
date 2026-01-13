@@ -1,38 +1,42 @@
 #include <string>
 #include <set>
 #include <stack>
+#include <numeric>
+#include <algorithm>
 
 #include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/sage_types.h"
 
+using namespace std;
+
 symbol_entry::symbol_entry() :
     value(SageValue()),
     type(nullptr),
     identifier(""),
-    is_variable(false),
-    is_parameter(false),
-    spilled(false),
-    in_constant_pool(false),
     assigned_register(-1),
     spill_offset(0),
     constant_pool_index(-1),
     scope_id(-1),
-    symbol_id(-1) {}
+    symbol_id(-1),
+    is_variable(false),
+    is_parameter(false),
+    spilled(false),
+    in_constant_pool(false) {}
 
 symbol_entry::symbol_entry(SageValue sval, string ident) :
     value(sval),
     type(sval.valuetype),
     identifier(ident),
-    is_variable(false),
-    is_parameter(false),
-    spilled(false),
-    in_constant_pool(false),
     assigned_register(-1),
     spill_offset(0),
     constant_pool_index(-1),
     scope_id(-1),
-    symbol_id(-1) {}
+    symbol_id(-1),
+    is_variable(false),
+    is_parameter(false),
+    spilled(false),
+    in_constant_pool(false) {}
 
 SageSymbolTable::SageSymbolTable() {
     this->function_visitor_state = stack<function_visit>();
@@ -130,7 +134,7 @@ int SageSymbolTable::declare_symbol(const string& name, int register_alloc) {
     return capacity - 1;
 }
 
-int SageSymbolTable::declare_symbol_in_scope(const string& name, SageType* valuetype, int scope_id) {
+int SageSymbolTable::declare_symbol_in_scope(const string& name, SageType* valuetype, NodeIndex ast_id, int scope_id) {
     symbol_entry entry;
     entry.type = valuetype;
     entry.identifier = name;
@@ -138,6 +142,7 @@ int SageSymbolTable::declare_symbol_in_scope(const string& name, SageType* value
     entry.is_parameter = false;
     entry.scope_id = scope_id;
     entry.symbol_id = capacity;
+    entry.definition_ast_index = ast_id;
     
     entries.push_back(entry);
     
@@ -151,6 +156,34 @@ int SageSymbolTable::declare_symbol_in_scope(const string& name, SageType* value
     
     capacity++;
     return capacity - 1;
+}
+
+vector<int> SageSymbolTable::symbols_sorted_by_scope_id() {
+    vector<int> indices(entries.size());
+    std::iota(indices.begin(), indices.end(), 0);
+
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return entries[a].scope_id < entries[b].scope_id;
+    });
+
+    return indices;
+}
+
+const symbol_entry* SageSymbolTable::global_lookup(const string& name) {
+    int ptr_b = capacity == size ? size-1 : capacity;
+
+    for (int ptr_a = 0; ptr_a < capacity; ++ptr_a) {
+        if (entries[ptr_a].identifier == name) {
+            return &entries[ptr_a];
+        }
+
+        if (entries[ptr_b].identifier == name) {
+            return &entries[ptr_b];
+        }
+        ptr_b--;
+    }
+
+    return nullptr;
 }
 
 int SageSymbolTable::lookup_idx(const string& name) {

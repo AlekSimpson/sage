@@ -22,15 +22,16 @@ struct symbol_entry {
     SageValue value;
     SageType* type;
     string identifier;
+    int assigned_register;
+    int spill_offset;
+    int constant_pool_index; // Index into constant pool (valid when in_constant_pool is true)
+    NodeIndex definition_ast_index = -1;
+    int scope_id;            // Scope where symbol was declared
+    int symbol_id;           // Unique ID for this symbol
     bool is_variable;
     bool is_parameter;
     bool spilled;
     bool in_constant_pool;   // True if value is stored in constant pool (for 64-bit values like pointers)
-    int assigned_register;
-    int spill_offset;
-    int constant_pool_index; // Index into constant pool (valid when in_constant_pool is true)
-    int scope_id;            // Scope where symbol was declared
-    int symbol_id;           // Unique ID for this symbol
 
     symbol_entry();
     symbol_entry(SageValue, string);
@@ -57,18 +58,19 @@ public:
     SageType* resolve_sage_type(NodeManager*, NodeIndex);
     SageType* derive_sage_type(NodeManager*, NodeIndex);
 
+    vector<int> symbols_sorted_by_scope_id();
+
     // Symbol declaration (in current scope)
     void declare_type_symbol(const string& name, SageType* type);
     int declare_symbol(const string& name, SageValue value);
     int declare_symbol(const string& name, SageType* valuetype);
     int declare_symbol(const string& name, int register_alloc);
-    
-    // Symbol declaration in specific scope
-    int declare_symbol_in_scope(const string& name, SageType* valuetype, int scope_id);
+    int declare_symbol_in_scope(const string& name, SageType* valuetype, NodeIndex ast_id, int scope_id);
 
     // Lookup by name (legacy - uses current scope)
     int lookup_idx(const string& name);
     symbol_entry* lookup(const string& name);
+    const symbol_entry* global_lookup(const string& name);
     
     // Direct access by resolved index (fast path)
     symbol_entry* lookup_by_index(int entry_index);

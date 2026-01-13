@@ -54,6 +54,10 @@ public:
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
 
+  set<string> previously_processed; // for forward decl auto resolution
+  map<string, set<string>> definition_dependencies; // the in degree is just the
+  map<string, int> in_degree_map;
+
   SageCompiler();
   SageCompiler(string mainfile);
   ~SageCompiler();
@@ -62,19 +66,17 @@ public:
   NodeIndex parse_codefile(string target_file);
   void begin_compilation(string mainfile);
   bytecode compile(NodeIndex ast);
-  void compile_dependency_resolution_order(DependencyGraph*);
 
-  void get_expression_identifiers(vector<NodeIndex>& identifiers, NodeIndex root);
-  DependencyGraph* generate_ident_dependencies(NodeIndex cursor, string, int, set<string>*);
-  void allocate_registers(DependencyGraph*, vector<int>*, set<int>*, stack<int>*, set<string>*);
-  void expire_old_intervals(DependencyGraph*, set<string>*, set<int>*);
-  void update_scope(DependencyGraph*, set<string>*, stack<int>*);
-  void register_allocation(DependencyGraph*);
+  void register_allocation();
   bool node_is_precompiled(NodeIndex);
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);
-  
+  void perform_first_compilation_pass(NodeIndex root);
+  void forward_declaration_resolution(int program_root);
+  void get_in_degree_of(const string& root_definition_identifier, NodeIndex current_node, int working_sope);
+  void resolve_definition_order(int target_scope);
+
   // Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
   symbol_entry* resolve_symbol(NodeIndex node);
   symbol_entry* resolve_symbol_by_name(const string& name, int scope_id);

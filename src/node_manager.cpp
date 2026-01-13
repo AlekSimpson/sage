@@ -435,6 +435,16 @@ void NodeManager::expand_container() {
     container = new_container;
 }
 
+void NodeManager::set_children(NodeIndex blocknode, vector<NodeIndex> new_children) {
+    if (get_host_nodetype(blocknode) != PN_BLOCK) {
+        return;
+    }
+
+    auto block = unbox(blocknode);
+
+    block->children = new_children;
+}
+
 void NodeManager::set_scope_id(NodeIndex node, int scope_id) {
     auto box = get_node(node);
     if (box.node == nullptr) {

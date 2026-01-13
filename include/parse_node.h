@@ -36,7 +36,6 @@ typedef enum {
   PN_LIST,
   PN_INCLUDE,
   PN_VARARG,
-  PN_FUNCDEC,
 } ParseNodeType;
 
 string nodetype_to_string(ParseNodeType nodetype);

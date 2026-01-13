@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stack>
+#include <queue>
 #include <boost/algorithm/string.hpp>
 #include <sys/syscall.h>
 
@@ -106,7 +107,6 @@ void SageCompiler::begin_compilation(string mainfile) {
         logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
         return;
     }
-
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -116,36 +116,29 @@ void SageCompiler::begin_compilation(string mainfile) {
     symbol_table = SageSymbolTable(&scope_manager, symbol_count);
     symbol_table.initialize();
 
-    interpreter = new SageInterpreter(4046);
-
     // setup builtin functions
     vector<SageType*> puti_params = {
         TypeRegistery::get_builtin_type(I64),
         TypeRegistery::get_builtin_type(I64)
     };
-    symbol_table.declare_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType*>()));
-
     vector<SageType*> puts_params = {
         TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
         TypeRegistery::get_builtin_type(I64)
     };
-    symbol_table.declare_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType*>()));
+    symbol_table.declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType*>()), ast_root, 0);
+    symbol_table.declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType*>()), ast_root, 0);
 
-    bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
-
-    // TODO: wrap debug options and output into error logger
-    // node_manager->showtree(ast_root);
-
-    // 1. program static analysis
-    // Foward Declaration Resolution
-
+    // First AST pass
+    // - creates all symbols
+    // - TODO: does type checking
+    perform_first_compilation_pass(ast_root);
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
 
-    // TODO: Type Checking
-
+    // second pass auto resolves symbol definition ordering
+    forward_declaration_resolution(ast_root);
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -159,11 +152,13 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
 
     // 2. program compilation
+    interpreter = new SageInterpreter(4046);
 
     // execute run directives
     interpreter_mode = true;
     comptime_ast_bookmark mark;
     string rundir_name;
+    bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
     for (int i = 0; i < bookmarked_run_directives.size; ++i) {
         mark = bookmarked_run_directives[i];
         rundir_name = str("rundir", i);
@@ -206,6 +201,63 @@ void SageCompiler::begin_compilation(string mainfile) {
     // }
 }
 
+void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
+    NodeIndex current_node;
+
+    queue<NodeIndex> fringe;
+    fringe.push(root);
+
+    // scan for all symbols
+    while (!fringe.empty()) {
+        current_node = fringe.front();
+        fringe.pop();
+
+        auto nodetype = node_manager->get_nodetype(current_node);
+        switch (nodetype) {
+            case PN_STRUCT:
+            case PN_FUNCDEF: {
+                string identifier = node_manager->get_identifier(current_node);
+                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node, node_manager->get_scope_id(current_node));
+
+                auto bodynode = node_manager->get_right(current_node);
+                for (auto child: node_manager->get_children(bodynode)) {
+                    fringe.push(child);
+                }
+                continue;
+            }
+            case PN_FOR:
+            case PN_IF:
+            case PN_IF_BRANCH:
+            case PN_ELSE_BRANCH:
+            case PN_WHILE: {
+                auto bodynode = node_manager->get_right(current_node);
+                for (auto child: node_manager->get_children(bodynode)) {
+                    fringe.push(child);
+                }
+                continue;
+            }
+            case PN_RUN_DIRECTIVE: {
+                auto bodynode = node_manager->get_branch(current_node);
+                for (auto child: node_manager->get_children(bodynode)) {
+                    fringe.push(child);
+                }
+                continue;
+            }
+
+
+            case PN_VAR_DEC: {
+                string identifier = node_manager->get_identifier(current_node);
+                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node, node_manager->get_scope_id(current_node));
+                continue;
+            }
+            default:
+                continue;
+        }
+
+        // TODO: type checking and resolution
+    }
+}
+
 bool SageCompiler::check_filename_valid(string filename) {
     // validate that file is valid
     if (filename.find('.') == string::npos) {
@@ -224,7 +276,7 @@ bool SageCompiler::check_filename_valid(string filename) {
     return true;
 }
 
-void SageCompiler::register_allocation(DependencyGraph* dependencies) {
+void SageCompiler::register_allocation() {
     /*
      *  Factors to consider for variable-register mapping sorting order
      *  1. Usage amount throughout scope

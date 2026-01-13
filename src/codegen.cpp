@@ -111,7 +111,6 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
                 return 0;
             }
 
-            compile_dependency_resolution_order(node_manager->get_dependencies(node));
             auto blocknode = node_manager->get_branch(node);
             return visit(blocknode);
         }
@@ -191,7 +190,6 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
 
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(trinary_node);
-    compile_dependency_resolution_order(node_manager->get_dependencies(node));
     visit(body_node);
 
     SageType* voidtype = TypeRegistery::get_builtin_type(VOID);

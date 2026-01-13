@@ -27,7 +27,6 @@ public:
     ~NodeManager();
     NodeManager();
     
-    // Set scope manager for automatic scope_id assignment
     void set_scope_manager(ScopeManager* sm);
 
     BlockParseNode* unbox(NodeIndex index);
@@ -51,6 +50,8 @@ public:
     vector<NodeIndex> get_children(NodeIndex);
     DependencyGraph* get_dependencies(NodeIndex);
     string get_identifier(NodeIndex);
+
+    void set_children(NodeIndex, vector<NodeIndex>);
 
     void bind_dependency(NodeIndex, DependencyGraph*);
     void add_child(NodeIndex self, NodeIndex new_child);
