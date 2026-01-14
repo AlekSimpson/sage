@@ -96,13 +96,13 @@ bool SageFunctionType::match(SageType* other) {
         return false;
     }
 
-    for (int i = 0; i < parameter_types.size(); ++i) {
+    for (int i = 0; i < (int)parameter_types.size(); ++i) {
         if (!functype->parameter_types[i]->match(parameter_types[i])) {
             return false;
         }
     }
 
-    for (int i = 0; i < return_type.size(); ++i) {
+    for (int i = 0; i < (int)return_type.size(); ++i) {
         if (!functype->return_type[i]->match(return_type[i])) {
             return false;
         }
@@ -113,11 +113,11 @@ bool SageFunctionType::match(SageType* other) {
 
 string SageFunctionType::to_string() {
     string value = "(";
-    for (int i = 0; i < parameter_types.size(); ++i) {
+    for (int i = 0; i < (int)parameter_types.size(); ++i) {
         value += parameter_types[i]->to_string();
-        if (i != parameter_types.size() - 1) {
+        if (i != (int)parameter_types.size() - 1) {
             value += ",";
-        }else if (i == parameter_types.size() - 1) {
+        }else if (i == (int)parameter_types.size() - 1) {
             value += ") ";
             break;
         }
@@ -127,11 +127,11 @@ string SageFunctionType::to_string() {
 
     value += "-> ";
 
-    for (int i = 0; i < return_type.size(); ++i) {
+    for (int i = 0; i < (int)return_type.size(); ++i) {
         value += return_type[i]->to_string();
-        if (i != return_type.size() - 1) {
+        if (i != (int)return_type.size() - 1) {
             value += ",";
-        }else if (i == return_type.size() - 1) {
+        }else if (i == (int)return_type.size() - 1) {
             break;
         }
 

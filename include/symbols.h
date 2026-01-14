@@ -60,16 +60,16 @@ public:
 
     vector<int> symbols_sorted_by_scope_id();
 
-    // Symbol declaration (in current scope)
+    // Symbol declarations
     void declare_type_symbol(const string& name, SageType* type);
     int declare_symbol(const string& name, SageValue value);
     int declare_symbol(const string& name, SageType* valuetype);
     int declare_symbol(const string& name, int register_alloc);
     int declare_symbol_in_scope(const string& name, SageType* valuetype, NodeIndex ast_id, int scope_id);
 
-    // Lookup by name (legacy - uses current scope)
+    // Lookup by name
     int lookup_idx(const string& name);
-    symbol_entry* lookup(const string& name);
+    symbol_entry* lookup(const string& name); // legacy - uses current scope
     const symbol_entry* global_lookup(const string& name);
     
     // Direct access by resolved index (fast path)

@@ -159,6 +159,7 @@ int SageSymbolTable::declare_symbol_in_scope(const string& name, SageType* value
 }
 
 vector<int> SageSymbolTable::symbols_sorted_by_scope_id() {
+    // note: we can cache the output of this until program source changes are detected
     vector<int> indices(entries.size());
     std::iota(indices.begin(), indices.end(), 0);
 

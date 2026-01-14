@@ -2,6 +2,7 @@
 // Created by alek on 1/3/26.
 //
 
+#include "../include/node_manager.h"
 #include "../include/scope_manager.h"
 
 // Scope struct constructors
@@ -80,6 +81,15 @@ bool ScopeManager::is_ancestor_of(int ancestor_id, int descendant_id) const {
 
 bool ScopeManager::scope_exists(int scope_id) const {
     return scopes.find(scope_id) != scopes.end();
+}
+
+set<string> ScopeManager::in_scope_identifiers(NodeManager* nm, int scope_id) {
+    auto symbol_indices = scopes[scope_id].symbol_indices;
+    set<string> in_scope_identifiers;
+    for (auto index: symbol_indices) {
+        in_scope_identifiers.insert(nm->get_identifier(index));
+    }
+    return in_scope_identifiers;
 }
 
 void ScopeManager::register_symbol_in_scope(int scope_id, int symbol_index) {

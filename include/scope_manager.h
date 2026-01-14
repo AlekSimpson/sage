@@ -9,6 +9,8 @@
 
 using namespace std;
 
+class NodeManager;
+
 class ScopeManager {
 public:
     struct Scope {
@@ -39,6 +41,7 @@ public:
     int get_parent_scope(int scope_id) const;
     Scope* get_scope(int scope_id);
     const Scope* get_scope(int scope_id) const;
+    set<string> in_scope_identifiers(NodeManager*, int scope_id);
 
     // Scope hierarchy queries
     bool is_ancestor_of(int ancestor_id, int descendant_id) const;

@@ -248,7 +248,6 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
             case PN_VAR_DEC: {
                 string identifier = node_manager->get_identifier(current_node);
                 symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node, node_manager->get_scope_id(current_node));
-                continue;
             }
             default:
                 continue;
@@ -283,53 +282,42 @@ void SageCompiler::register_allocation() {
      *  2. Local to scope means higher priority
      *  3. Is it used in a loop?
      *
-     *  need to track current scope to expire old intervals, the scopes lifetime essentially is the variable lifetime for all vars
-     *
-     *  while loop: stack not empty
-     *   1. pop stack -> walk var
-     *   2. expire old intervals
-     *   3. get values declared in current scope
-     *   4. sort them and allocate them, allocations written to symbol table
-     *   5. add next branches to stack
+     *  for each scope:
+     *  1. expire variables that are out of scope
+     *  2. allocate free registers to variables declared in current scope (allocations written to symbol table)
      */
 
-    // stack<int> virtual_stack_frame;
-    // set<int> available_general_regs;
-    // for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
-    //     available_general_regs.insert(r);
-    // }
+    set<int> available_registers;
+    map<string, int> current_reg_assignments;
+    set<string> working_symbols;
+    for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
+        available_registers.insert(r);
+    }
 
-    // set<string> currently_allocated;
+    int scope_range_max = scope_manager.scopes.size()-1;
+    for (int current_scope = 0; current_scope < scope_range_max; ++current_scope) {
+        auto new_symbols = scope_manager.in_scope_identifiers(node_manager, current_scope);
+        working_symbols.insert(new_symbols.begin(), new_symbols.end());
 
-    // stack<DependencyGraph*> fringe;
-    // DependencyGraph* walk;
-    // fringe.push(dependencies);
-    // while (!fringe.empty()) {
-    //     walk = fringe.top();
-    //     fringe.pop();
-    //     update_scope(walk, &currently_allocated, &virtual_stack_frame);
+        for (auto symbol_ident: working_symbols) {
+            auto symbol_address = symbol_table.lookup_from_scope(symbol_ident, current_scope);
+            if (symbol_address == NULL_INDEX) {
+                // expire old symbol
+                available_registers.insert(current_reg_assignments[symbol_ident]);
+                current_reg_assignments.erase(symbol_ident);
+                continue;
+            }
 
-    //     vector<int> buffer;
-    //     buffer.reserve(walk->nodes.size());
+            // if symbol is not already allocated
+            if (current_reg_assignments.find(symbol_ident) == current_reg_assignments.end()) {
+                auto next_available_register = *available_registers.begin();
+                available_registers.erase(next_available_register);
 
-    //     if (available_general_regs.size() != 100) {
-    //         expire_old_intervals(walk, &currently_allocated, &available_general_regs);
-    //     }
-
-    //     for (auto [key, node] : walk->nodes) {
-    //         if (node.owned_scope != nullptr) {
-    //             fringe.push(node.owned_scope);
-    //             continue;
-    //         }
-    //         if (node.is_parameter) continue;
-
-    //         buffer.push_back(key);
-    //     }
-    //     if (!buffer.empty()) {
-    //         walk->quicksort(&buffer);
-    //         allocate_registers(walk, &buffer, &available_general_regs, &virtual_stack_frame, &currently_allocated);
-    //     }
-    // }
+                current_reg_assignments[symbol_ident] = next_available_register;
+                symbol_table.lookup_by_index(symbol_address)->assigned_register = next_available_register;
+            }
+        }
+    }
 }
 
 bool SageCompiler::node_is_precompiled(NodeIndex node) {

@@ -359,37 +359,51 @@ NodeIndex NodeManager::create_block() {
 
 NodeIndex NodeManager::create_block(Token token, ParseNodeType type) {
     BlockParseNode* new_block = new BlockParseNode(this, token, type);
-    return create(new_block, PN_BLOCK);
+    auto node_id = create(new_block, PN_BLOCK);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_block(Token token, ParseNodeType type, vector<NodeIndex> nodes) {
     BlockParseNode* new_block = new BlockParseNode(this, token, type, nodes);
-    return create(new_block, PN_BLOCK);
+    auto node_id = create(new_block, PN_BLOCK);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_binary(Token token, ParseNodeType type, NodeIndex left, NodeIndex right) {
     BinaryParseNode* binary_node = new BinaryParseNode(this, token, type, left, right); 
-    return create(binary_node, PN_BINARY);
+    auto node_id = create(binary_node, PN_BINARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_trinary(Token token, ParseNodeType type, NodeIndex left, NodeIndex middle, NodeIndex right) {
     TrinaryParseNode* trinary_node = new TrinaryParseNode(this, token, type, left, middle, right);
-    return create(trinary_node, PN_TRINARY);
+    auto node_id = create(trinary_node, PN_TRINARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type) {
     UnaryParseNode* unary_node = new UnaryParseNode(this, token, type);
-    return create(unary_node, PN_UNARY);
+    auto node_id = create(unary_node, PN_UNARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type, NodeIndex branch) {
     UnaryParseNode* unary_node = new UnaryParseNode(this, token, type, branch);
-    return create(unary_node, PN_UNARY);
+    auto node_id = create(unary_node, PN_UNARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type, vector<string> lexemes) {
     UnaryParseNode* unary_node = new UnaryParseNode(this, token, type, lexemes);
-    return create(unary_node, PN_UNARY);
+    auto node_id = create(unary_node, PN_UNARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
 }
 
 NodeIndex NodeManager::create(AbstractParseNode* node, ParseNodeType hosttype) {

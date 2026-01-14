@@ -144,7 +144,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
                 break;
             }
             default:
-                continue;
+                break;
         }
     }
 }

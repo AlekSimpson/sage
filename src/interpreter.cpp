@@ -33,7 +33,7 @@ SageInterpreter::SageInterpreter(int stack_size) {
 
 void SageInterpreter::push_stack_scope(int func_id) {
     int32_t return_address = program_pointer + 1;
-    if (return_address + 1 == stack.capacity()) {
+    if (return_address + 1 == (int)stack.capacity()) {
         ErrorLogger::get().log_error(
             "interpreter.cpp",
             current_linenum,
@@ -72,7 +72,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]
         return return_values;
     }
 
-    for (int i = 0; i < raw_operands.size(); ++i) {
+    for (int i = 0; i < (int)raw_operands.size(); ++i) {
         switch (map[i]) {
             case 0:
                 // Raw immediate value
@@ -333,7 +333,7 @@ void SageInterpreter::execute() {
     vm_running = true;
     bool prog_pointer_jump = false;
 
-    while (vm_running && program_pointer < program.size()) {
+    while (vm_running && program_pointer < (int)program.size()) {
         if (ErrorLogger::get().has_errors()) {
             ErrorLogger::get().report_errors();
             break;
