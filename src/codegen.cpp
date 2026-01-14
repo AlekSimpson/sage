@@ -9,28 +9,28 @@
 using namespace std;
 
 // Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
-symbol_entry* SageCompiler::resolve_symbol(NodeIndex node) {
+symbol_entry *SageCompiler::resolve_symbol(NodeIndex node) {
     // Fast path: check for early-bound resolved symbol
     int resolved = node_manager->get_resolved_symbol(node);
     if (resolved != -1) {
         return symbol_table.lookup_by_index(resolved);
     }
-    
+
     // Lazy lookup using scope_id
     int scope_id = node_manager->get_scope_id(node);
     string name = node_manager->get_lexeme(node);
     int idx = symbol_table.lookup_from_scope(name, scope_id);
-    
+
     if (idx != -1) {
         // Cache the resolved symbol for future lookups
         node_manager->set_resolved_symbol(node, idx);
         return symbol_table.lookup_by_index(idx);
     }
-    
+
     return nullptr;
 }
 
-symbol_entry* SageCompiler::resolve_symbol_by_name(const string& name, int scope_id) {
+symbol_entry *SageCompiler::resolve_symbol_by_name(const string &name, int scope_id) {
     int idx = symbol_table.lookup_from_scope(name, scope_id);
     if (idx != -1) {
         return symbol_table.lookup_by_index(idx);
@@ -40,15 +40,15 @@ symbol_entry* SageCompiler::resolve_symbol_by_name(const string& name, int scope
 
 ui32 SageCompiler::visit(NodeIndex node) {
     if (node_is_precompiled(node)) {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
 
     switch (node_manager->get_nodetype(node)) {
         case PN_BLOCK: {
-            for (auto child : node_manager->get_children(node)) {
+            for (auto child: node_manager->get_children(node)) {
                 visit(child);
             }
-            return 0;
+            return SAGE_NULL_SYMBOL;
         }
 
         case PN_FUNCDEF:
@@ -75,7 +75,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
                 sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)));
             break;
     }
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
 
 /*
@@ -86,7 +86,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
 
 ui32 SageCompiler::visit_statement(NodeIndex node) {
     if (node_is_precompiled(node)) {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
 
     switch (node_manager->get_nodetype(node)) {
@@ -108,7 +108,7 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
             return visit_keyword(node);
         case PN_RUN_DIRECTIVE: {
             if (!interpreter_mode) {
-                return 0;
+                return SAGE_NULL_SYMBOL;
             }
 
             auto blocknode = node_manager->get_branch(node);
@@ -125,19 +125,19 @@ ui32 SageCompiler::visit_keyword(NodeIndex node) {
         return visit_funcret(node);
     }
     if (lexeme == "continue") {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
     if (lexeme == "break") {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
     if (lexeme == "include") {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
     ErrorLogger::get().log_internal_error(
         "codegen.cpp",
         current_linenum,
         sen("found unrecognized keyword:", node_manager->get_lexeme(node)));
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
 
 ui32 SageCompiler::visit_varassign(NodeIndex node) {
@@ -149,7 +149,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     auto variable_symbol = resolve_symbol(LHS);
     if (variable_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
-        return -1;
+        return SAGE_NULL_SYMBOL;
     }
 
     NodeIndex RHS_idx = node_manager->get_right(node);
@@ -159,7 +159,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     auto expression_symbol = symbol_table.lookup_by_index(RHS);
     if (expression_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("unrecognized symbol: ", RHS_idx));
-        return -1;
+        return SAGE_NULL_SYMBOL;
     }
 
     return build_store(RHS, variable_symbol->identifier);
@@ -175,33 +175,33 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
         logger.log_internal_error(
             "codegen.cpp",
             current_linenum,
-            str("visitor expected node (",node,") to be TRINARY, instead was: ", right_host));
-        return 0;
+            str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host));
+        return SAGE_NULL_SYMBOL;
     }
 
     auto return_node = node_manager->get_middle(trinary_node);
     if (node_manager->get_host_nodetype(return_node) != PN_UNARY) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("expected type node to be UNARY"));
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
-    SageType* return_type = symbol_table.resolve_sage_type(node_manager, return_node);
-    vector<SageType*> return_types(1); // until we support more return types this is always length one
+    SageType *return_type = symbol_table.resolve_sage_type(node_manager, return_node);
+    vector<SageType *> return_types(1); // until we support more return types this is always length one
     return_types.push_back(return_type);
 
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(trinary_node);
     visit(body_node);
 
-    SageType* voidtype = TypeRegistery::get_builtin_type(VOID);
+    SageType *voidtype = TypeRegistery::get_builtin_type(VOID);
     if (!symbol_table.function_visitor_state.top().has_returned()) {
         if (!return_type->match(voidtype)) {
             auto token = node_manager->get_token(node);
             logger.log_error(
                 token,
-                str("function (",function_name,") missing return statement"),
+                str("function (", function_name, ") missing return statement"),
                 GENERAL);
             symbol_table.function_visitor_state.pop();
-            return 0;
+            return SAGE_NULL_SYMBOL;
         }
 
         // auto return on void functions
@@ -209,13 +209,13 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
     }
 
     symbol_table.function_visitor_state.pop();
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
 
-ui32 SageCompiler::visit_struct(NodeIndex node) { return 0; }
-ui32 SageCompiler::visit_if(NodeIndex node) { return 0; }
-ui32 SageCompiler::visit_while(NodeIndex node) { return 0; }
-ui32 SageCompiler::visit_for(NodeIndex node) { return 0; }
+ui32 SageCompiler::visit_struct(NodeIndex node) { return SAGE_NULL_SYMBOL; }
+ui32 SageCompiler::visit_if(NodeIndex node) { return SAGE_NULL_SYMBOL; }
+ui32 SageCompiler::visit_while(NodeIndex node) { return SAGE_NULL_SYMBOL; }
+ui32 SageCompiler::visit_for(NodeIndex node) { return SAGE_NULL_SYMBOL; }
 
 ui32 SageCompiler::visit_vardec(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
@@ -235,7 +235,7 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
         return build_store(rhs, variable_name);
     }
 
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
 
 ui32 SageCompiler::visit_funcret(NodeIndex node) {
@@ -260,7 +260,7 @@ ui32 SageCompiler::visit_funcret(NodeIndex node) {
 
 ui32 SageCompiler::visit_expression(NodeIndex node) {
     if (node_is_precompiled(node)) {
-        return 0;
+        return SAGE_NULL_SYMBOL;
     }
 
     if (node_manager->get_host_nodetype(node) == PN_BINARY) {
@@ -269,6 +269,7 @@ ui32 SageCompiler::visit_expression(NodeIndex node) {
 
     return visit_literal(node);
 }
+
 ui32 SageCompiler::visit_varref(NodeIndex node) {
     auto node_lexeme = node_manager->get_lexeme(node);
     return build_load(node_lexeme);
@@ -295,8 +296,9 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
         default:
             break;
     }
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
+
 ui32 SageCompiler::visit_funccall(NodeIndex node) {
     string func_call_name = node_manager->get_lexeme(node);
     NodeIndex args_node = node_manager->get_branch(node);
@@ -304,7 +306,7 @@ ui32 SageCompiler::visit_funccall(NodeIndex node) {
     vector<ui32> args;
     args.reserve(arg_children.size());
 
-    for (NodeIndex arg : arg_children) {
+    for (NodeIndex arg: arg_children) {
         args.push_back(visit_expression(arg));
     }
 
@@ -314,19 +316,19 @@ ui32 SageCompiler::visit_funccall(NodeIndex node) {
 ui32 SageCompiler::visit_binop(NodeIndex node) {
     auto token = node_manager->get_token(node);
 
-    auto _build_add = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_add(lhs, rhs);};
-    auto _build_sub = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_sub(lhs, rhs);};
-    auto _build_div = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_div(lhs, rhs);};
-    auto _build_mul = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_mul(lhs, rhs);};
-    auto _build_and = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_and(lhs, rhs);};
-    auto _build_or = [&](ui32 lhs, ui32 rhs) -> ui32 {return build_or(lhs, rhs);};
+    auto _build_add = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_add(lhs, rhs); };
+    auto _build_sub = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_sub(lhs, rhs); };
+    auto _build_div = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_div(lhs, rhs); };
+    auto _build_mul = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_mul(lhs, rhs); };
+    auto _build_and = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_and(lhs, rhs); };
+    auto _build_or = [&](ui32 lhs, ui32 rhs) -> ui32 { return build_or(lhs, rhs); };
 
     auto process_op = [&, this](function<ui32(ui32, ui32)> builder) -> ui32 {
         auto left = node_manager->get_left(node);
         ui32 lhs;
         if (node_manager->get_host_nodetype(left) == PN_BINARY) {
             lhs = visit_binop(left);
-        }else {
+        } else {
             lhs = visit_literal(left);
         }
 
@@ -334,7 +336,7 @@ ui32 SageCompiler::visit_binop(NodeIndex node) {
         ui32 rhs;
         if (node_manager->get_host_nodetype(right) == PN_BINARY) {
             rhs = visit_binop(right);
-        }else {
+        } else {
             rhs = visit_literal(right);
         }
 
@@ -375,12 +377,7 @@ ui32 SageCompiler::visit_binop(NodeIndex node) {
                 str("Node", node, "recieved incorrect node type for binary operation."));
             break;
     }
-    return 0;
+    return SAGE_NULL_SYMBOL;
 }
 
 // TODO: ui32 SageCompiler::visit_unop(NodeIndex node) {}
-
-
-
-
-

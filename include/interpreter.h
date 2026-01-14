@@ -18,11 +18,11 @@ public:
     int prog_return_address; // where the program resumes after the function finishes executing
     int prog_start_address; // where the function begins
     int stack_pointer; // keep track of where this frame starts in the stack, so we can pop the frame correctly
-    StackFrame* previous_frame;
+    StackFrame *previous_frame;
     map<int, int> saved_caller_values;
     map<string, offset_t> local_variables; // tracks variable allocations
 
-    StackFrame(StackFrame* previous,
+    StackFrame(StackFrame *previous,
                map<int, int> caller_cache,
                int ret_addr,
                int stack_pointer,
@@ -52,7 +52,7 @@ public:
     int program_pointer;
 
     map<int, int> proc_line_locations;
-    StackFrame* frame_pointer; // keeps track of current frame
+    StackFrame *frame_pointer; // keeps track of current frame
 
     bytecode program;
     map<int, SageValue> heap;

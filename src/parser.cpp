@@ -13,11 +13,13 @@
 using namespace std;
 
 bool is_operator(Token op);
+
 int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
 
-SageParser::SageParser(){}
+SageParser::SageParser() {
+}
 
-SageParser::SageParser(ScopeManager* scope_manager, NodeManager* node_manager, string filename) {
+SageParser::SageParser(ScopeManager *scope_manager, NodeManager *node_manager, string filename) {
     lexer = new SageLexer(filename);
 
     this->scope_manager = scope_manager;
@@ -41,7 +43,7 @@ NodeIndex SageParser::parse_program(bool debug_lexer) {
     // Global scope is already created in ScopeManager constructor
 
     if (debug_lexer) {
-        Token* walk_token = current_token;
+        Token *walk_token = current_token;
         int counter = 0;
         while (walk_token != nullptr && walk_token->token_type != TT_EOF) {
             printf("[%d] %s\n", counter, walk_token->to_string().c_str());
@@ -55,7 +57,7 @@ NodeIndex SageParser::parse_program(bool debug_lexer) {
     NodeIndex program_root = parse_statements();
 
     if (errors.size() != 0) {
-        for (Token err : errors) {
+        for (Token err: errors) {
             printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
         }
 
@@ -179,14 +181,15 @@ NodeIndex SageParser::parse_value_dec() {
         advance(); // move past the "=" symbol
         NodeIndex rhs = parse_expression();
 
-        string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->to_string(rhs);
+        string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->
+                            to_string(rhs);
 
         Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum);
         return node_manager->create_trinary(dec_token, PN_VAR_DEC, name_identifier_node, type_identifier_node, rhs);
     }
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;
-    
+
     // NOTE: probably could just make nodetype equal to ->get_nodetype() and don't need the this conditional
     ParseNodeType nodetype = PN_VAR_DEC;
     if (node_manager->get_nodetype(type_identifier_node) == PN_VARARG) {
@@ -216,7 +219,7 @@ NodeIndex SageParser::parse_value_dec_list() {
     }
 
     NodeIndex list_node = node_manager->create_block();
-    BlockParseNode* _list_node = node_manager->unbox(list_node);
+    BlockParseNode *_list_node = node_manager->unbox(list_node);
     _list_node->rep_nodetype = PN_PARAM_LIST;
     string list_token_lexeme = "";
     Token list_token = Token(TT_COMPILER_CREATED, "", current_token->linenum);
@@ -259,7 +262,7 @@ NodeIndex SageParser::parse_assign() {
     name_token.fill_with(*current_token);
 
     NodeIndex name_node = node_manager->create_unary(name_token, PN_IDENTIFIER);
-    
+
     Token lookahead = peek();
     bool is_field_access = match_types(lookahead.token_type, TT_FIELD_ACCESSOR);
     if (is_field_access) {
@@ -267,9 +270,9 @@ NodeIndex SageParser::parse_assign() {
 
         name_node = parse_struct_field_access();
         name_token.lexeme = node_manager->get_full_lexeme(name_node);
-    }else {
+    } else {
         // parse_struct_field_access leaves the current token cursor on the next token already
-	    // so if it is a field access then calling this p.advance() would be unnecessary
+        // so if it is a field access then calling this p.advance() would be unnecessary
         advance(); // advance past the current identifier
     }
 
@@ -339,7 +342,7 @@ NodeIndex SageParser::parse_if_statement() {
     scope_manager->enter_scope("if", current_token->linenum);
 
     advance(); // advance past the "if" keyword
-    
+
     vector<NodeIndex> elif_statements = vector<NodeIndex>();
 
     NodeIndex condition_expression = parse_expression();
@@ -349,7 +352,8 @@ NodeIndex SageParser::parse_if_statement() {
     scope_manager->exit_scope(current_token->linenum, condition_body);
 
     Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum);
-    NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression, condition_body);
+    NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression,
+                                                       condition_body);
 
     elif_statements.push_back(primary_if);
 
@@ -374,10 +378,10 @@ NodeIndex SageParser::parse_if_statement() {
             condition_body = parse_body();
             // TODO: more detailed token lexeme
             Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum);
-            NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp, condition_body);
+            NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp,
+                                                                        condition_body);
             elif_statements.push_back(next_elif_statement);
             scope_manager->exit_scope(current_token->linenum, condition_body);
-
         } else if (match_types(current_token->token_type, TT_LBRACE)) {
             NodeIndex else_body = parse_body();
             Token body_token = node_manager->get_token(else_body);
@@ -423,15 +427,16 @@ NodeIndex SageParser::parse_for_statement() {
     Token iterator_variable_token;
     iterator_variable_token.fill_with(*current_token);
     NodeIndex identifier_token = node_manager->create_unary(iterator_variable_token, PN_IDENTIFIER);
-    NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum), PN_TYPE);
+    NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum),
+                                                          PN_TYPE);
     NodeIndex iterator_variable_node = node_manager->create_binary(
-        iterator_variable_token, 
-        PN_VAR_DEC, 
-        identifier_token, 
+        iterator_variable_token,
+        PN_VAR_DEC,
+        identifier_token,
         int_type_token
     );
     advance(); // move past iterator
-    
+
     if (current_token->lexeme != "in") {
         ErrorLogger::get().log_error(
             *current_token,
@@ -440,7 +445,7 @@ NodeIndex SageParser::parse_for_statement() {
         return NULL_INDEX;
     }
     advance(); // move past in keyword
-    
+
     NodeIndex range_node = parse_range();
     string range_lexeme = node_manager->get_lexeme(range_node);
 
@@ -480,26 +485,26 @@ NodeIndex SageParser::parse_construct() {
     NodeIndex name_identifier_node = node_manager->create_unary(name_identifier_token, PN_IDENTIFIER);
     advance(); // move identifier
     advance(); // move past the '::' symbol (we know its here because we peeked for it in parse_staetment()
-    
+
     NodeIndex binding_node = NULL_INDEX;
     ParseNodeType nodetype;
     switch (current_token->token_type) {
-    case TT_KEYWORD:
-        // check if lexeme is 'struct'
-        binding_node = parse_struct();
-        nodetype = PN_STRUCT;
-        break;
+        case TT_KEYWORD:
+            // check if lexeme is 'struct'
+            binding_node = parse_struct();
+            nodetype = PN_STRUCT;
+            break;
 
-    case TT_LPAREN:
-        // its a function
-        binding_node = parse_function();
-        nodetype = node_manager->get_nodetype(binding_node);
-        break;
+        case TT_LPAREN:
+            // its a function
+            binding_node = parse_function();
+            nodetype = node_manager->get_nodetype(binding_node);
+            break;
 
-    default:
-        binding_node = parse_type();
-        nodetype = PN_TYPE;
-        break;
+        default:
+            binding_node = parse_type();
+            nodetype = PN_TYPE;
+            break;
     }
 
     if (binding_node == NULL_INDEX) {
@@ -522,8 +527,8 @@ NodeIndex SageParser::parse_struct() {
     scope_manager->enter_scope("struct", current_token->linenum);
 
     advance(); // advance past the struct keyword
-    symbol_count+=1;
-    
+    symbol_count += 1;
+
     consume(TT_LBRACE, "Expected LBRACE in structure definition.");
 
     NodeIndex struct_contents = parse_value_dec_list();
@@ -538,7 +543,7 @@ NodeIndex SageParser::parse_function() {
     consume(TT_LPAREN, "Expected LPAREN in function definition.");
 
     scope_manager->enter_scope("function", current_token->linenum);
-    symbol_count+=1;
+    symbol_count += 1;
 
     string signature_lexeme = "(";
     NodeIndex parameter_list = parse_value_dec_list();
@@ -556,7 +561,8 @@ NodeIndex SageParser::parse_function() {
         if (current_token->token_type != TT_LBRACE) {
             ErrorLogger::get().log_error(
                 *current_token,
-                sen("function that implicitly returns void expected to have '{ ... }' body found", current_token->lexeme, "instead."),
+                sen("function that implicitly returns void expected to have '{ ... }' body found",
+                    current_token->lexeme, "instead."),
                 SYNTAX);
             return NULL_INDEX;
         }
@@ -572,7 +578,8 @@ NodeIndex SageParser::parse_function() {
 
         NodeIndex body_node = parse_body();
         scope_manager->exit_scope(current_token->linenum, body_node);
-        return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
+        return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node,
+                                            body_node);
     }
 
     consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.");
@@ -603,7 +610,7 @@ NodeIndex SageParser::parse_function_call() {
     Token function_name_token = Token();
     function_name_token.fill_with(*current_token);
     advance(); // move past func name identifier
-    
+
     consume(TT_LPAREN, "Expected function call to include opening '(' bracket.");
 
     Token params_token = Token(TT_COMPILER_CREATED, "", -1);
@@ -687,10 +694,10 @@ NodeIndex SageParser::parse_type() {
         NodeIndex array_type_node = node_manager->create_unary(array_type_token, PN_TYPE);
         token_lexeme += array_type_token.lexeme;
         advance(); // advance past the identifier
-        
+
         if (match_types(current_token->token_type, TT_COLON)) {
-            advance(); // advance past the colon 
-            
+            advance(); // advance past the colon
+
             if (!match_types(current_token->token_type, TT_NUM)) {
                 ErrorLogger::get().log_error(
                     *current_token,
@@ -719,7 +726,7 @@ NodeIndex SageParser::parse_type() {
 
         Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
         return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
-    }else if (match_types(current_token->token_type, TT_VARARG)) {
+    } else if (match_types(current_token->token_type, TT_VARARG)) {
         advance(); // advance past the vararg '...' notation
         Token type_token = Token();
         type_token.fill_with(*current_token);
@@ -757,12 +764,12 @@ NodeIndex SageParser::parse_expression() {
     return parse_operator(parse_primary(), TT_EQUALITY);
 }
 
-bool is_operator(Token op) { 
+bool is_operator(Token op) {
     // TT_DIV should be 8 which is the last operator so far
-    return op.token_type <= 8; 
+    return op.token_type <= 8;
 }
 
-int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) { 
+int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) {
     if (curr_op_type > op_type) {
         return 1;
     }
@@ -771,7 +778,7 @@ int decide_precedence_inc(TokenType curr_op_type, TokenType op_type) {
 
 NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
     // this should be an operator token because LHS will have already been evaluated
-    Token current_op = Token(); 
+    Token current_op = Token();
     current_op.fill_with(*current_token);
 
     while (is_operator(current_op) && current_op.get_operator_precedence() >= min_precedence) {
@@ -782,8 +789,9 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
         current_op.fill_with(*current_token);
 
         while (
-            (is_operator(current_op) && current_op.get_operator_precedence() > op.get_operator_precedence()) || 
-            (op_is_right_associative(current_op.lexeme) && current_op.get_operator_precedence() == op.get_operator_precedence())
+            (is_operator(current_op) && current_op.get_operator_precedence() > op.get_operator_precedence()) ||
+            (op_is_right_associative(current_op.lexeme) && current_op.get_operator_precedence() == op.
+             get_operator_precedence())
         ) {
             int inc = decide_precedence_inc(current_op.token_type, op.token_type);
             right = parse_operator(right, op.get_operator_precedence() + inc);
@@ -804,14 +812,14 @@ NodeIndex SageParser::parse_primary() {
         case TT_NUM:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_NUMBER);
-            symbol_count+=1;
+            symbol_count += 1;
             advance();
             return ret;
 
         case TT_FLOAT:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_FLOAT);
-            symbol_count+=1;
+            symbol_count += 1;
             advance();
             return ret;
 
@@ -838,10 +846,10 @@ NodeIndex SageParser::parse_primary() {
         case TT_STRING:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_STRING);
-            symbol_count+=1;
+            symbol_count += 1;
             advance();
             return ret;
-        
+
         default:
             return NULL_INDEX;
     }
@@ -881,7 +889,7 @@ bool SageParser::match_types(TokenType type_a, TokenType type_b) {
     return type_a == type_b;
 }
 
-bool SageParser::matches_any(TokenType type_a, TokenType* possible_types, int type_amount) {
+bool SageParser::matches_any(TokenType type_a, TokenType *possible_types, int type_amount) {
     for (int i = 0; i < type_amount; ++i) {
         if (match_types(type_a, possible_types[i])) {
             return true;

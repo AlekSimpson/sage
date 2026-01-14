@@ -3,7 +3,7 @@
 #include "../include/error_logger.h"
 #include "../include/codegen.h"
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     // TODO: implement compiler flags here in this file
     if (argc <= 1) {
         ErrorLogger::get().log_error("null", -1, "no targets specified", GENERAL);
@@ -22,6 +22,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
-
-

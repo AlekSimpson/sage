@@ -14,16 +14,19 @@
 // StackFrame
 
 StackFrame::StackFrame(
-    StackFrame* previous, map<int, int> caller_cache, int ret_addr, int sp, int ps
+    StackFrame *previous, map<int, int> caller_cache, int ret_addr, int sp, int ps
 ) : prog_return_address(ret_addr), prog_start_address(ps), stack_pointer(sp), previous_frame(previous),
-    saved_caller_values(caller_cache) {}
+    saved_caller_values(caller_cache) {
+}
 
 StackFrame::StackFrame()
-    : prog_return_address(-1), prog_start_address(0), stack_pointer(0), previous_frame(nullptr) {}
+    : prog_return_address(-1), prog_start_address(0), stack_pointer(0), previous_frame(nullptr) {
+}
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {
+}
 
 SageInterpreter::SageInterpreter(int stack_size) {
     stack.reserve(stack_size);
@@ -33,7 +36,7 @@ SageInterpreter::SageInterpreter(int stack_size) {
 
 void SageInterpreter::push_stack_scope(int func_id) {
     int32_t return_address = program_pointer + 1;
-    if (return_address + 1 == (int)stack.capacity()) {
+    if (return_address + 1 == (int) stack.capacity()) {
         ErrorLogger::get().log_error(
             "interpreter.cpp",
             current_linenum,
@@ -45,16 +48,16 @@ void SageInterpreter::push_stack_scope(int func_id) {
     registers[STACK_POINTER] = int_reg_inc(registers[STACK_POINTER], 1);
     int start_stack_address = unpack_int(registers[STACK_POINTER]);
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
-    frame_pointer = new StackFrame(frame_pointer, 
-		    	           cached_registers, 
-		    	           return_address,
-		    	           start_stack_address,
-		    	           proc_line_locations[func_id]);
+    frame_pointer = new StackFrame(frame_pointer,
+                                   cached_registers,
+                                   return_address,
+                                   start_stack_address,
+                                   proc_line_locations[func_id]);
 }
 
 void SageInterpreter::pop_stack_scope() {
-    registers[STACK_POINTER] = pack_int(frame_pointer->stack_pointer-1);
-    StackFrame* previous = frame_pointer->previous_frame;
+    registers[STACK_POINTER] = pack_int(frame_pointer->stack_pointer - 1);
+    StackFrame *previous = frame_pointer->previous_frame;
     delete frame_pointer;
     frame_pointer = previous;
 }
@@ -63,7 +66,7 @@ void SageInterpreter::load_program(bytecode _program) {
     program = _program;
 }
 
-vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]) {
+vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]) {
     vector<int> raw_operands = inst->read();
     vector<SageValue> return_values;
     return_values.reserve(4);
@@ -72,7 +75,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]
         return return_values;
     }
 
-    for (int i = 0; i < (int)raw_operands.size(); ++i) {
+    for (int i = 0; i < (int) raw_operands.size(); ++i) {
         switch (map[i]) {
             case 0:
                 // Raw immediate value
@@ -84,7 +87,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction* inst, int map[4]
                 break;
             case 4:
                 // Dereference constant pool - operand is index into constant_pool
-                if (raw_operands[i] >= 0 && raw_operands[i] < (int)constant_pool.size()) {
+                if (raw_operands[i] >= 0 && raw_operands[i] < (int) constant_pool.size()) {
                     return_values.push_back(constant_pool[raw_operands[i]]);
                 } else {
                     ErrorLogger::get().log_internal_error(
@@ -115,9 +118,11 @@ void SageInterpreter::execute_add(vector<SageValue> operands) {
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
-    if  (first_operator_is_float || second_operator_is_float) {
+    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
+                                     F64);
+    if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
         return;
     }
@@ -128,17 +133,19 @@ void SageInterpreter::execute_add(vector<SageValue> operands) {
 void SageInterpreter::execute_sub(vector<SageValue> operands) {
     if (operands.size() < 3) {
         ErrorLogger::get().log_internal_error(
-           "interpreter.cpp",
-           current_linenum,
-           "execution requires 3 operands but less were found!");
+            "interpreter.cpp",
+            current_linenum,
+            "execution requires 3 operands but less were found!");
         return;
     }
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
-    if  (first_operator_is_float || second_operator_is_float) {
+    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
+                                     F64);
+    if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() - operands[2].as_float());
         return;
     }
@@ -149,17 +156,19 @@ void SageInterpreter::execute_sub(vector<SageValue> operands) {
 void SageInterpreter::execute_mul(vector<SageValue> operands) {
     if (operands.size() < 3) {
         ErrorLogger::get().log_internal_error(
-          "interpreter.cpp",
-          current_linenum,
-          "execution requires 3 operands but less were found!");
+            "interpreter.cpp",
+            current_linenum,
+            "execution requires 3 operands but less were found!");
         return;
     }
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
-    if  (first_operator_is_float || second_operator_is_float) {
+    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
+                                     F64);
+    if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() * operands[2].as_float());
         return;
     }
@@ -178,17 +187,19 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
 
     if (operands[2].value.int_value == 0) {
         ErrorLogger::get().log_internal_error(
-           "interpreter.cpp",
-           current_linenum,
-           "execution requires 3 operands but less were found!");
+            "interpreter.cpp",
+            current_linenum,
+            "execution requires 3 operands but less were found!");
         return;
     }
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() == F64);
-    if  (first_operator_is_float || second_operator_is_float) {
+    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
+                                     F64);
+    if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() / operands[2].as_float());
         return;
     }
@@ -199,9 +210,9 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
 void SageInterpreter::execute_load(vector<SageValue> operands) {
     if (operands.size() < 2) {
         ErrorLogger::get().log_internal_error(
-           "interpreter.cpp",
-           current_linenum,
-           "execution requires 2 operands but less were found!");
+            "interpreter.cpp",
+            current_linenum,
+            "execution requires 2 operands but less were found!");
         return;
     }
 
@@ -256,20 +267,26 @@ void SageInterpreter::execute_eqcomp(vector<SageValue> operands) {
 }
 
 void SageInterpreter::execute_ltcomp(vector<SageValue> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
+    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                     F64);
     if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(8, operands[0].as_float() < operands[1].as_float(), TypeRegistery::get_builtin_type(BOOL));
+        registers[21] = SageValue(8, operands[0].as_float() < operands[1].as_float(),
+                                  TypeRegistery::get_builtin_type(BOOL));
     }
 
     registers[21] = SageValue(8, operands[0].as_i32() < operands[1].as_i32(), TypeRegistery::get_builtin_type(BOOL));
 }
 
 void SageInterpreter::execute_gtcomp(vector<SageValue> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() == F64);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() == F64);
+    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() ==
+                                    F64);
+    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
+                                     F64);
     if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(8, operands[0].as_float() > operands[1].as_float(), TypeRegistery::get_builtin_type(BOOL));
+        registers[21] = SageValue(8, operands[0].as_float() > operands[1].as_float(),
+                                  TypeRegistery::get_builtin_type(BOOL));
     }
 
     registers[21] = SageValue(8, operands[0].as_i32() > operands[1].as_i32(), TypeRegistery::get_builtin_type(BOOL));
@@ -277,22 +294,22 @@ void SageInterpreter::execute_gtcomp(vector<SageValue> operands) {
 
 void SageInterpreter::execute_and(vector<SageValue> operands) {
     registers[21] = SageValue(8,
-        (operands[0].as_i32() && operands[1].as_i32()) == 1,
-        TypeRegistery::get_builtin_type(BOOL));
+                              (operands[0].as_i32() && operands[1].as_i32()) == 1,
+                              TypeRegistery::get_builtin_type(BOOL));
 }
 
 void SageInterpreter::execute_or(vector<SageValue> operands) {
     registers[21] = SageValue(8,
-        (operands[0].as_i32() && operands[1].as_i32()) == 1,
-        TypeRegistery::get_builtin_type(BOOL));
+                              (operands[0].as_i32() && operands[1].as_i32()) == 1,
+                              TypeRegistery::get_builtin_type(BOOL));
 }
 
 void SageInterpreter::execute_not(vector<SageValue> operands) {
     int value = unpack_int(operands[0]);
     registers[21] = pack_int(!value);
     registers[21] = SageValue(8,
-        (!operands[0].as_i32()),
-        TypeRegistery::get_builtin_type(BOOL));
+                              (!operands[0].as_i32()),
+                              TypeRegistery::get_builtin_type(BOOL));
 }
 
 void SageInterpreter::execute_syscall() {
@@ -301,8 +318,8 @@ void SageInterpreter::execute_syscall() {
     switch (callcode) {
         case SYS_write: {
             // todo: so this memory right now is leaking without the string pool, we'll need a VM cleanup function eventually
-            void* complex_value = unpack_pointer(registers[1]);  // Clear type tag bits
-            const char* text = static_cast<const char*>(complex_value);
+            void *complex_value = unpack_pointer(registers[1]); // Clear type tag bits
+            const char *text = static_cast<const char *>(complex_value);
             syscall(
                 callcode,
                 unpack_int(registers[0]),
@@ -333,7 +350,7 @@ void SageInterpreter::execute() {
     vm_running = true;
     bool prog_pointer_jump = false;
 
-    while (vm_running && program_pointer < (int)program.size()) {
+    while (vm_running && program_pointer < (int) program.size()) {
         if (ErrorLogger::get().has_errors()) {
             ErrorLogger::get().report_errors();
             break;
@@ -444,8 +461,8 @@ void SageInterpreter::close() {
             return;
         }
 
-        StackFrame* above = nullptr;
-        StackFrame* walk = frame_pointer;
+        StackFrame *above = nullptr;
+        StackFrame *walk = frame_pointer;
         while (walk->previous_frame != nullptr) {
             above = walk;
             walk = walk->previous_frame;
@@ -453,14 +470,3 @@ void SageInterpreter::close() {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

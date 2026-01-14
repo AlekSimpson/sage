@@ -78,8 +78,7 @@ union value_t {
     float float_value;
     char char_value;
     bool bool_value;
-    //string* string_value;
-    void* complex_value;
+    void *complex_value;
 };
 
 class TypeRegistery {
@@ -91,17 +90,17 @@ private:
     function_types;
 
 public:
-    static SageType* get_builtin_type(CanonicalType canonical_type);
-    static SageType* get_pointer_type(SageType* base_type);
-    static SageType* get_array_type(SageType* element_type, int size);
-    static SageType* get_function_type(std::vector<SageType*> return_types, std::vector<SageType*> parameter_types);
+    static SageType *get_builtin_type(CanonicalType canonical_type);
+    static SageType *get_pointer_type(SageType *base_type);
+    static SageType *get_array_type(SageType *element_type, int size);
+    static SageType *get_function_type(std::vector<SageType*> return_types, std::vector<SageType*> parameter_types);
 };
 
 class SageValue {
 public:
     int bitsize;
     value_t value;
-    SageType* valuetype = TypeRegistery::get_builtin_type(VOID);
+    SageType *valuetype = TypeRegistery::get_builtin_type(VOID);
     bool nullvalue = true;
 
     SageValue();
@@ -109,7 +108,6 @@ public:
     SageValue(int, float, SageType*);
     SageValue(int, char, SageType*);
     SageValue(int, bool, SageType*);
-    // SageValue(int, string*, SageType*);
     SageValue(int, void*, SageType*);
     SageValue(uint64_t register_value);
     SageValue(int);
@@ -128,8 +126,8 @@ public:
     // Convenience getters with automatic conversion
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
-    void* as_ptr() const { return value.complex_value ; }
-    const char* as_charbuff() const { return static_cast<const char*>(value.complex_value); }
+    void *as_ptr() const { return value.complex_value ; }
+    const char *as_charbuff() const { return static_cast<const char*>(value.complex_value); }
 };
 
 namespace std {

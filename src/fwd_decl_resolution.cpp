@@ -4,10 +4,9 @@
 using namespace std;
 
 void SageCompiler::get_in_degree_of(
-    const string& root_definition_identifier,
+    const string &root_definition_identifier,
     NodeIndex current_node,
     int working_scope) {
-
     switch (node_manager->get_host_nodetype(current_node)) {
         case PN_UNARY: {
             auto nodetype = node_manager->get_nodetype(current_node);
@@ -61,11 +60,11 @@ void SageCompiler::resolve_definition_order(int target_scope) {
     vector<NodeIndex> result_order;
     stack<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
-    for (const auto& [identifier, in_degree]: in_degree_map) {
+    for (const auto &[identifier, in_degree]: in_degree_map) {
         auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
         identifier_to_ast[identifier] = ast_id;
 
-        if (in_degree != 0) {continue;}
+        if (in_degree != 0) { continue; }
         fringe.push(identifier);
     }
 
@@ -83,7 +82,7 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 
         result_order.push_back(identifier_to_ast[current]);
 
-        for (string child_dependency : definition_dependencies[current]) {
+        for (string child_dependency: definition_dependencies[current]) {
             in_degree_map[child_dependency] -= 1;
             if (in_degree_map[child_dependency] == 0) {
                 fringe.push(child_dependency);
@@ -107,7 +106,8 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 }
 
 void SageCompiler::forward_declaration_resolution(int program_root) {
-    auto symbols_by_scope = symbol_table.symbols_sorted_by_scope_id(); // note: we can cache the output of this until program source changes are detected
+    auto symbols_by_scope = symbol_table.symbols_sorted_by_scope_id();
+    // note: we can cache the output of this until program source changes are detected
     int current_scope = node_manager->get_scope_id(program_root);
     set<string> being_processed;
     in_degree_map.clear();
@@ -116,7 +116,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // for each scope, find every native definition and get its in_degree,
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
-    for (int symbol_id : symbols_by_scope) {
+    for (int symbol_id: symbols_by_scope) {
         auto ast_id = symbol_table.entries[symbol_id].definition_ast_index;
 
         if (current_scope != node_manager->get_scope_id(ast_id)) {

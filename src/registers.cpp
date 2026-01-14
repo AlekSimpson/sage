@@ -55,7 +55,7 @@ float unpack_float(uint64_t reg) {
 
 ui64 float_reg_inc(ui64 reg, float increment) {
     float value = unpack_float(reg);
-    ui64 packed = pack_float(value + increment); 
+    ui64 packed = pack_float(value + increment);
     return packed;
 }
 
@@ -75,12 +75,12 @@ ui64 float_reg_sub(ui64 reg_a, ui64 reg_b) {
 
 // pointer register functions
 
-ui64 pack_ptr(void* value) {
+ui64 pack_ptr(void *value) {
     return reinterpret_cast<uintptr_t>(value) | PTR_REG;
 }
 
-void* unpack_pointer(ui64 reg) {
-    return reinterpret_cast<void*>(reg & ~TYPE_MASK);
+void *unpack_pointer(ui64 reg) {
+    return reinterpret_cast<void *>(reg & ~TYPE_MASK);
 }
 
 SageValue register_to_value(ui64 reg) {
@@ -97,7 +97,7 @@ SageValue register_to_value(ui64 reg) {
             return SageValue(32, value, TypeRegistery::get_builtin_type(F32));
         }
         case PTR_REG: {
-            void* value = unpack_pointer(reg);
+            void *value = unpack_pointer(reg);
             // NOTE: not sure if we are really unpacking the type here correctly, theoretically this void* could be holding any kind of type but maybe its fine? We'll probably have to do some testing to see how it plays out
             return SageValue(64, value, TypeRegistery::get_builtin_type(POINTER));
         }
@@ -105,7 +105,3 @@ SageValue register_to_value(ui64 reg) {
             return SageValue();
     }
 }
-
-
-
-

@@ -12,7 +12,7 @@ public:
   Token last_token;
   stack<Token> peeked_tokens;
   ifstream char_buffer;
-  Token* current_token;
+  Token *current_token;
 
   string filename;
   int linenum;
@@ -22,18 +22,18 @@ public:
   SageLexer(string filename);
   SageLexer();
   ~SageLexer();
-  Token* get_token();
+  Token *get_token();
   void unget_token();
 
 private:
-  Token* lexer_make_token(TokenType type, string lexeme, int depth = -1);
-  Token* check_for_string();
-  Token* handle_symbol_case(
+  Token *lexer_make_token(TokenType type, string lexeme, int depth = -1);
+  Token *check_for_string();
+  Token *handle_symbol_case(
       char default_char, TokenType default_type, 
       TokenType target_type, string target_symbol
   );
-  Token* lex_for_symbols();
-  Token* followed_by(char, TokenType, string);
-  Token* lex_for_numbers();
-  Token* lex_for_identifiers();
+  Token *lex_for_symbols();
+  Token *followed_by(char, TokenType, string);
+  Token *lex_for_numbers();
+  Token *lex_for_identifiers();
 };

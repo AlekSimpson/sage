@@ -59,7 +59,6 @@ public:
     Token(TokenType type, string lexeme, int linenum);
     Token(string err_message, int linenum);
     Token();
-    // ~Token();
     void fill_with(Token copy_token);
     string to_string();
     void print();

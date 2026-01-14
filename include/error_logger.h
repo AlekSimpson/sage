@@ -53,14 +53,14 @@ private:
 
 public:
   ErrorLogger(const ErrorLogger&) = delete;
-  ErrorLogger& operator=(const ErrorLogger&) = delete;
+  ErrorLogger &operator=(const ErrorLogger&) = delete;
 
-  static ErrorLogger& get();
+  static ErrorLogger &get();
 
   void log_internal_error(string sourcefile, int lineno, string message);
-  void log_error(Token& token, string message, ErrorType type);
+  void log_error(Token &token, string message, ErrorType type);
   void log_error(string filename, int lineno, string message, ErrorType);
-  void log_warning(Token& token, string message, ErrorType type);
+  void log_warning(Token &token, string message, ErrorType type);
   bool has_errors();
   void report_errors();
 };
@@ -73,11 +73,11 @@ struct SageError {
   string filename = "";
 
   // ANSI color codes
-  static constexpr const char* RED = "\033[31m";
-  static constexpr const char* BLUE = "\033[34m";
-  static constexpr const char* YELLOW = "\033[33m";
-  static constexpr const char* RESET = "\033[0m";
-  static constexpr const char* BOLD = "\033[1m";
+  static constexpr const char *RED = "\033[31m";
+  static constexpr const char *BLUE = "\033[34m";
+  static constexpr const char *YELLOW = "\033[33m";
+  static constexpr const char *RESET = "\033[0m";
+  static constexpr const char *BOLD = "\033[1m";
 
   SageError();
   SageError(string msg, string filename, int line_number, int column_number, ErrorType type);

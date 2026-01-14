@@ -15,13 +15,13 @@ struct nodebox {
 
 class NodeManager {
 private:
-    nodebox* container;
+    nodebox *container;
     int box_count;
     int capacity;
     vector<NodeIndex> free_spaces;
 
     NodeIndex root_node;
-    ScopeManager* scope_manager;  // Reference for auto-assigning scope IDs
+    ScopeManager *scope_manager;  // Reference for auto-assigning scope IDs
 
 public:
     ~NodeManager();
@@ -29,7 +29,7 @@ public:
     
     void set_scope_manager(ScopeManager* sm);
 
-    BlockParseNode* unbox(NodeIndex index);
+    BlockParseNode *unbox(NodeIndex index);
 
     int get_node_count();
 
@@ -48,7 +48,7 @@ public:
     NodeIndex get_branch(NodeIndex);
     NodeIndex reach_right(NodeIndex, int);
     vector<NodeIndex> get_children(NodeIndex);
-    DependencyGraph* get_dependencies(NodeIndex);
+    DependencyGraph *get_dependencies(NodeIndex);
     string get_identifier(NodeIndex);
 
     void set_children(NodeIndex, vector<NodeIndex>);

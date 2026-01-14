@@ -4,7 +4,8 @@
 #include <vector>
 using namespace std;
 
-SageError::SageError() {}
+SageError::SageError() {
+}
 
 SageError::SageError(
     string msg,
@@ -13,10 +14,11 @@ SageError::SageError(
     int column_number,
     ErrorType error_type)
     : line_number(line_number),
-    column_number(column_number),
-    error_type(error_type),
-    message(msg),
-    filename(filename) {}
+      column_number(column_number),
+      error_type(error_type),
+      message(msg),
+      filename(filename) {
+}
 
 size_t SageError::hash() const {
     size_t h1 = std::hash<string>{}(filename);
@@ -45,60 +47,60 @@ vector<string> SageError::read_file_lines() {
     vector<string> lines;
     ifstream file(filename);
     string line;
-    
+
     if (!file.is_open()) {
         return lines; // Return empty vector if file can't be opened
     }
-    
+
     while (std::getline(file, line)) {
         lines.push_back(line);
     }
-    
+
     return lines;
 }
 
 string SageError::print() {
     std::ostringstream output;
-    
+
     // Main error line: "error: message"
-    output << RED << BOLD << get_error_type_string() << ": " << RESET 
-           << BOLD << message << RESET << "\n";
-    
+    output << RED << BOLD << get_error_type_string() << ": " << RESET
+            << BOLD << message << RESET << "\n";
+
     // Location line: " --> filename:line:column"
     if (!filename.empty() && line_number > 0) {
         output << BLUE << " --> " << RESET << filename << ":" << line_number << ":" << column_number << "\n";
-        
+
         // Try to read the file and show the problematic line
         auto lines = read_file_lines();
         if (!lines.empty() && line_number <= static_cast<int>(lines.size())) {
             // Calculate padding for line numbers
             int max_line_digits = to_string(line_number + 1).length();
-            
+
             // Empty line before code
             output << BLUE;
             for (int i = 0; i < max_line_digits; ++i) output << " ";
             output << " |" << RESET << "\n";
-            
+
             // Show the line with error
             output << BLUE << line_number;
             for (int i = to_string(line_number).length(); i < max_line_digits; ++i) {
                 output << " ";
             }
             output << " | " << RESET << lines[line_number - 1] << "\n";
-            
+
             // Show pointer to error location
             if (column_number > 0) {
                 output << BLUE;
                 for (int i = 0; i < max_line_digits; ++i) output << " ";
                 output << " | " << RESET;
-                
+
                 // Add spaces up to the error column
                 for (int i = 1; i < column_number; ++i) output << " ";
                 output << RED << "^" << RESET << "\n";
             }
         }
     }
-    
+
     return output.str();
 }
 
@@ -129,12 +131,12 @@ ErrorLogger::~ErrorLogger() {
 }
 
 void ErrorLogger::log_internal_error(
-    string sourcefile, 
-    int lineno, 
+    string sourcefile,
+    int lineno,
     string message) {
-    SageError* error = new SageError(
+    SageError *error = new SageError(
         message,
-        sourcefile, 
+        sourcefile,
         lineno,
         0,
         INTERNAL);
@@ -149,11 +151,11 @@ void ErrorLogger::log_internal_error(
 }
 
 void ErrorLogger::log_error(
-    string filename, 
-    int lineno, 
-    string message, 
+    string filename,
+    int lineno,
+    string message,
     ErrorType type) {
-    SageError* error = new SageError(
+    SageError *error = new SageError(
         message,
         filename,
         lineno,
@@ -172,10 +174,10 @@ void ErrorLogger::log_error(
 }
 
 void ErrorLogger::log_error(
-    Token& token, 
-    string message, 
+    Token &token,
+    string message,
     ErrorType type) {
-    SageError* error = new SageError(
+    SageError *error = new SageError(
         message,
         token.filename,
         token.linenum,
@@ -194,10 +196,10 @@ void ErrorLogger::log_error(
 }
 
 void ErrorLogger::log_warning(
-    Token& token, 
-    string message, 
+    Token &token,
+    string message,
     ErrorType type) {
-    SageError* error = new SageError(
+    SageError *error = new SageError(
         message,
         token.filename,
         token.linenum,
@@ -225,19 +227,14 @@ void ErrorLogger::report_errors() {
     }
 
     string output;
-    for (auto error : errors) {
+    for (auto error: errors) {
         output = error->print();
         printf("%s\n", output.c_str());
     }
     errors_logged = true;
 }
 
-ErrorLogger& ErrorLogger::get() {
-  static ErrorLogger instance;
-  return instance;
+ErrorLogger &ErrorLogger::get() {
+    static ErrorLogger instance;
+    return instance;
 }
-
-
-
-
-

@@ -10,17 +10,17 @@
 
 class SageParser {
 public:
-  SageLexer* lexer;
-  Token* current_token;
+  SageLexer *lexer;
+  Token *current_token;
   NodeIndex node_cache;
   vector<Token> errors;
   string filename;
-  NodeManager* node_manager;
-  ScopeManager* scope_manager;
+  NodeManager *node_manager;
+  ScopeManager *scope_manager;
   int symbol_count;
 
   SageParser();
-  SageParser(ScopeManager* scope_manager, NodeManager* node_manager, string filename);
+  SageParser(ScopeManager *scope_manager, NodeManager *node_manager, string filename);
   ~SageParser();
 
   NodeIndex parse_program(bool debug_lexer);
@@ -51,7 +51,7 @@ private:
 
   // util methods
   bool match_types(TokenType type_a, TokenType type_b);
-  bool matches_any(TokenType type_a, TokenType* possible_types, int type_amount);
+  bool matches_any(TokenType type_a, TokenType *possible_types, int type_amount);
   void consume(TokenType expected_type, string message);
   void advance();
   Token peek();

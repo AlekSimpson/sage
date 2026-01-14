@@ -4,7 +4,7 @@
 
 template<typename T>
 struct ascending_list {
-    T* data = nullptr;
+    T *data = nullptr;
     int capacity = 0;
     int size = 0;
 
@@ -15,7 +15,7 @@ struct ascending_list {
     }
 
     // Copy constructor
-    ascending_list(const ascending_list& other) : capacity(other.capacity), size(other.size) {
+    ascending_list(const ascending_list &other) : capacity(other.capacity), size(other.size) {
         if (other.data != nullptr && capacity > 0) {
             data = new T[capacity];
             for (int i = 0; i < size; ++i) {
@@ -27,7 +27,7 @@ struct ascending_list {
     }
 
     // Copy assignment operator
-    ascending_list& operator=(const ascending_list& other) {
+    ascending_list &operator=(const ascending_list &other) {
         if (this != &other) {
             // Clean up existing data
             if (data != nullptr) {
@@ -50,39 +50,28 @@ struct ascending_list {
         return *this;
     }
 
-    // Move constructor
-    ascending_list(ascending_list&& other) noexcept : data(other.data), capacity(other.capacity), size(other.size) {
+    ascending_list(ascending_list &&other) noexcept : data(other.data), capacity(other.capacity), size(other.size) {
         other.data = nullptr;
         other.capacity = 0;
         other.size = 0;
     }
 
-    // Move assignment operator
-    ascending_list& operator=(ascending_list&& other) noexcept {
+    ascending_list& operator=(ascending_list &&other) noexcept {
         if (this != &other) {
-            // Clean up existing data
             if (data != nullptr) {
                 delete[] data;
             }
             
-            // Move from other
             data = other.data;
             capacity = other.capacity;
             size = other.size;
             
-            // Reset other
             other.data = nullptr;
             other.capacity = 0;
             other.size = 0;
         }
         return *this;
     }
-
-    // ~ascending_list() {
-    //     if (data != nullptr) {
-    //         delete[] data;
-    //     }
-    // }
 
     void insert_before(int index, T item) {
         T temp;

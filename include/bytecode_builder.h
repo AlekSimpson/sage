@@ -14,7 +14,7 @@ struct procedure_frame {
     }
 };
 
-int hash_djb2(const std::string& str);
+int hash_djb2(const std::string &str);
 
 struct BytecodeBuilder {
     map<int, procedure_frame> procedures;
@@ -29,7 +29,7 @@ struct BytecodeBuilder {
 
     // Add a value to constant pool and return its index
     int add_constant(SageValue value);
-    vector<SageValue>& get_constant_pool();
+    vector<SageValue> &get_constant_pool();
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);

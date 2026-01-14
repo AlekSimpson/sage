@@ -17,7 +17,8 @@ int ast_bookmark_sorter(comptime_ast_bookmark mark) {
     return mark.scope_level;
 }
 
-SageCompiler::SageCompiler() {}
+SageCompiler::SageCompiler() {
+}
 
 SageCompiler::SageCompiler(string mainfile)
     : ast(NULL_INDEX),
@@ -28,7 +29,6 @@ SageCompiler::SageCompiler(string mainfile)
       symbol_table(SageSymbolTable()),
       interpreter(nullptr),
       builder(BytecodeBuilder()) {
-
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 
@@ -52,13 +52,13 @@ SageCompiler::~SageCompiler() {
     delete interpreter;
 }
 
-void SageCompiler::print_bytecode(bytecode& code) {
+void SageCompiler::print_bytecode(bytecode &code) {
     int count = 0;
-    for (string name : builder.procs) {
+    for (string name: builder.procs) {
         printf("%s: %d\n", name.c_str(), hash_djb2(name));
     }
     printf("------------\n");
-    for (auto instruction : code) {
+    for (auto instruction: code) {
         printf("%d: %s\n", count, instruction.print().c_str());
         count++;
     }
@@ -84,10 +84,10 @@ bytecode SageCompiler::compile(NodeIndex ast_index) {
     // }
     visit(ast_index);
     bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
-    
+
     // Transfer constant pool to interpreter (contains 64-bit values like pointers)
     interpreter->load_constant_pool(builder.get_constant_pool());
-    
+
     printf("======================\n");
     print_bytecode(output);
     printf("======================\n");
@@ -112,21 +112,24 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    int symbol_count = BUILTIN_COUNT + parser.symbol_count;
+    // +1 for the NULL symbol which is used to indicate an error output in symbol table operations
+    int symbol_count = BUILTIN_COUNT + parser.symbol_count + 1;
     symbol_table = SageSymbolTable(&scope_manager, symbol_count);
     symbol_table.initialize();
 
     // setup builtin functions
-    vector<SageType*> puti_params = {
+    vector<SageType *> puti_params = {
         TypeRegistery::get_builtin_type(I64),
         TypeRegistery::get_builtin_type(I64)
     };
-    vector<SageType*> puts_params = {
+    vector<SageType *> puts_params = {
         TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
         TypeRegistery::get_builtin_type(I64)
     };
-    symbol_table.declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType*>()), ast_root, 0);
-    symbol_table.declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType*>()), ast_root, 0);
+    symbol_table.declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()),
+                                         ast_root, 0);
+    symbol_table.declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()),
+                                         ast_root, 0);
 
     // First AST pass
     // - creates all symbols
@@ -217,7 +220,8 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
             case PN_STRUCT:
             case PN_FUNCDEF: {
                 string identifier = node_manager->get_identifier(current_node);
-                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node, node_manager->get_scope_id(current_node));
+                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node,
+                                                     node_manager->get_scope_id(current_node));
 
                 auto bodynode = node_manager->get_right(current_node);
                 for (auto child: node_manager->get_children(bodynode)) {
@@ -247,7 +251,8 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
 
             case PN_VAR_DEC: {
                 string identifier = node_manager->get_identifier(current_node);
-                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node, node_manager->get_scope_id(current_node));
+                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node,
+                                                     node_manager->get_scope_id(current_node));
             }
             default:
                 continue;
@@ -294,7 +299,7 @@ void SageCompiler::register_allocation() {
         available_registers.insert(r);
     }
 
-    int scope_range_max = scope_manager.scopes.size()-1;
+    int scope_range_max = scope_manager.scopes.size() - 1;
     for (int current_scope = 0; current_scope < scope_range_max; ++current_scope) {
         auto new_symbols = scope_manager.in_scope_identifiers(node_manager, current_scope);
         working_symbols.insert(new_symbols.begin(), new_symbols.end());
@@ -330,38 +335,6 @@ int SageCompiler::get_volatile() {
     return retval;
 }
 
-bool SageCompiler::volatile_is_stale(SageValue& live, int volatile_idx) {
+bool SageCompiler::volatile_is_stale(SageValue &live, int volatile_idx) {
     return !volatile_register_state[volatile_idx].equals(live);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -8,7 +8,8 @@
 
 using namespace std;
 
-command::command() {}
+command::command() {
+}
 
 command::command(SageOpCode code, uint32_t ops, int _map[4]) : inst(instruction(code, ops)) {
     for (int i = 0; i < 4; ++i) {
@@ -131,9 +132,9 @@ string command::print() {
         string op2 = to_string(packer.d.two);
         if (deref_map[1] == 1 || inst.opcode == OP_MOV) {
             op2 = str("r", to_string(packer.d.two));
-        }else if (inst.opcode == OP_LOAD || inst.opcode == OP_STORE) {
+        } else if (inst.opcode == OP_LOAD || inst.opcode == OP_STORE) {
             op2 = str("+", to_string(packer.d.two));
-        }else if (inst.opcode == OP_JZ || inst.opcode == OP_JNZ) {
+        } else if (inst.opcode == OP_JZ || inst.opcode == OP_JNZ) {
             op2 = str("@", to_string(packer.d.two));
         }
 
@@ -142,9 +143,9 @@ string command::print() {
 
     string op1 = to_string(packer.t.one);
     if (deref_map[0] == 1 || inst.opcode == OP_ADD
-                          || inst.opcode == OP_SUB
-                          || inst.opcode == OP_MUL
-                          || inst.opcode == OP_DIV) {
+        || inst.opcode == OP_SUB
+        || inst.opcode == OP_MUL
+        || inst.opcode == OP_DIV) {
         op1 = str("r", to_string(packer.t.one));
     }
 
@@ -161,7 +162,8 @@ string command::print() {
     return sen(opcode_map[inst.opcode], op1, op2, op3);
 }
 
-instruction::instruction() {}
+instruction::instruction() {
+}
 
 instruction::instruction(SageOpCode code, uint32_t ops) : opcode(code), operands(ops) {
 }

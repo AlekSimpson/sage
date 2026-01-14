@@ -39,8 +39,8 @@ public:
     // Accessors
     int get_current_scope() const;
     int get_parent_scope(int scope_id) const;
-    Scope* get_scope(int scope_id);
-    const Scope* get_scope(int scope_id) const;
+    Scope *get_scope(int scope_id);
+    const Scope *get_scope(int scope_id) const;
     set<string> in_scope_identifiers(NodeManager*, int scope_id);
 
     // Scope hierarchy queries

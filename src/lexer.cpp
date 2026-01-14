@@ -35,7 +35,7 @@ SageLexer::~SageLexer() {
     }
 }
 
-Token* SageLexer::check_for_string() {
+Token *SageLexer::check_for_string() {
     string lexeme;
     if (current_char == '"') {
         lexeme += '"';
@@ -55,19 +55,19 @@ Token* SageLexer::check_for_string() {
     return nullptr;
 }
 
-Token* SageLexer::handle_symbol_case(
-    char default_char, TokenType default_type, 
+Token *SageLexer::handle_symbol_case(
+    char default_char, TokenType default_type,
     TokenType target_type, string target_symbol
 ) {
-	Token* ret = followed_by(default_char, target_type, target_symbol);
-	if (ret != nullptr) {
-		return ret;
-	}
-	return lexer_make_token(default_type, string(1, default_char));
+    Token *ret = followed_by(default_char, target_type, target_symbol);
+    if (ret != nullptr) {
+        return ret;
+    }
+    return lexer_make_token(default_type, string(1, default_char));
 }
 
-Token* SageLexer::lex_for_symbols() {
-    Token* return_val = check_for_string();
+Token *SageLexer::lex_for_symbols() {
+    Token *return_val = check_for_string();
     if (return_val != nullptr) {
         return return_val;
     }
@@ -83,13 +83,12 @@ Token* SageLexer::lex_for_symbols() {
         {'{', TT_LBRACE},
         {'}', TT_RBRACE},
         {'#', TT_POUND},
-    }; 
+    };
 
     char peekahead;
     char first_peek;
     switch (current_char) {
         case ':': {
-
             auto retval = followed_by(':', TT_BINDING, "::");
             if (retval != nullptr) {
                 return retval;
@@ -165,7 +164,7 @@ Token* SageLexer::lex_for_symbols() {
     }
 }
 
-Token* SageLexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
+Token *SageLexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
     char_buffer.get(current_char);
     linedepth++;
     if (current_char == expected_char) {
@@ -177,7 +176,7 @@ Token* SageLexer::followed_by(char expected_char, TokenType expected_type, strin
     return nullptr;
 }
 
-Token* SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
+Token *SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
     int d = depth;
     if (d == -1) {
         d = this->linedepth;
@@ -191,7 +190,7 @@ Token* SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
     return current_token;
 }
 
-Token* SageLexer::lex_for_numbers() {
+Token *SageLexer::lex_for_numbers() {
     if (!isdigit(current_char)) {
         return nullptr;
     }
@@ -212,7 +211,7 @@ Token* SageLexer::lex_for_numbers() {
 
     // if the number ends in a '.' then this is a number before the range operator and not actually a float number
     // we know this because the loop above handles floating point notation.
-    if (lexeme.length() != 0 && lexeme[lexeme.length()-1] == '.') {
+    if (lexeme.length() != 0 && lexeme[lexeme.length() - 1] == '.') {
         tok_type = TT_NUM;
         lexeme.pop_back();
         char_buffer.putback('.');
@@ -222,7 +221,7 @@ Token* SageLexer::lex_for_numbers() {
     return lexer_make_token(tok_type, lexeme);
 }
 
-Token* SageLexer::lex_for_identifiers() {
+Token *SageLexer::lex_for_identifiers() {
     if (!isalpha(current_char) && current_char != '_') {
         return nullptr;
     }
@@ -247,7 +246,8 @@ Token* SageLexer::lex_for_identifiers() {
         {"else", 14},
         {"break", 15},
         {"continue", 16},
-        {"fallthrough", 17}, // like the break keyword but for nested loops, if used inside a nested loop it will break out of all loops
+        {"fallthrough", 17},
+        // like the break keyword but for nested loops, if used inside a nested loop it will break out of all loops
         {"ret", 18},
         {"struct", 19},
         {"using", 20},
@@ -271,8 +271,8 @@ Token* SageLexer::lex_for_identifiers() {
     return current_token;
 }
 
-Token* SageLexer::get_token() {
-    Token* tok;
+Token *SageLexer::get_token() {
+    Token *tok;
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
     if (!peeked_tokens.empty()) {

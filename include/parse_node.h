@@ -45,7 +45,7 @@ public:
   virtual ~AbstractParseNode() {}
   virtual string to_string() = 0;
   virtual void showtree(string depth) = 0;
-  virtual NodeManager* get_node_manager() = 0;
+  virtual NodeManager *get_node_manager() = 0;
   virtual Token get_token() = 0;
   virtual ParseNodeType get_rep_nodetype() = 0;
   virtual ParseNodeType get_host_nodetype() = 0;
@@ -59,22 +59,22 @@ public:
 
 class BlockParseNode : public AbstractParseNode {
 public:
-  NodeManager* node_manager;
+  NodeManager *node_manager;
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
-  DependencyGraph* block_dependencies = nullptr;
+  DependencyGraph *block_dependencies = nullptr;
   int scope_id = -1;           // Scope this node belongs to
   int resolved_symbol = -1;    // Pre-resolved symbol index (-1 = unresolved)
 
   vector<int> children;
 
-  BlockParseNode(NodeManager* man);
-  BlockParseNode(NodeManager* man, Token token, ParseNodeType represents);
-  BlockParseNode(NodeManager* man, Token token, ParseNodeType represents, vector<int> children);
+  BlockParseNode(NodeManager *man);
+  BlockParseNode(NodeManager *man, Token token, ParseNodeType represents);
+  BlockParseNode(NodeManager *man, Token token, ParseNodeType represents, vector<int> children);
 
   string to_string() override;
-  NodeManager* get_node_manager() override;
+  NodeManager *get_node_manager() override;
   void showtree(string depth) override;
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
@@ -87,7 +87,7 @@ public:
 
 class BinaryParseNode : public AbstractParseNode {
 public:
-  NodeManager* node_manager;
+  NodeManager *node_manager;
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
@@ -97,10 +97,10 @@ public:
   int left;
   int right;
 
-  BinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int left, int right);
+  BinaryParseNode(NodeManager *man, Token token, ParseNodeType represents, int left, int right);
 
   string to_string() override;
-  NodeManager* get_node_manager() override;
+  NodeManager *get_node_manager() override;
   void showtree(string depth) override;
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
@@ -113,7 +113,7 @@ public:
 
 class TrinaryParseNode : public AbstractParseNode {
 public:
-  NodeManager* node_manager;
+  NodeManager *node_manager;
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
@@ -124,10 +124,10 @@ public:
   int middle;
   int right;
 
-  TrinaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int left, int middle, int right);
+  TrinaryParseNode(NodeManager *man, Token token, ParseNodeType represents, int left, int middle, int right);
 
   string to_string() override;
-  NodeManager* get_node_manager() override;
+  NodeManager *get_node_manager() override;
   void showtree(string depth) override;
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;
@@ -140,7 +140,7 @@ public:
 
 class UnaryParseNode : public AbstractParseNode {
 public:
-  NodeManager* node_manager;
+  NodeManager *node_manager;
   Token token;
   ParseNodeType host_nodetype; // identifies host cpp structure type
   ParseNodeType rep_nodetype; // identifies the semantic node type (what the node is representing)
@@ -150,12 +150,12 @@ public:
 
   int branch;
 
-  UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents);
-  UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents, int branch);
-  UnaryParseNode(NodeManager* man, Token token, ParseNodeType represents, vector<string> lexemes);
+  UnaryParseNode(NodeManager *man, Token token, ParseNodeType represents);
+  UnaryParseNode(NodeManager *man, Token token, ParseNodeType represents, int branch);
+  UnaryParseNode(NodeManager *man, Token token, ParseNodeType represents, vector<string> lexemes);
 
   string to_string() override;
-  NodeManager* get_node_manager() override;
+  NodeManager *get_node_manager() override;
   void showtree(string depth) override;
   Token get_token() override;
   ParseNodeType get_rep_nodetype() override;

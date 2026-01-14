@@ -40,12 +40,12 @@ public:
   NodeIndex ast;
   debug_level debug;
 
-  NodeManager* node_manager;
+  NodeManager *node_manager;
   ScopeManager scope_manager;
-  ErrorLogger& logger = ErrorLogger::get();
+  ErrorLogger &logger = ErrorLogger::get();
   SageParser parser;
   SageSymbolTable symbol_table;
-  SageInterpreter* interpreter;
+  SageInterpreter *interpreter;
   BytecodeBuilder builder;
   set<NodeIndex> precompiled;
   ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
@@ -74,12 +74,12 @@ public:
   void print_bytecode(bytecode&);
   void perform_first_compilation_pass(NodeIndex root);
   void forward_declaration_resolution(int program_root);
-  void get_in_degree_of(const string& root_definition_identifier, NodeIndex current_node, int working_sope);
+  void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);
 
   // Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
   symbol_entry* resolve_symbol(NodeIndex node);
-  symbol_entry* resolve_symbol_by_name(const string& name, int scope_id);
+  symbol_entry* resolve_symbol_by_name(const string &name, int scope_id);
 
   /* builders */
   ui32 build_store(ui32 rhs, string variable_symbol);

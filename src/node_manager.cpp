@@ -18,7 +18,7 @@ NodeManager::NodeManager() {
     scope_manager = nullptr;
 }
 
-void NodeManager::set_scope_manager(ScopeManager* sm) {
+void NodeManager::set_scope_manager(ScopeManager *sm) {
     scope_manager = sm;
 }
 
@@ -47,11 +47,11 @@ int NodeManager::get_node_count() {
     return box_count;
 }
 
-BlockParseNode* NodeManager::unbox(NodeIndex index) {
+BlockParseNode *NodeManager::unbox(NodeIndex index) {
     nodebox box = container[index];
 
     if (box.host_type == PN_BLOCK) {
-        return dynamic_cast<BlockParseNode*>(box.node);
+        return dynamic_cast<BlockParseNode *>(box.node);
     }
 
     return nullptr;
@@ -62,7 +62,7 @@ nodebox NodeManager::get_node(NodeIndex node) {
         printf("WARNING: accessing invalid node index %d\n", node);
         return nodebox{};
     }
-    
+
     return container[node];
 }
 
@@ -71,7 +71,7 @@ string NodeManager::to_string(NodeIndex index) {
     if (node == nullptr) {
         return "";
     }
-    
+
     return node->to_string();
 }
 
@@ -80,7 +80,7 @@ void NodeManager::showtree(NodeIndex index) {
     if (node == nullptr) {
         return;
     }
-    
+
     node->showtree("");
 }
 
@@ -113,7 +113,7 @@ string NodeManager::get_lexeme(NodeIndex index) {
 Token NodeManager::get_token(NodeIndex index) {
     auto node = get_node(index).node;
     if (node == nullptr) {
-        return Token(); 
+        return Token();
     }
 
     return node->get_token();
@@ -125,11 +125,11 @@ void NodeManager::add_child(NodeIndex index, NodeIndex new_child) {
         return;
     }
 
-    BlockParseNode* node = dynamic_cast<BlockParseNode*>(box.node);
+    BlockParseNode *node = dynamic_cast<BlockParseNode *>(box.node);
     if (node == nullptr || new_child < 0 || new_child >= capacity) {
         return;
     }
-    
+
     node->children.push_back(new_child);
 }
 
@@ -139,7 +139,7 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
         return "";
     }
 
-    UnaryParseNode* node = dynamic_cast<UnaryParseNode*>(box.node);
+    UnaryParseNode *node = dynamic_cast<UnaryParseNode *>(box.node);
     if (node == nullptr) {
         return "";
     }
@@ -150,7 +150,7 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
 
     string full_lex;
 
-    for (int i = 0; i < (int)node->lexemes.size(); ++i) {
+    for (int i = 0; i < (int) node->lexemes.size(); ++i) {
         full_lex += node->lexemes[i];
         full_lex += ".";
     }
@@ -167,18 +167,17 @@ NodeIndex NodeManager::get_left(NodeIndex index) {
         return NULL_INDEX;
     }
 
-    AbstractParseNode* parsenode = box.node;
+    AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
-    
+
     if (hosttype == PN_BINARY) {
-        BinaryParseNode* binary_node = dynamic_cast<BinaryParseNode*>(parsenode);
+        BinaryParseNode *binary_node = dynamic_cast<BinaryParseNode *>(parsenode);
         return binary_node->left;
-    
-    }else if (hosttype == PN_TRINARY) {
-        TrinaryParseNode* trinary_node = dynamic_cast<TrinaryParseNode*>(parsenode);
+    } else if (hosttype == PN_TRINARY) {
+        TrinaryParseNode *trinary_node = dynamic_cast<TrinaryParseNode *>(parsenode);
         return trinary_node->left;
     }
-    
+
     return NULL_INDEX;
 }
 
@@ -189,18 +188,17 @@ NodeIndex NodeManager::get_right(NodeIndex node) {
         return NULL_INDEX;
     }
 
-    AbstractParseNode* parsenode = box.node;
+    AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
-    
+
     if (hosttype == PN_BINARY) {
-        BinaryParseNode* binary_node = dynamic_cast<BinaryParseNode*>(parsenode);
+        BinaryParseNode *binary_node = dynamic_cast<BinaryParseNode *>(parsenode);
         return binary_node->right;
-    
-    }else if (hosttype == PN_TRINARY) {
-        TrinaryParseNode* trinary_node = dynamic_cast<TrinaryParseNode*>(parsenode);
+    } else if (hosttype == PN_TRINARY) {
+        TrinaryParseNode *trinary_node = dynamic_cast<TrinaryParseNode *>(parsenode);
         return trinary_node->right;
     }
-    
+
     return NULL_INDEX;
 }
 
@@ -211,14 +209,14 @@ NodeIndex NodeManager::get_middle(NodeIndex node) {
         return NULL_INDEX;
     }
 
-    AbstractParseNode* parsenode = box.node;
+    AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
-    
+
     if (hosttype == PN_TRINARY) {
-        TrinaryParseNode* trinary_node = dynamic_cast<TrinaryParseNode*>(parsenode);
+        TrinaryParseNode *trinary_node = dynamic_cast<TrinaryParseNode *>(parsenode);
         return trinary_node->middle;
     }
-    
+
     return NULL_INDEX;
 }
 
@@ -229,14 +227,14 @@ NodeIndex NodeManager::get_branch(NodeIndex node) {
         return NULL_INDEX;
     }
 
-    AbstractParseNode* parsenode = box.node;
+    AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
-    
+
     if (hosttype == PN_UNARY) {
-        UnaryParseNode* unary_node = dynamic_cast<UnaryParseNode*>(parsenode);
+        UnaryParseNode *unary_node = dynamic_cast<UnaryParseNode *>(parsenode);
         return unary_node->branch;
     }
-    
+
     return NULL_INDEX;
 }
 
@@ -252,7 +250,7 @@ NodeIndex NodeManager::reach_right(NodeIndex node, int reach_depth) {
 
     auto hosttype = box.host_type;
     if (hosttype == PN_BINARY || hosttype == PN_TRINARY) {
-        return reach_right(get_right(node), reach_depth-1);
+        return reach_right(get_right(node), reach_depth - 1);
     }
 
     return NULL_INDEX;
@@ -265,18 +263,18 @@ vector<NodeIndex> NodeManager::get_children(NodeIndex node) {
         return vector<NodeIndex>();
     }
 
-    AbstractParseNode* parsenode = box.node;
+    AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
-    
+
     if (hosttype == PN_BLOCK) {
-        BlockParseNode* block_node = dynamic_cast<BlockParseNode*>(parsenode);
+        BlockParseNode *block_node = dynamic_cast<BlockParseNode *>(parsenode);
         return block_node->children;
     }
-    
+
     return vector<NodeIndex>();
 }
 
-DependencyGraph* NodeManager::get_dependencies(NodeIndex node) {
+DependencyGraph *NodeManager::get_dependencies(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
         printf("WARNING | get_dependencies: OUT OF RANGE NODE INDEX GIVE %d\n", node);
@@ -305,11 +303,11 @@ DependencyGraph* NodeManager::get_dependencies(NodeIndex node) {
     }
 
     auto container = get_node(result_node);
-    BlockParseNode* block_node = dynamic_cast<BlockParseNode*>(container.node);
+    BlockParseNode *block_node = dynamic_cast<BlockParseNode *>(container.node);
     return block_node->block_dependencies;
 }
 
-void NodeManager::bind_dependency(NodeIndex node, DependencyGraph* dependencies) {
+void NodeManager::bind_dependency(NodeIndex node, DependencyGraph *dependencies) {
     auto box = get_node(node);
     if (box.node == nullptr) {
         printf("WARNING | get_dependencies: OUT OF RANGE NODE INDEX GIVE %d\n", node);
@@ -333,7 +331,7 @@ void NodeManager::bind_dependency(NodeIndex node, DependencyGraph* dependencies)
     };
 
     auto container = get_node(block_child_of(node));
-    BlockParseNode* block_node = dynamic_cast<BlockParseNode*>(container.node);
+    BlockParseNode *block_node = dynamic_cast<BlockParseNode *>(container.node);
     block_node->block_dependencies = dependencies;
 }
 
@@ -341,7 +339,7 @@ void NodeManager::bind_dependency(NodeIndex node, DependencyGraph* dependencies)
 void NodeManager::delete_node(NodeIndex index) {
     delete container[index].node;
     container[index].node = nullptr;
-    
+
     free_spaces.push_back(index);
     box_count--;
 }
@@ -353,60 +351,61 @@ void NodeManager::check_capacity() {
 }
 
 NodeIndex NodeManager::create_block() {
-    BlockParseNode* new_block = new BlockParseNode(this);
+    BlockParseNode *new_block = new BlockParseNode(this);
     return create(new_block, PN_BLOCK);
 }
 
 NodeIndex NodeManager::create_block(Token token, ParseNodeType type) {
-    BlockParseNode* new_block = new BlockParseNode(this, token, type);
+    BlockParseNode *new_block = new BlockParseNode(this, token, type);
     auto node_id = create(new_block, PN_BLOCK);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
 NodeIndex NodeManager::create_block(Token token, ParseNodeType type, vector<NodeIndex> nodes) {
-    BlockParseNode* new_block = new BlockParseNode(this, token, type, nodes);
+    BlockParseNode *new_block = new BlockParseNode(this, token, type, nodes);
     auto node_id = create(new_block, PN_BLOCK);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
 NodeIndex NodeManager::create_binary(Token token, ParseNodeType type, NodeIndex left, NodeIndex right) {
-    BinaryParseNode* binary_node = new BinaryParseNode(this, token, type, left, right); 
+    BinaryParseNode *binary_node = new BinaryParseNode(this, token, type, left, right);
     auto node_id = create(binary_node, PN_BINARY);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
-NodeIndex NodeManager::create_trinary(Token token, ParseNodeType type, NodeIndex left, NodeIndex middle, NodeIndex right) {
-    TrinaryParseNode* trinary_node = new TrinaryParseNode(this, token, type, left, middle, right);
+NodeIndex NodeManager::create_trinary(Token token, ParseNodeType type, NodeIndex left, NodeIndex middle,
+                                      NodeIndex right) {
+    TrinaryParseNode *trinary_node = new TrinaryParseNode(this, token, type, left, middle, right);
     auto node_id = create(trinary_node, PN_TRINARY);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type) {
-    UnaryParseNode* unary_node = new UnaryParseNode(this, token, type);
+    UnaryParseNode *unary_node = new UnaryParseNode(this, token, type);
     auto node_id = create(unary_node, PN_UNARY);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type, NodeIndex branch) {
-    UnaryParseNode* unary_node = new UnaryParseNode(this, token, type, branch);
+    UnaryParseNode *unary_node = new UnaryParseNode(this, token, type, branch);
     auto node_id = create(unary_node, PN_UNARY);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
 NodeIndex NodeManager::create_unary(Token token, ParseNodeType type, vector<string> lexemes) {
-    UnaryParseNode* unary_node = new UnaryParseNode(this, token, type, lexemes);
+    UnaryParseNode *unary_node = new UnaryParseNode(this, token, type, lexemes);
     auto node_id = create(unary_node, PN_UNARY);
     set_scope_id(node_id, scope_manager->get_current_scope());
     return node_id;
 }
 
-NodeIndex NodeManager::create(AbstractParseNode* node, ParseNodeType hosttype) {
+NodeIndex NodeManager::create(AbstractParseNode *node, ParseNodeType hosttype) {
     check_capacity();
 
     box_count++;
@@ -415,7 +414,7 @@ NodeIndex NodeManager::create(AbstractParseNode* node, ParseNodeType hosttype) {
     free_spaces.erase(free_spaces.begin());
 
     container[index] = nodebox{node, hosttype};
-    
+
     // Automatically assign scope_id from scope_manager if available
     if (scope_manager != nullptr) {
         node->set_scope_id(scope_manager->get_current_scope());
@@ -427,9 +426,9 @@ NodeIndex NodeManager::create(AbstractParseNode* node, ParseNodeType hosttype) {
 void NodeManager::expand_container() {
     int old_capacity = capacity;
     capacity = capacity * 2;
-    
-    nodebox* new_container = new nodebox[capacity];
-    
+
+    nodebox *new_container = new nodebox[capacity];
+
     for (int i = 0; i < capacity; i++) {
         if (i < old_capacity) {
             // copy old nodes into new container
@@ -437,15 +436,15 @@ void NodeManager::expand_container() {
             continue;
         }
 
-        // otherwise we are initializing newly created space to null 
+        // otherwise we are initializing newly created space to null
         // and updating the amount of free space
         container[i] = nodebox{nullptr, PN_UNARY};
         free_spaces.push_back(i);
     }
-    
+
     delete[] container;
     container = nullptr;
-    
+
     container = new_container;
 }
 
@@ -490,6 +489,3 @@ int NodeManager::get_resolved_symbol(NodeIndex node) {
     }
     return box.node->get_resolved_symbol();
 }
-
-
-
