@@ -10,11 +10,20 @@ void SageCompiler::get_in_degree_of(
     switch (node_manager->get_host_nodetype(current_node)) {
         case PN_UNARY: {
             auto nodetype = node_manager->get_nodetype(current_node);
-            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF) { return; }
+            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
+                return;
+            }
 
             auto identifier = node_manager->get_identifier(current_node);
-            if (symbol_table.lookup_from_scope(identifier, working_scope) == -1) { return; }
+            auto symbol_idx = symbol_table.lookup_from_scope(identifier, working_scope);
+            if (symbol_idx == -1) { return; }
             if (previously_processed.find(identifier) != previously_processed.end()) { return; }
+            if (symbol_table.builtins.find(identifier) != symbol_table.builtins.end()) { return; }
+            if (symbol_table.lookup_by_index(symbol_idx)->definition_ast_index == -1) {
+                Token found_tok = node_manager->get_token(current_node);
+                logger.log_error(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
+                return;
+            }
 
             // if the found reference is in scope of working scope
             // then add data dependency and increment in degree
@@ -60,12 +69,18 @@ void SageCompiler::resolve_definition_order(int target_scope) {
     vector<NodeIndex> result_order;
     stack<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
+    int sum_of_in_degrees = 0;
     for (const auto &[identifier, in_degree]: in_degree_map) {
         auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
         identifier_to_ast[identifier] = ast_id;
+        sum_of_in_degrees += in_degree;
 
         if (in_degree != 0) { continue; }
         fringe.push(identifier);
+    }
+
+    if (sum_of_in_degrees == 0) {
+        return;
     }
 
     string current;
@@ -90,6 +105,8 @@ void SageCompiler::resolve_definition_order(int target_scope) {
         }
     }
 
+    if (result_order.empty()) { return; }
+
     NodeIndex target_ast_root = scope_manager.scope_to_astroot[target_scope];
 
     // preserve order of non definition statements in scope while prepending new resolved defintion statement order
@@ -107,9 +124,9 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 
 void SageCompiler::forward_declaration_resolution(int program_root) {
     auto symbols_by_scope = symbol_table.symbols_sorted_by_scope_id();
+    symbols_by_scope.push_back(SAGE_NULL_SYMBOL);
     // note: we can cache the output of this until program source changes are detected
     int current_scope = node_manager->get_scope_id(program_root);
-    set<string> being_processed;
     in_degree_map.clear();
     previously_processed.clear();
 
@@ -117,20 +134,23 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
     for (int symbol_id: symbols_by_scope) {
-        auto ast_id = symbol_table.entries[symbol_id].definition_ast_index;
-
-        if (current_scope != node_manager->get_scope_id(ast_id)) {
+        if (current_scope != symbol_table.entries[symbol_id].scope_id) {
             resolve_definition_order(current_scope);
-            current_scope = node_manager->get_scope_id(ast_id);
+            if (symbol_id == SAGE_NULL_SYMBOL) { break; }
 
-            previously_processed.insert(being_processed.begin(), being_processed.end());
+            current_scope = symbol_table.entries[symbol_id].scope_id;
+
+            for (const auto& [identifier, in_degree]: in_degree_map) {
+                previously_processed.insert(identifier);
+            }
             in_degree_map.clear();
             definition_dependencies.clear();
-            being_processed.clear();
         }
 
+        auto ast_id = symbol_table.entries[symbol_id].definition_ast_index;
         if (ast_id == -1) { continue; } // find all definitions in that scope
 
+        in_degree_map[node_manager->get_identifier(ast_id)] = 0;
         switch (node_manager->get_nodetype(ast_id)) {
             case PN_FUNCDEF:
             case PN_VAR_DEC: {

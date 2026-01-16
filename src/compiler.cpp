@@ -26,7 +26,6 @@ SageCompiler::SageCompiler(string mainfile)
       node_manager(new NodeManager()),
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager, mainfile)),
-      symbol_table(SageSymbolTable()),
       interpreter(nullptr),
       builder(BytecodeBuilder()) {
     // Set scope_manager on node_manager for automatic scope_id assignment
@@ -112,26 +111,12 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    // +1 for the NULL symbol which is used to indicate an error output in symbol table operations
-    int symbol_count = BUILTIN_COUNT + parser.symbol_count + 1;
+    int symbol_count = BUILTIN_COUNT + parser.symbol_count;
     symbol_table = SageSymbolTable(&scope_manager, symbol_count);
     symbol_table.initialize();
 
-    // setup builtin functions
-    vector<SageType *> puti_params = {
-        TypeRegistery::get_builtin_type(I64),
-        TypeRegistery::get_builtin_type(I64)
-    };
-    vector<SageType *> puts_params = {
-        TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
-        TypeRegistery::get_builtin_type(I64)
-    };
-    symbol_table.declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()),
-                                         ast_root, 0);
-    symbol_table.declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()),
-                                         ast_root, 0);
 
-    // First AST pass
+    // first AST pass
     // - creates all symbols
     // - TODO: does type checking
     perform_first_compilation_pass(ast_root);
@@ -140,24 +125,22 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    // second pass auto resolves symbol definition ordering
+    // second pass - auto resolves symbol definition ordering
     forward_declaration_resolution(ast_root);
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
 
-    // Register Allocation
-    // register_allocation(dep_graph);
+    // third pass
+    register_allocation();
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
 
-    // 2. program compilation
-    interpreter = new SageInterpreter(4046);
-
     // execute run directives
+    interpreter = new SageInterpreter(4046);
     interpreter_mode = true;
     comptime_ast_bookmark mark;
     string rundir_name;
@@ -178,6 +161,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
     interpreter_mode = false;
 
+    // final program compilation pass
     // compile runtime code
     bytecode code = compile(ast_root);
 
@@ -223,7 +207,14 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
                 symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node,
                                                      node_manager->get_scope_id(current_node));
 
-                auto bodynode = node_manager->get_right(current_node);
+                auto signature_trinary = node_manager->get_right(current_node);
+
+                auto paramnode = node_manager->get_left(signature_trinary);
+                auto bodynode = node_manager->reach_right(current_node, 2);
+                for (auto child: node_manager->get_children(paramnode)) {
+                    fringe.push(child);
+                }
+                fringe.push(node_manager->get_middle(signature_trinary)); // scan the return type
                 for (auto child: node_manager->get_children(bodynode)) {
                     fringe.push(child);
                 }
@@ -247,7 +238,12 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
                 }
                 continue;
             }
-
+            case PN_BLOCK: {
+                for (auto child: node_manager->get_children(current_node)) {
+                    fringe.push(child);
+                }
+                continue;
+            }
 
             case PN_VAR_DEC: {
                 string identifier = node_manager->get_identifier(current_node);

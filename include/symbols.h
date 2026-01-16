@@ -46,12 +46,13 @@ public:
 	ScopeManager *scope_manager;
     stack<function_visit> function_visitor_state;
     vector<string*> string_pool;
+    set<string> builtins;
     
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, int> scope_symbol_map;
     
-    int size;
-    int capacity;
+    int size; // MAX SIZE THE TABLE CAN HOLD
+    int capacity; // the current capacity of the table
 
     SageSymbolTable();
     SageSymbolTable(ScopeManager* scopeman, int size);
@@ -64,6 +65,8 @@ public:
 
     // Symbol declarations
     void declare_NULL_symbol();
+    void declare_builtin_type_symbol(const string &name, SageType *type);
+
     void declare_type_symbol(const string &name, SageType *type);
     int declare_symbol(const string &name, SageValue value);
     int declare_symbol(const string &name, SageType *valuetype);

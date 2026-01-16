@@ -4,6 +4,7 @@
 #include <numeric>
 #include <algorithm>
 
+#include "../include/codegen.h"
 #include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/sage_types.h"
@@ -54,7 +55,7 @@ SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, int initial_size) {
     // Reserve space in the vector
     entries.reserve(initial_size);
 
-    declare_symbol("__NULL__SYMBOL__", -1);
+    declare_NULL_symbol();
 }
 
 SageSymbolTable::~SageSymbolTable() {
@@ -71,6 +72,7 @@ void SageSymbolTable::declare_NULL_symbol() {
     entry.scope_id = -1;
     entry.symbol_id = capacity;
 
+    builtins.insert(name);
     entries.push_back(entry);
 
     // Register in scope-symbol map for fast lookup
@@ -156,6 +158,58 @@ int SageSymbolTable::declare_symbol(const string &name, int register_alloc) {
     return capacity - 1;
 }
 
+void SageSymbolTable::declare_type_symbol(const string &name, SageType *type) {
+    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
+
+    types.insert(name);
+
+    symbol_entry entry;
+    entry.type = type;
+    entry.identifier = name;
+    entry.is_variable = false;
+    entry.is_parameter = false;
+    entry.scope_id = current_scope;
+    entry.symbol_id = capacity;
+
+    entries.push_back(entry);
+
+    // Register in scope-symbol map
+    scope_symbol_map[{current_scope, name}] = capacity;
+
+    if (scope_manager) {
+        scope_manager->register_symbol_in_current_scope(capacity);
+    }
+
+    capacity++;
+}
+
+void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
+    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
+
+    types.insert(name);
+
+    symbol_entry entry;
+    entry.type = type;
+    entry.identifier = name;
+    entry.is_variable = false;
+    entry.definition_ast_index = -1;
+    entry.is_parameter = false;
+    entry.scope_id = current_scope;
+    entry.symbol_id = capacity;
+
+    entries.push_back(entry);
+    builtins.insert(name);
+
+    // Register in scope-symbol map
+    scope_symbol_map[{current_scope, name}] = capacity;
+
+    if (scope_manager) {
+        scope_manager->register_symbol_in_current_scope(capacity);
+    }
+
+    capacity++;
+}
+
 int SageSymbolTable::declare_symbol_in_scope(const string &name, SageType *valuetype, NodeIndex ast_id, int scope_id) {
     symbol_entry entry;
     entry.type = valuetype;
@@ -185,15 +239,22 @@ vector<int> SageSymbolTable::symbols_sorted_by_scope_id() {
     vector<int> indices(entries.size());
     std::iota(indices.begin(), indices.end(), 0);
 
+    // isolate just program symbols (ignore builtins)
     std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return entries[a].scope_id < entries[b].scope_id;
+        return (builtins.find(entries[b].identifier) == builtins.end());
+    });
+    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
+
+    // then arange whats left according to scope_id descending
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return (entries[a].scope_id < entries[b].scope_id);
     });
 
     return indices;
 }
 
 const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
-    int ptr_b = capacity == size ? size - 1 : capacity;
+    int ptr_b = entries.size() - 1;
 
     for (int ptr_a = 0; ptr_a < capacity; ++ptr_a) {
         if (entries[ptr_a].identifier == name) {
@@ -280,45 +341,36 @@ SageType *SageSymbolTable::resolve_sage_type(NodeManager *man, NodeIndex typenod
 void SageSymbolTable::initialize() {
     // Initialize root stack with sage built-in datatypes and methods
     auto chartype = TypeRegistery::get_builtin_type(CHAR);
-    declare_type_symbol("bool", TypeRegistery::get_builtin_type(BOOL));
-    declare_type_symbol("char", chartype);
-    declare_type_symbol("int", TypeRegistery::get_builtin_type(I64));
-    declare_type_symbol("i8", TypeRegistery::get_builtin_type(I8));
-    declare_type_symbol("i32", TypeRegistery::get_builtin_type(I32));
-    declare_type_symbol("i64", TypeRegistery::get_builtin_type(I64));
-    declare_type_symbol("float", TypeRegistery::get_builtin_type(F64));
-    declare_type_symbol("f32", TypeRegistery::get_builtin_type(F32));
-    declare_type_symbol("f64", TypeRegistery::get_builtin_type(F64));
-    declare_type_symbol("void", TypeRegistery::get_builtin_type(VOID));
+    declare_builtin_type_symbol("bool", TypeRegistery::get_builtin_type(BOOL));
+    declare_builtin_type_symbol("char", chartype);
+    declare_builtin_type_symbol("int", TypeRegistery::get_builtin_type(I64));
+    declare_builtin_type_symbol("i8", TypeRegistery::get_builtin_type(I8));
+    declare_builtin_type_symbol("i32", TypeRegistery::get_builtin_type(I32));
+    declare_builtin_type_symbol("i64", TypeRegistery::get_builtin_type(I64));
+    declare_builtin_type_symbol("float", TypeRegistery::get_builtin_type(F64));
+    declare_builtin_type_symbol("f32", TypeRegistery::get_builtin_type(F32));
+    declare_builtin_type_symbol("f64", TypeRegistery::get_builtin_type(F64));
+    declare_builtin_type_symbol("void", TypeRegistery::get_builtin_type(VOID));
 
     // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
-    declare_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
+    declare_builtin_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
+
+    // setup builtin functions
+    vector<SageType *> puti_params = {
+        TypeRegistery::get_builtin_type(I64),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    vector<SageType *> puts_params = {
+        TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
+        TypeRegistery::get_builtin_type(I64)
+    };
+    declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()), 0, 0);
+    declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()), 0, 0);
+    builtins.insert("puti");
+    builtins.insert("puts");
 }
 
-void SageSymbolTable::declare_type_symbol(const string &name, SageType *type) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
 
-    types.insert(name);
-
-    symbol_entry entry;
-    entry.type = type;
-    entry.identifier = name;
-    entry.is_variable = false;
-    entry.is_parameter = false;
-    entry.scope_id = current_scope;
-    entry.symbol_id = capacity;
-
-    entries.push_back(entry);
-
-    // Register in scope-symbol map
-    scope_symbol_map[{current_scope, name}] = capacity;
-
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
-
-    capacity++;
-}
 
 SageType *SageSymbolTable::derive_sage_type(NodeManager *manager, NodeIndex typenode) {
     switch (manager->get_nodetype(typenode)) {
