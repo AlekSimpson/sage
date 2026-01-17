@@ -28,9 +28,8 @@ StackFrame::StackFrame()
 SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {
 }
 
-SageInterpreter::SageInterpreter(int stack_size) {
+SageInterpreter::SageInterpreter(SageSymbolTable *table, int stack_size) : symbol_table(table) {
     stack.reserve(stack_size);
-
     frame_pointer = new StackFrame();
 }
 
@@ -87,8 +86,8 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
                 break;
             case 4:
                 // Dereference constant pool - operand is index into constant_pool
-                if (raw_operands[i] >= 0 && raw_operands[i] < (int) constant_pool.size()) {
-                    return_values.push_back(constant_pool[raw_operands[i]]);
+                if (raw_operands[i] >= 0 && raw_operands[i] < (int) symbol_table->constants.size()) {
+                    return_values.push_back(symbol_table->entries[raw_operands[i]].value);
                 } else {
                     ErrorLogger::get().log_internal_error(
                         "interpreter.cpp",
@@ -441,16 +440,6 @@ int SageInterpreter::store_in_heap(SageValue value) {
     int pointer = heap.size();
     heap[pointer] = value;
     return pointer;
-}
-
-int SageInterpreter::store_in_constant_pool(SageValue value) {
-    int index = constant_pool.size();
-    constant_pool.push_back(value);
-    return index;
-}
-
-void SageInterpreter::load_constant_pool(vector<SageValue> pool) {
-    constant_pool = std::move(pool);
 }
 
 void SageInterpreter::close() {

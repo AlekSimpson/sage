@@ -49,7 +49,6 @@ public:
   BytecodeBuilder builder;
   set<NodeIndex> precompiled;
   ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
-  bool doing_dependency_resolution_order = false;
   bool interpreter_mode = false;
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
@@ -76,28 +75,22 @@ public:
   void forward_declaration_resolution(int program_root);
   void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);
-
-  // Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
-  symbol_entry* resolve_symbol(NodeIndex node);
-  symbol_entry* resolve_symbol_by_name(const string &name, int scope_id);
+  void process_escape_sequences(string &str);
 
   /* builders */
-  ui32 build_store(ui32 rhs, string variable_symbol);
+  ui32 build_store(ui32 rhs, symbol_entry *var_symbol);
   ui32 build_return(ui32, bool);
   ui32 build_function_with_block(string);
-  ui32 build_alloca(string);
+  ui32 build_alloca(symbol_entry *var_symbol);
   ui32 build_add(ui32, ui32);
   ui32 build_sub(ui32, ui32);
   ui32 build_div(ui32, ui32);
   ui32 build_mul(ui32, ui32);
   ui32 build_and(ui32, ui32);
   ui32 build_or(ui32, ui32);
-  ui32 build_load(string);
-  ui32 build_function_call(vector<ui32>, string);
+  ui32 build_load(NodeIndex);
+  ui32 build_function_call(vector<ui32>, int);
   ui32 build_operator(ui32, ui32, SageOpCode);
-  ui32 build_constant_int(string);
-  ui32 build_constant_float(string);
-  ui32 build_string_pointer(string);
 
   /* visitors */
   ui32 visit(NodeIndex); // equivalent to visit block
@@ -114,7 +107,7 @@ public:
   ui32 visit_funcret(NodeIndex);
 
   ui32 visit_expression(NodeIndex);
-  ui32 visit_varref(NodeIndex);
+  //ui32 visit_varref(NodeIndex);
   ui32 visit_literal(NodeIndex);
   ui32 visit_funccall(NodeIndex);
   ui32 visit_binop(NodeIndex);

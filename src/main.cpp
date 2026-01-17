@@ -5,6 +5,7 @@
 
 int main(int argc, char **argv) {
     // TODO: implement compiler flags here in this file
+    // TODO: STOP using vector, its so annoying, we need to make our own to suite our use cases
     if (argc <= 1) {
         ErrorLogger::get().log_error("null", -1, "no targets specified", GENERAL);
         return 1;

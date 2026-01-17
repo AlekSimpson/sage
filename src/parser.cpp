@@ -503,7 +503,7 @@ NodeIndex SageParser::parse_construct() {
 
         default:
             binding_node = parse_type();
-            nodetype = PN_TYPE;
+            nodetype = PN_BINARY;
             break;
     }
 

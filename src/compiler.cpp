@@ -53,8 +53,8 @@ SageCompiler::~SageCompiler() {
 
 void SageCompiler::print_bytecode(bytecode &code) {
     int count = 0;
-    for (string name: builder.procs) {
-        printf("%s: %d\n", name.c_str(), hash_djb2(name));
+    for (const auto &[id, frame]: builder.procedures) {
+        printf("%s: %d\n", frame.name.c_str(), id);
     }
     printf("------------\n");
     for (auto instruction: code) {
@@ -82,10 +82,7 @@ bytecode SageCompiler::compile(NodeIndex ast_index) {
     //     compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
     // }
     visit(ast_index);
-    bytecode output = builder.final(interpreter->proc_line_locations, interpreter_mode);
-
-    // Transfer constant pool to interpreter (contains 64-bit values like pointers)
-    interpreter->load_constant_pool(builder.get_constant_pool());
+    bytecode output = builder.final(interpreter->proc_line_locations, &symbol_table, interpreter_mode);
 
     printf("======================\n");
     print_bytecode(output);
@@ -112,7 +109,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
 
     int symbol_count = BUILTIN_COUNT + parser.symbol_count;
-    symbol_table = SageSymbolTable(&scope_manager, symbol_count);
+    symbol_table = SageSymbolTable(&scope_manager, node_manager, symbol_count);
     symbol_table.initialize();
 
 
@@ -140,7 +137,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
 
     // execute run directives
-    interpreter = new SageInterpreter(4046);
+    interpreter = new SageInterpreter(&symbol_table, 4046);
     interpreter_mode = true;
     comptime_ast_bookmark mark;
     string rundir_name;
@@ -150,7 +147,6 @@ void SageCompiler::begin_compilation(string mainfile) {
         rundir_name = str("rundir", i);
         builder.procedures[hash_djb2(rundir_name)] = procedure_frame(rundir_name);
         builder.procedure_stack.push(hash_djb2(rundir_name));
-        builder.procs.push_back(rundir_name);
         bytecode code = compile(mark.ast_position);
         if (code.empty()) {
             continue;
@@ -203,9 +199,7 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
         switch (nodetype) {
             case PN_STRUCT:
             case PN_FUNCDEF: {
-                string identifier = node_manager->get_identifier(current_node);
-                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node,
-                                                     node_manager->get_scope_id(current_node));
+                symbol_table.declare_symbol(current_node, nullptr);
 
                 auto signature_trinary = node_manager->get_right(current_node);
 
@@ -244,18 +238,22 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
                 }
                 continue;
             }
+            case PN_BINARY: {
+                fringe.push(node_manager->get_left(current_node));
+                fringe.push(node_manager->get_right(current_node));
+                continue;
+            }
 
             case PN_VAR_DEC: {
                 string identifier = node_manager->get_identifier(current_node);
-                symbol_table.declare_symbol_in_scope(identifier, nullptr, current_node,
-                                                     node_manager->get_scope_id(current_node));
+                symbol_table.declare_symbol(current_node, nullptr);
             }
             default:
                 continue;
         }
-
-        // TODO: type checking and resolution
     }
+
+    // TODO: type checking and resolution
 }
 
 bool SageCompiler::check_filename_valid(string filename) {
@@ -301,8 +299,8 @@ void SageCompiler::register_allocation() {
         working_symbols.insert(new_symbols.begin(), new_symbols.end());
 
         for (auto symbol_ident: working_symbols) {
-            auto symbol_address = symbol_table.lookup_from_scope(symbol_ident, current_scope);
-            if (symbol_address == NULL_INDEX) {
+            auto symbol_address = symbol_table.lookup(symbol_ident, current_scope);
+            if (symbol_address == nullptr) {
                 // expire old symbol
                 available_registers.insert(current_reg_assignments[symbol_ident]);
                 current_reg_assignments.erase(symbol_ident);
@@ -315,7 +313,7 @@ void SageCompiler::register_allocation() {
                 available_registers.erase(next_available_register);
 
                 current_reg_assignments[symbol_ident] = next_available_register;
-                symbol_table.lookup_by_index(symbol_address)->assigned_register = next_available_register;
+                symbol_address->assigned_register = next_available_register;
             }
         }
     }

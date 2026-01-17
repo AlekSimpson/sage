@@ -12,6 +12,8 @@
 
 #define SAGE_NULL_SYMBOL 0
 
+typedef uint32_t table_index;
+
 struct function_visit {
     string function_name = "";
     int return_statement_count = 0;
@@ -26,66 +28,69 @@ struct symbol_entry {
     string identifier;
     int assigned_register;
     int spill_offset;
-    int constant_pool_index; // Index into constant pool (valid when in_constant_pool is true)
     NodeIndex definition_ast_index = -1;
-    int scope_id;            // Scope where symbol was declared
-    int symbol_id;           // Unique ID for this symbol
-    bool is_variable;
-    bool is_parameter;
+    int scope_id;
+    table_index symbol_id;
     bool spilled;
-    bool in_constant_pool;   // True if value is stored in constant pool (for 64-bit values like pointers)
 
     symbol_entry();
     symbol_entry(SageValue, string);
+    bool type_is_resolved();
 };
 
 class SageSymbolTable {
 public:
-    set<string> types;
-    vector<symbol_entry> entries;
+    vector<symbol_entry> entries; // TODO: make symbol table use arena allocator instead of vector
+    NodeManager *nm;
 	ScopeManager *scope_manager;
     stack<function_visit> function_visitor_state;
-    vector<string*> string_pool;
-    set<string> builtins;
-    
+    set<table_index> builtins;
+    set<table_index> variables;
+    set<table_index> parameters;
+    set<table_index> constants;
+    set<table_index> literals;
+    //set<table_index> types;
+
     // (scope_id, name) -> entry index for fast lookup
-    map<pair<int, string>, int> scope_symbol_map;
-    
+    map<pair<int, string>, table_index> scope_symbol_map;
+
     int size; // MAX SIZE THE TABLE CAN HOLD
     int capacity; // the current capacity of the table
+    int temporary_counter_gen = 0;
 
     SageSymbolTable();
-    SageSymbolTable(ScopeManager* scopeman, int size);
+    SageSymbolTable(ScopeManager* scopeman, NodeManager *nm, int size);
     ~SageSymbolTable();
 
     SageType *resolve_sage_type(NodeManager*, NodeIndex);
-    SageType *derive_sage_type(NodeManager*, NodeIndex);
 
-    vector<int> symbols_sorted_by_scope_id();
+    vector<table_index> symbols_sorted_by_scope_id();
+
+    bool is_variable(table_index idx) { return variables.find(idx) != variables.end(); }
+    bool is_parameter(table_index idx) { return parameters.find(idx) != parameters.end(); }
+    bool is_constant(table_index idx) { return constants.find(idx) != constants.end(); }
+    bool is_literal(table_index idx) { return literals.find(idx) != literals.end(); }
 
     // Symbol declarations
-    void declare_NULL_symbol();
     void declare_builtin_type_symbol(const string &name, SageType *type);
+    void declare_builtin_symbol(const string &name, SageType *type);
 
-    void declare_type_symbol(const string &name, SageType *type);
-    int declare_symbol(const string &name, SageValue value);
-    int declare_symbol(const string &name, SageType *valuetype);
-    int declare_symbol(const string &name, int register_alloc);
-    int declare_symbol_in_scope(const string &name, SageType *valuetype, NodeIndex ast_id, int scope_id);
+    table_index declare_literal(NodeIndex ast_id, SageValue value);
+    table_index declare_constant(NodeIndex ast_id, SageValue value);
+    table_index declare_temporary(int register_alloc);
+    table_index declare_symbol(NodeIndex ast_id, SageType *valuetype);
+    table_index declare_variable(NodeIndex ast_id, SageType *valuetype);
+    table_index declare_parameter(NodeIndex ast_id, SageType *valuetype);
+    void declare_type_symbol(NodeIndex ast_id, SageType *type);
 
-    // Lookup by name
-    int lookup_idx(const string &name);
-    symbol_entry *lookup(const string &name); // legacy - uses current scope
+    // Lookups
     const symbol_entry *global_lookup(const string &name);
-    
-    // Direct access by resolved index (fast path)
-    symbol_entry *lookup_by_index(int entry_index);
-    
-    // Lookup starting from given scope, chaining to parents
-    int lookup_from_scope(const string &name, int scope_id);
+    symbol_entry *lookup_by_index(table_index entry_index);
+    symbol_entry *lookup(const string &name, int scope_id);
+    table_index lookup_table_idx(const string &name, int scope_id);
     
     // Check if symbol is visible from a given scope
-    bool is_visible(int symbol_index, int from_scope_id);
+    bool is_visible(table_index symbol_index, int from_scope_id);
 
     void initialize();
 };

@@ -11,18 +11,17 @@
 
 using namespace std;
 
+bool symbol_entry::type_is_resolved() {
+    return type != nullptr;
+}
+
 symbol_entry::symbol_entry() : value(SageValue()),
                                type(nullptr),
                                identifier(""),
                                assigned_register(-1),
                                spill_offset(0),
-                               constant_pool_index(-1),
                                scope_id(-1),
-                               symbol_id(-1),
-                               is_variable(false),
-                               is_parameter(false),
-                               spilled(false),
-                               in_constant_pool(false) {
+                               spilled(false) {
 }
 
 symbol_entry::symbol_entry(SageValue sval, string ident) : value(sval),
@@ -30,13 +29,8 @@ symbol_entry::symbol_entry(SageValue sval, string ident) : value(sval),
                                                            identifier(ident),
                                                            assigned_register(-1),
                                                            spill_offset(0),
-                                                           constant_pool_index(-1),
                                                            scope_id(-1),
-                                                           symbol_id(-1),
-                                                           is_variable(false),
-                                                           is_parameter(false),
-                                                           spilled(false),
-                                                           in_constant_pool(false) {
+                                                           spilled(false) {
 }
 
 SageSymbolTable::SageSymbolTable() {
@@ -46,206 +40,202 @@ SageSymbolTable::SageSymbolTable() {
     this->scope_manager = nullptr;
 }
 
-SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, int initial_size) {
+SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
+    : nm(nm), scope_manager(scopeman) {
     this->function_visitor_state = stack<function_visit>();
     this->size = initial_size;
     this->capacity = 0;
     this->scope_manager = scopeman;
 
-    // Reserve space in the vector
     entries.reserve(initial_size);
 
-    declare_NULL_symbol();
+    declare_builtin_symbol("__SAGE__NULL__SYMBOL__", nullptr);
 }
 
 SageSymbolTable::~SageSymbolTable() {
 }
 
-void SageSymbolTable::declare_NULL_symbol() {
-    string name = "__SAGE__NULL__SYMBOL__";
+void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
     symbol_entry entry;
-    entry.type = nullptr;
-    entry.assigned_register = -1;
+    entry.type = type;
     entry.identifier = name;
-    entry.is_variable = false;
-    entry.is_parameter = false;
-    entry.scope_id = -1;
+    entry.definition_ast_index = -1;
+    entry.scope_id = 0;
     entry.symbol_id = capacity;
-
-    builtins.insert(name);
     entries.push_back(entry);
 
-    // Register in scope-symbol map for fast lookup
-    scope_symbol_map[{-1, name}] = capacity;
+    builtins.insert(capacity);
+    scope_symbol_map[{0, name}] = capacity;
+    scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
 }
 
-int SageSymbolTable::declare_symbol(const string &name, SageValue value) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
+void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type) {
+    symbol_entry entry;
+    entry.type = type;
+    entry.assigned_register = -1;
+    entry.identifier = name;
+    entry.scope_id = 0;
+    entry.symbol_id = capacity;
+    entries.push_back(entry);
+
+    builtins.insert(capacity);
+    scope_symbol_map[{0, name}] = capacity;
+    scope_manager->register_symbol_in_current_scope(capacity);
+
+    capacity++;
+}
+
+table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
+    int current_scope = nm->get_scope_id(ast_id);
+    string name = nm->get_identifier(ast_id);
 
     symbol_entry entry;
     entry.value = value;
     entry.type = value.valuetype;
     entry.identifier = name;
-    entry.is_variable = true;
-    entry.is_parameter = false;
     entry.scope_id = current_scope;
     entry.symbol_id = capacity;
-
     entries.push_back(entry);
 
-    // Register in scope-symbol map for fast lookup
+    literals.insert(capacity);
     scope_symbol_map[{current_scope, name}] = capacity;
-
-    // Register symbol in scope manager
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
-
-    capacity++;
-    return capacity - 1; // Return the index of the newly added entry
-}
-
-int SageSymbolTable::declare_symbol(const string &name, SageType *valuetype) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
-
-    symbol_entry entry;
-    entry.type = valuetype;
-    entry.identifier = name;
-    entry.is_variable = true;
-    entry.is_parameter = false;
-    entry.scope_id = current_scope;
-    entry.symbol_id = capacity;
-
-    entries.push_back(entry);
-
-    // Register in scope-symbol map for fast lookup
-    scope_symbol_map[{current_scope, name}] = capacity;
-
-    // Register symbol in scope manager
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
+    scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
     return capacity - 1;
 }
 
-int SageSymbolTable::declare_symbol(const string &name, int register_alloc) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
+table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value) {
+    int current_scope = nm->get_scope_id(ast_id);
+    string name = nm->get_identifier(ast_id);
+
+    symbol_entry entry;
+    entry.value = value;
+    entry.type = value.valuetype;
+    entry.identifier = name;
+    entry.scope_id = current_scope;
+    entry.symbol_id = capacity;
+    entries.push_back(entry);
+
+    constants.insert(capacity);
+
+    scope_symbol_map[{current_scope, name}] = capacity;
+    scope_manager->register_symbol_in_current_scope(capacity);
+
+    capacity++;
+    return capacity - 1;
+}
+
+table_index SageSymbolTable::declare_temporary(int register_alloc) {
+    auto name = str("temp", temporary_counter_gen);
+    temporary_counter_gen++;
 
     symbol_entry entry;
     entry.type = nullptr;
     entry.assigned_register = register_alloc;
     entry.identifier = name;
-    entry.is_variable = true;
-    entry.is_parameter = false;
-    entry.scope_id = current_scope;
+    entry.scope_id = -1;
     entry.symbol_id = capacity;
-
     entries.push_back(entry);
 
-    // Register in scope-symbol map for fast lookup
-    scope_symbol_map[{current_scope, name}] = capacity;
-
-    // Register symbol in scope manager
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
+    scope_symbol_map[{-1, name}] = capacity;
+    scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
     return capacity - 1;
 }
 
-void SageSymbolTable::declare_type_symbol(const string &name, SageType *type) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
-
-    types.insert(name);
-
-    symbol_entry entry;
-    entry.type = type;
-    entry.identifier = name;
-    entry.is_variable = false;
-    entry.is_parameter = false;
-    entry.scope_id = current_scope;
-    entry.symbol_id = capacity;
-
-    entries.push_back(entry);
-
-    // Register in scope-symbol map
-    scope_symbol_map[{current_scope, name}] = capacity;
-
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
-
-    capacity++;
-}
-
-void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
-    int current_scope = scope_manager ? scope_manager->get_current_scope() : 0;
-
-    types.insert(name);
+void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
+    int current_scope = nm->get_scope_id(ast_id);
+    string name = nm->get_identifier(ast_id);
 
     symbol_entry entry;
     entry.type = type;
     entry.identifier = name;
-    entry.is_variable = false;
-    entry.definition_ast_index = -1;
-    entry.is_parameter = false;
     entry.scope_id = current_scope;
+    entry.definition_ast_index = ast_id;
     entry.symbol_id = capacity;
-
     entries.push_back(entry);
-    builtins.insert(name);
 
-    // Register in scope-symbol map
     scope_symbol_map[{current_scope, name}] = capacity;
-
-    if (scope_manager) {
-        scope_manager->register_symbol_in_current_scope(capacity);
-    }
+    scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
 }
 
-int SageSymbolTable::declare_symbol_in_scope(const string &name, SageType *valuetype, NodeIndex ast_id, int scope_id) {
+table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetype) {
+    auto name = nm->get_identifier(ast_id);
+    auto scope_id = nm->get_scope_id(ast_id);
+
     symbol_entry entry;
     entry.type = valuetype;
     entry.identifier = name;
-    entry.is_variable = true;
-    entry.is_parameter = false;
     entry.scope_id = scope_id;
-    entry.symbol_id = capacity;
     entry.definition_ast_index = ast_id;
-
+    entry.symbol_id = capacity;
     entries.push_back(entry);
 
-    // Register in scope-symbol map for fast lookup
     scope_symbol_map[{scope_id, name}] = capacity;
-
-    // Register symbol in scope manager
-    if (scope_manager) {
-        scope_manager->register_symbol_in_scope(scope_id, capacity);
-    }
+    scope_manager->register_symbol_in_scope(scope_id, capacity);
 
     capacity++;
     return capacity - 1;
 }
 
-vector<int> SageSymbolTable::symbols_sorted_by_scope_id() {
+table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuetype) {
+    auto name = nm->get_identifier(ast_id);
+    auto scope_id = nm->get_scope_id(ast_id);
+
+    symbol_entry entry;
+    entry.type = valuetype;
+    entry.identifier = name;
+    entry.scope_id = scope_id;
+    entry.definition_ast_index = ast_id;
+    entry.symbol_id = capacity;
+    entries.push_back(entry);
+
+    variables.insert(capacity);
+    scope_symbol_map[{scope_id, name}] = capacity;
+    scope_manager->register_symbol_in_scope(scope_id, capacity);
+
+    capacity++;
+    return capacity - 1;
+}
+
+table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype) {
+    auto name = nm->get_identifier(ast_id);
+    auto scope_id = nm->get_scope_id(ast_id);
+
+    symbol_entry entry;
+    entry.type = valuetype;
+    entry.identifier = name;
+    entry.scope_id = scope_id;
+    entry.definition_ast_index = ast_id;
+    entry.symbol_id = capacity;
+    entries.push_back(entry);
+
+    parameters.insert(capacity);
+    scope_symbol_map[{scope_id, name}] = capacity;
+    scope_manager->register_symbol_in_scope(scope_id, capacity);
+
+    capacity++;
+    return capacity - 1;
+}
+
+vector<table_index> SageSymbolTable::symbols_sorted_by_scope_id() {
     // note: we can cache the output of this until program source changes are detected
-    vector<int> indices(entries.size());
+    vector<table_index> indices(entries.size());
     std::iota(indices.begin(), indices.end(), 0);
 
     // isolate just program symbols (ignore builtins)
     std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (builtins.find(entries[b].identifier) == builtins.end());
+        return (builtins.find(b) == builtins.end());
     });
     indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
 
-    // then arange whats left according to scope_id descending
+    // then arange what is left according to scope_id descending
     std::sort(indices.begin(), indices.end(), [this](int a, int b) {
         return (entries[a].scope_id < entries[b].scope_id);
     });
@@ -270,72 +260,51 @@ const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
     return nullptr;
 }
 
-int SageSymbolTable::lookup_idx(const string &name) {
-    // Legacy lookup - searches from current scope up through parents
-    return lookup_from_scope(name, scope_manager->get_current_scope());
-}
+table_index SageSymbolTable::lookup_table_idx(const string &name, int scope_id) {
+    // search starting from the given scope, then chain through parent scopes
+    if (!scope_manager) return SAGE_NULL_SYMBOL;
 
-symbol_entry *SageSymbolTable::lookup(const string &name) {
-    int idx = lookup_idx(name);
-    if (idx >= 0 && idx < capacity) {
-        return &entries[idx];
-    }
-    return nullptr;
-}
-
-symbol_entry *SageSymbolTable::lookup_by_index(int entry_index) {
-    if (entry_index >= 0 && entry_index < capacity) {
-        return &entries[entry_index];
-    }
-    return nullptr;
-}
-
-int SageSymbolTable::lookup_from_scope(const string &name, int scope_id) {
-    // Search starting from the given scope, then chain through parent scopes
     int current_scope = scope_id;
 
     while (current_scope != -1) {
-        // Check if symbol exists in this scope
         auto it = scope_symbol_map.find({current_scope, name});
         if (it != scope_symbol_map.end()) {
             return it->second;
         }
 
-        // Move to parent scope
-        if (scope_manager) {
-            current_scope = scope_manager->get_parent_scope(current_scope);
-        } else {
-            break;
-        }
+        current_scope = scope_manager->get_parent_scope(current_scope);
     }
 
-    return -1; // Symbol not found
+    return SAGE_NULL_SYMBOL;
 }
 
-bool SageSymbolTable::is_visible(int symbol_index, int from_scope_id) {
-    if (symbol_index < 0 || symbol_index >= capacity) {
-        return false;
+symbol_entry *SageSymbolTable::lookup_by_index(table_index entry_index) {
+    if (entry_index < (table_index)capacity) return &entries[entry_index];
+
+    return nullptr;
+}
+
+symbol_entry *SageSymbolTable::lookup(const string &name, int scope_id) {
+    // search starting from the given scope, then chain through parent scopes
+    if (!scope_manager) return nullptr;
+
+    int current_scope = scope_id;
+
+    while (current_scope != -1) {
+        auto it = scope_symbol_map.find({current_scope, name});
+        if (it != scope_symbol_map.end()) return &entries[it->second];
+
+        current_scope = scope_manager->get_parent_scope(current_scope);
     }
+
+    return nullptr;
+}
+
+bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
+    if (symbol_index >= (table_index)capacity || scope_manager == nullptr) return false;
 
     int symbol_scope = entries[symbol_index].scope_id;
-
-    // Symbol is visible if its scope is an ancestor of from_scope_id
-    if (scope_manager) {
-        return scope_manager->is_ancestor_of(symbol_scope, from_scope_id);
-    }
-
-    // Without scope manager, assume all symbols are visible
-    return true;
-}
-
-SageType *SageSymbolTable::resolve_sage_type(NodeManager *man, NodeIndex typenode) {
-    string name = man->get_lexeme(typenode);
-    int found_entry = lookup_from_scope(name, scope_manager->get_current_scope());
-    if (found_entry == -1) {
-        return nullptr;
-    }
-
-    return entries[found_entry].type;
+    return scope_manager->is_ancestor_of(symbol_scope, from_scope_id);
 }
 
 void SageSymbolTable::initialize() {
@@ -364,27 +333,11 @@ void SageSymbolTable::initialize() {
         TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
         TypeRegistery::get_builtin_type(I64)
     };
-    declare_symbol_in_scope("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()), 0, 0);
-    declare_symbol_in_scope("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()), 0, 0);
-    builtins.insert("puti");
-    builtins.insert("puts");
+    declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()));
+    declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()));
 }
 
-
-
-SageType *SageSymbolTable::derive_sage_type(NodeManager *manager, NodeIndex typenode) {
-    switch (manager->get_nodetype(typenode)) {
-        case PN_NUMBER:
-            return TypeRegistery::get_builtin_type(I64);
-        case PN_FLOAT:
-            return TypeRegistery::get_builtin_type(F64);
-        case PN_STRING:
-            return TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR));
-        case PN_VAR_REF:
-            // TODO
-            break;
-        default:
-            break;
-    }
-    return TypeRegistery::get_builtin_type(VOID);
+SageType *SageSymbolTable::resolve_sage_type(NodeManager *man, NodeIndex typenode) {
+    return nullptr;
 }
+

@@ -8,36 +8,6 @@
 
 using namespace std;
 
-// Hybrid symbol resolution - uses early-bound index when available, falls back to scope-based lookup
-symbol_entry *SageCompiler::resolve_symbol(NodeIndex node) {
-    // Fast path: check for early-bound resolved symbol
-    int resolved = node_manager->get_resolved_symbol(node);
-    if (resolved != -1) {
-        return symbol_table.lookup_by_index(resolved);
-    }
-
-    // Lazy lookup using scope_id
-    int scope_id = node_manager->get_scope_id(node);
-    string name = node_manager->get_lexeme(node);
-    int idx = symbol_table.lookup_from_scope(name, scope_id);
-
-    if (idx != -1) {
-        // Cache the resolved symbol for future lookups
-        node_manager->set_resolved_symbol(node, idx);
-        return symbol_table.lookup_by_index(idx);
-    }
-
-    return nullptr;
-}
-
-symbol_entry *SageCompiler::resolve_symbol_by_name(const string &name, int scope_id) {
-    int idx = symbol_table.lookup_from_scope(name, scope_id);
-    if (idx != -1) {
-        return symbol_table.lookup_by_index(idx);
-    }
-    return nullptr;
-}
-
 ui32 SageCompiler::visit(NodeIndex node) {
     if (node_is_precompiled(node)) {
         return SAGE_NULL_SYMBOL;
@@ -146,7 +116,9 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
 
     NodeIndex LHS = node_manager->get_left(node);
     // Use hybrid symbol resolution - fast path if early-bound, else scope-based lookup
-    auto variable_symbol = resolve_symbol(LHS);
+    auto lhs_identifier = node_manager->get_identifier(LHS);
+    auto scope_id = node_manager->get_scope_id(LHS);
+    auto variable_symbol = symbol_table.lookup(lhs_identifier, scope_id);
     if (variable_symbol == nullptr) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
         return SAGE_NULL_SYMBOL;
@@ -162,7 +134,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
         return SAGE_NULL_SYMBOL;
     }
 
-    return build_store(RHS, variable_symbol->identifier);
+    return build_store(RHS, variable_symbol);
 }
 
 ui32 SageCompiler::visit_funcdef(NodeIndex node) {
@@ -221,18 +193,33 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
     if (concrete_node_type == PN_BINARY) {
         // left is variable identifier
-        string variable_name = node_manager->get_lexeme(node_manager->get_left(node));
-        return build_alloca(variable_name);
+        auto lhs = node_manager->get_left(node);
+        string variable_name = node_manager->get_lexeme(lhs);
+        symbol_entry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
+        if (var_symbol == nullptr) {
+            logger.log_internal_error("codegen.cpp", current_linenum, sen("Symbol declaration was never initialized"));
+            return SAGE_NULL_SYMBOL;
+        }
+
+        return build_alloca(var_symbol);
     }
 
     if (concrete_node_type == PN_TRINARY) {
         // left is variable identifier
-        string variable_name = node_manager->get_lexeme(node_manager->get_left(node));
+        auto lhs = node_manager->get_left(node);
+        string variable_name = node_manager->get_lexeme(lhs);
+        int scope_id = node_manager->get_scope_id(node);
+        symbol_entry *var_symbol = symbol_table.lookup(variable_name, scope_id);
+        if (var_symbol == nullptr) {
+            auto token = node_manager->get_token(lhs);
+            logger.log_error(token, sen("Reference to undefined symbol: '", variable_name, "'."), GENERAL);
+            return SAGE_NULL_SYMBOL;
+        }
 
         auto rightnode = node_manager->get_right(node);
         ui32 rhs = visit_expression(rightnode);
-        build_alloca(variable_name);
-        return build_store(rhs, variable_name);
+        build_alloca(var_symbol);
+        return build_store(rhs, var_symbol);
     }
 
     return SAGE_NULL_SYMBOL;
@@ -270,10 +257,10 @@ ui32 SageCompiler::visit_expression(NodeIndex node) {
     return visit_literal(node);
 }
 
-ui32 SageCompiler::visit_varref(NodeIndex node) {
-    auto node_lexeme = node_manager->get_lexeme(node);
-    return build_load(node_lexeme);
-}
+// ui32 SageCompiler::visit_varref(NodeIndex node) {
+//     auto node_lexeme = node_manager->get_lexeme(node);
+//     return build_load(node_lexeme);
+// }
 
 // todo: might make more sense to change this func name to "visit_atom"
 ui32 SageCompiler::visit_literal(NodeIndex node) {
@@ -282,17 +269,29 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
     switch (nodetype) {
         case PN_VAR_REF:
         case PN_IDENTIFIER:
-            return visit_varref(node);
+            return build_load(node);
+            //return visit_varref(node);
         case PN_FUNCCALL:
             return visit_funccall(node);
         case PN_STRING: {
             node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
-            return build_string_pointer(node_lexeme);
+            process_escape_sequences(node_lexeme);
+            auto *char_type = TypeRegistery::get_builtin_type(CHAR);
+            auto *array_type = TypeRegistery::get_pointer_type(char_type);
+            SageValue literal_value(64, const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
+            auto table_idx = symbol_table.declare_literal(node, literal_value);
+            return table_idx;
         }
-        case PN_NUMBER:
-            return build_constant_int(node_lexeme);
-        case PN_FLOAT:
-            return build_constant_float(node_lexeme);
+        case PN_NUMBER: {
+            auto *builtin_type = TypeRegistery::get_builtin_type(I64);
+            auto table_idx = symbol_table.declare_literal(node, SageValue(64, stoi(node_lexeme), builtin_type));
+            return table_idx;
+        }
+        case PN_FLOAT: {
+            auto *builtin_type = TypeRegistery::get_builtin_type(F64);
+            auto table_idx = symbol_table.declare_literal(node, SageValue(64, stof(node_lexeme), builtin_type));
+            return table_idx;
+        }
         default:
             break;
     }
@@ -300,7 +299,6 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
 }
 
 ui32 SageCompiler::visit_funccall(NodeIndex node) {
-    string func_call_name = node_manager->get_lexeme(node);
     NodeIndex args_node = node_manager->get_branch(node);
     auto arg_children = node_manager->get_children(args_node);
     vector<ui32> args;
@@ -310,7 +308,7 @@ ui32 SageCompiler::visit_funccall(NodeIndex node) {
         args.push_back(visit_expression(arg));
     }
 
-    return build_function_call(args, func_call_name);
+    return build_function_call(args, node);
 }
 
 ui32 SageCompiler::visit_binop(NodeIndex node) {

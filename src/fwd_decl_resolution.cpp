@@ -15,11 +15,11 @@ void SageCompiler::get_in_degree_of(
             }
 
             auto identifier = node_manager->get_identifier(current_node);
-            auto symbol_idx = symbol_table.lookup_from_scope(identifier, working_scope);
-            if (symbol_idx == -1) { return; }
+            auto symbol = symbol_table.lookup(identifier, working_scope);
+            if (symbol == nullptr) { return; }
             if (previously_processed.find(identifier) != previously_processed.end()) { return; }
-            if (symbol_table.builtins.find(identifier) != symbol_table.builtins.end()) { return; }
-            if (symbol_table.lookup_by_index(symbol_idx)->definition_ast_index == -1) {
+            if (symbol_table.builtins.find(symbol->symbol_id) != symbol_table.builtins.end()) { return; }
+            if (symbol->definition_ast_index == -1) {
                 Token found_tok = node_manager->get_token(current_node);
                 logger.log_error(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
                 return;

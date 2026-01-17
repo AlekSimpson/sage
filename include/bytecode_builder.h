@@ -16,20 +16,14 @@ struct procedure_frame {
 
 int hash_djb2(const std::string &str);
 
+// TODO: honestly this struct could just be apart of the Compiler class
 struct BytecodeBuilder {
     map<int, procedure_frame> procedures;
-    vector<string> procs;
-    vector<string> builtins;
     stack<int> procedure_stack;
-    vector<SageValue> constant_pool;  // Stores 64-bit values that can't fit in bytecode operands
     int total_instruction_count = 0;
     bool has_main_function = false;
 
     BytecodeBuilder();
-
-    // Add a value to constant pool and return its index
-    int add_constant(SageValue value);
-    vector<SageValue> &get_constant_pool();
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);
@@ -54,5 +48,5 @@ struct BytecodeBuilder {
     void new_frame(string name);
     void exit_frame();
     void reset();
-    bytecode final(map<int, int>& proc_locations, bool is_comptime);
+    bytecode final(map<int, int>& proc_locations, SageSymbolTable *table, bool is_comptime);
 };
