@@ -49,7 +49,7 @@ public:
   BytecodeBuilder builder;
   set<NodeIndex> precompiled;
   ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
-  bool interpreter_mode = false;
+  bool generate_compile_time_bytecode = false;
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
 
@@ -61,7 +61,7 @@ public:
   SageCompiler(string mainfile);
   ~SageCompiler();
 
-  bool check_filename_valid(string filename);
+  bool check_filename_valid(const string &filename);
   NodeIndex parse_codefile(string target_file);
   void begin_compilation(string mainfile);
   bytecode compile(NodeIndex ast);
@@ -71,7 +71,8 @@ public:
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);
-  void perform_first_compilation_pass(NodeIndex root);
+  void scan_all_program_symbols(NodeIndex root);
+  void type_resolution(NodeIndex root);
   void forward_declaration_resolution(int program_root);
   void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);

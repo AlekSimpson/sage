@@ -36,6 +36,7 @@ struct symbol_entry {
     symbol_entry();
     symbol_entry(SageValue, string);
     bool type_is_resolved();
+    void spill(int offset);
 };
 
 class SageSymbolTable {
@@ -49,7 +50,7 @@ public:
     set<table_index> parameters;
     set<table_index> constants;
     set<table_index> literals;
-    //set<table_index> types;
+    set<table_index> types;
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, table_index> scope_symbol_map;
@@ -64,7 +65,8 @@ public:
 
     SageType *resolve_sage_type(NodeManager*, NodeIndex);
 
-    vector<table_index> symbols_sorted_by_scope_id();
+    vector<table_index> symbols_sorted_by_scope_id(); // returns ALL program symbols
+    vector<table_index> variables_sorted_by_scope_id(); // returns variable program symbols
 
     bool is_variable(table_index idx) { return variables.find(idx) != variables.end(); }
     bool is_parameter(table_index idx) { return parameters.find(idx) != parameters.end(); }

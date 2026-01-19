@@ -13,6 +13,7 @@ std::unordered_map<SageType *, std::unique_ptr<SageType> > TypeRegistery::pointe
 std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > TypeRegistery::array_types;
 std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >, std::unique_ptr<SageType> >
 TypeRegistery::function_types;
+std::unordered_map<std::string, std::unique_ptr<SageType>> TypeRegistery::struct_types;
 
 int hash_djb2(const std::string &str) {
     uint64_t hash = 5381;
@@ -269,7 +270,6 @@ void BytecodeBuilder::build_constpool_im(SageOpCode opcode, int pool_index, Sage
 }
 
 void BytecodeBuilder::build_puti() {
-    //procs.push_back("puti");
     procedures[hash_djb2("puti")] = procedure_frame("puti");
     procedure_stack.push(hash_djb2("puti"));
     build_im(OP_LABEL, hash_djb2("puti"));
@@ -284,7 +284,6 @@ void BytecodeBuilder::build_puti() {
 }
 
 void BytecodeBuilder::build_puts() {
-    //procs.push_back("puts");
     procedures[hash_djb2("puts")] = procedure_frame("puts");
     procedure_stack.push(hash_djb2("puts"));
     build_im(OP_LABEL, hash_djb2("puts"));

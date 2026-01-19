@@ -11,29 +11,32 @@ using namespace std;
 enum CanonicalType {
     BOOL,
     CHAR,
-    I8,
-    I32,
-    I64,
-    F32,
-    F64,
     VOID,
+    INT,
+    FLOAT,
     POINTER,
     ARRAY,
     FUNC,
+    CUSTOM
 };
 
 class SageType {
 public:
+    int size; // bytes
+    int alignment; // bytes
+
     virtual ~SageType() = default;
     virtual CanonicalType identify() = 0;
-    virtual bool match(SageType*) = 0;
+    virtual bool match(SageType *) = 0;
     virtual string to_string() = 0;
 };
 
 class SageBuiltinType : public SageType {
 public:
     CanonicalType canonical_type;
-    SageBuiltinType(CanonicalType);
+
+    SageBuiltinType(CanonicalType, int size, int alignment);
+
     CanonicalType identify() override;
     bool match(SageType *) override;
     string to_string() override;
@@ -41,8 +44,10 @@ public:
 
 class SagePointerType : public SageType {
 public:
-    SageType* pointer_type;
+    SageType *pointer_type;
+
     SagePointerType(SageType *);
+
     CanonicalType identify() override;
     bool match(SageType *) override;
     string to_string() override;
@@ -51,8 +56,10 @@ public:
 class SageArrayType : public SageType {
 public:
     SageType *array_type;
-    int size = 0;
+    int length;
+
     SageArrayType(SageType *, int);
+
     CanonicalType identify() override;
     bool match(SageType *) override;
     string to_string() override;
@@ -73,7 +80,24 @@ public:
     string to_string() override;
 };
 
-union value_t {
+class SageStructType : public SageType {
+public:
+    string name;
+    vector<SageType *> member_types;
+
+    SageStructType(
+        string name,
+        vector<SageType *> member_types,
+        int size,
+        int alignment
+    );
+
+    CanonicalType identify() override;
+    bool match(SageType *) override;
+    string to_string() override;
+};
+
+union primitive_union {
     int int_value; // TODO: this also needs to have the other bit size types also
     float float_value;
     char char_value;
@@ -84,39 +108,45 @@ union value_t {
 class TypeRegistery {
 private:
     static std::unordered_map<CanonicalType, std::unique_ptr<SageType> > builtin_types;
-    static std::unordered_map<SageType*, std::unique_ptr<SageType> > pointer_types;
-    static std::unordered_map<std::pair<SageType*, int>, std::unique_ptr<SageType> > array_types;
-    static std::unordered_map<std::pair<std::vector<SageType*>, std::vector<SageType*> >, std::unique_ptr<SageType> >
+    static std::unordered_map<SageType *, std::unique_ptr<SageType> > pointer_types;
+    static std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > array_types;
+    static std::unordered_map<string, std::unique_ptr<SageType> > struct_types;
+    static std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >, std::unique_ptr<SageType> >
     function_types;
 
 public:
-    static SageType *get_builtin_type(CanonicalType canonical_type);
+    static SageType *get_builtin_type(CanonicalType canonical_type, int bytesize);
+    static SageType *get_byte_type(CanonicalType canonical_type);
+    static SageType *get_float_type(int size);
+    static SageType *get_integer_type(int size);
     static SageType *get_pointer_type(SageType *base_type);
     static SageType *get_array_type(SageType *element_type, int size);
-    static SageType *get_function_type(std::vector<SageType*> return_types, std::vector<SageType*> parameter_types);
+    static SageType *get_function_type(std::vector<SageType *> return_types, std::vector<SageType *> parameter_types);
+    static SageType *get_struct_type(string name, std::vector<SageType *> return_types);
 };
 
 class SageValue {
 public:
-    int bitsize;
-    value_t value;
-    SageType *valuetype = TypeRegistery::get_builtin_type(VOID);
+    primitive_union value;
+    SageType *valuetype = TypeRegistery::get_byte_type(VOID);
     bool nullvalue = true;
 
     SageValue();
-    SageValue(int, int, SageType*);
-    SageValue(int, float, SageType*);
-    SageValue(int, char, SageType*);
-    SageValue(int, bool, SageType*);
-    SageValue(int, void*, SageType*);
+    SageValue(int, SageType *);
+    SageValue(float, SageType *);
+    SageValue(char, SageType *);
+    SageValue(bool, SageType *);
+    SageValue(void *, SageType *);
     SageValue(uint64_t register_value);
     SageValue(int);
     SageValue(float);
     ~SageValue();
 
     uint64_t load();
+
     bool is_null();
-    bool equals(const SageValue& other);
+
+    bool equals(const SageValue &other);
 
     operator uint64_t() { return load(); }
 
@@ -126,8 +156,8 @@ public:
     // Convenience getters with automatic conversion
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
-    void *as_ptr() const { return value.complex_value ; }
-    const char *as_charbuff() const { return static_cast<const char*>(value.complex_value); }
+    void *as_ptr() const { return value.complex_value; }
+    const char *as_charbuff() const { return static_cast<const char *>(value.complex_value); }
 };
 
 namespace std {

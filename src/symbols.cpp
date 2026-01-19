@@ -15,6 +15,11 @@ bool symbol_entry::type_is_resolved() {
     return type != nullptr;
 }
 
+void symbol_entry::spill(int offset) {
+    spilled = true;
+    spill_offset = offset;
+}
+
 symbol_entry::symbol_entry() : value(SageValue()),
                                type(nullptr),
                                identifier(""),
@@ -49,7 +54,7 @@ SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int in
 
     entries.reserve(initial_size);
 
-    declare_builtin_symbol("__SAGE__NULL__SYMBOL__", nullptr);
+    declare_builtin_symbol("__SAGE__NULL__SYMBOL__", TypeRegistery::get_byte_type(VOID));
 }
 
 SageSymbolTable::~SageSymbolTable() {
@@ -64,6 +69,7 @@ void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *
     entry.symbol_id = capacity;
     entries.push_back(entry);
 
+    types.insert(capacity);
     builtins.insert(capacity);
     scope_symbol_map[{0, name}] = capacity;
     scope_manager->register_symbol_in_current_scope(capacity);
@@ -159,6 +165,7 @@ void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
     entry.symbol_id = capacity;
     entries.push_back(entry);
 
+    types.insert(capacity);
     scope_symbol_map[{current_scope, name}] = capacity;
     scope_manager->register_symbol_in_current_scope(capacity);
 
@@ -243,6 +250,40 @@ vector<table_index> SageSymbolTable::symbols_sorted_by_scope_id() {
     return indices;
 }
 
+
+vector<table_index> SageSymbolTable::variables_sorted_by_scope_id() {
+    // note: we can cache the output of this until program source changes are detected
+    vector<table_index> indices(entries.size());
+    std::iota(indices.begin(), indices.end(), 0);
+
+    // isolate just program symbols (ignore builtins)
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return (builtins.find(b) == builtins.end());
+    });
+    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
+
+    // then arange what is left according to scope_id descending
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return (entries[a].scope_id < entries[b].scope_id);
+    });
+    int var_max_length = indices.size();
+
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        bool a_is_target = (entries[a].type->identify() == FUNC);
+        bool b_is_target = (entries[b].type->identify() == FUNC);
+
+        if (a_is_target != b_is_target) {
+            return !a_is_target;
+        }
+
+        return entries[a].scope_id < entries[b].scope_id;
+    });
+    int difference = var_max_length - variables.size();
+    indices.erase(indices.begin() + difference, indices.end());
+
+    return indices;
+}
+
 const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
     int ptr_b = entries.size() - 1;
 
@@ -279,7 +320,7 @@ table_index SageSymbolTable::lookup_table_idx(const string &name, int scope_id) 
 }
 
 symbol_entry *SageSymbolTable::lookup_by_index(table_index entry_index) {
-    if (entry_index < (table_index)capacity) return &entries[entry_index];
+    if (entry_index < (table_index) capacity) return &entries[entry_index];
 
     return nullptr;
 }
@@ -301,7 +342,7 @@ symbol_entry *SageSymbolTable::lookup(const string &name, int scope_id) {
 }
 
 bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
-    if (symbol_index >= (table_index)capacity || scope_manager == nullptr) return false;
+    if (symbol_index >= (table_index) capacity || scope_manager == nullptr) return false;
 
     int symbol_scope = entries[symbol_index].scope_id;
     return scope_manager->is_ancestor_of(symbol_scope, from_scope_id);
@@ -309,29 +350,29 @@ bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
 
 void SageSymbolTable::initialize() {
     // Initialize root stack with sage built-in datatypes and methods
-    auto chartype = TypeRegistery::get_builtin_type(CHAR);
-    declare_builtin_type_symbol("bool", TypeRegistery::get_builtin_type(BOOL));
+    auto chartype = TypeRegistery::get_byte_type(CHAR);
+    declare_builtin_type_symbol("bool", TypeRegistery::get_byte_type(BOOL));
     declare_builtin_type_symbol("char", chartype);
-    declare_builtin_type_symbol("int", TypeRegistery::get_builtin_type(I64));
-    declare_builtin_type_symbol("i8", TypeRegistery::get_builtin_type(I8));
-    declare_builtin_type_symbol("i32", TypeRegistery::get_builtin_type(I32));
-    declare_builtin_type_symbol("i64", TypeRegistery::get_builtin_type(I64));
-    declare_builtin_type_symbol("float", TypeRegistery::get_builtin_type(F64));
-    declare_builtin_type_symbol("f32", TypeRegistery::get_builtin_type(F32));
-    declare_builtin_type_symbol("f64", TypeRegistery::get_builtin_type(F64));
-    declare_builtin_type_symbol("void", TypeRegistery::get_builtin_type(VOID));
+    declare_builtin_type_symbol("int", TypeRegistery::get_integer_type(8));
+    declare_builtin_type_symbol("i8", TypeRegistery::get_integer_type(1));
+    declare_builtin_type_symbol("i32", TypeRegistery::get_integer_type(4));
+    declare_builtin_type_symbol("i64", TypeRegistery::get_integer_type(8));
+    declare_builtin_type_symbol("float", TypeRegistery::get_float_type(8));
+    declare_builtin_type_symbol("f32", TypeRegistery::get_float_type(4));
+    declare_builtin_type_symbol("f64", TypeRegistery::get_float_type(8));
+    declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
 
     // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
-    declare_builtin_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
+    //declare_builtin_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
 
     // setup builtin functions
     vector<SageType *> puti_params = {
-        TypeRegistery::get_builtin_type(I64),
-        TypeRegistery::get_builtin_type(I64)
+        TypeRegistery::get_integer_type(8),
+        TypeRegistery::get_integer_type(8)
     };
     vector<SageType *> puts_params = {
-        TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(CHAR)),
-        TypeRegistery::get_builtin_type(I64)
+        TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
+        TypeRegistery::get_integer_type(8)
     };
     declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()));
     declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()));
@@ -340,4 +381,3 @@ void SageSymbolTable::initialize() {
 SageType *SageSymbolTable::resolve_sage_type(NodeManager *man, NodeIndex typenode) {
     return nullptr;
 }
-

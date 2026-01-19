@@ -3,8 +3,10 @@
 #include <error_logger.h>
 #include <cstdint>
 
-SageBuiltinType::SageBuiltinType(CanonicalType type) {
-    canonical_type = type;
+SageBuiltinType::SageBuiltinType(CanonicalType type, int size, int alignment) {
+    this->canonical_type = type;
+    this->size = size;
+    this->alignment = alignment;
 }
 
 CanonicalType SageBuiltinType::identify() {
@@ -22,16 +24,10 @@ string SageBuiltinType::to_string() {
             return "bool";
         case CHAR:
             return "char";
-        case I8:
-            return "i8";
-        case I32:
-            return "i32";
-        case I64:
-            return "i64";
-        case F32:
-            return "f32";
-        case F64:
-            return "f64";
+        case INT:
+            return str("i", size*8);
+        case FLOAT:
+            return str("f", size*8);
         case VOID:
             return "void";
         default:
@@ -40,6 +36,8 @@ string SageBuiltinType::to_string() {
 }
 
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
+    this->size = 4;
+    this->alignment = 4;
 }
 
 CanonicalType SagePointerType::identify() {
@@ -60,7 +58,9 @@ string SagePointerType::to_string() {
     return str(pointer_type->to_string(), "*");
 }
 
-SageArrayType::SageArrayType(SageType *element_type, int size) : array_type(element_type), size(size) {
+SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
+    this->size = length * element_type->size;
+    this->alignment = element_type->alignment;
 }
 
 CanonicalType SageArrayType::identify() {
@@ -78,7 +78,7 @@ bool SageArrayType::match(SageType *other) {
 }
 
 string SageArrayType::to_string() {
-    return str(array_type->to_string(), "[]");
+    return str(array_type->to_string(), "[", length, "]");
 }
 
 SageFunctionType::SageFunctionType(vector<SageType *> returns, vector<SageType *> params) : return_type(returns),
@@ -144,42 +144,71 @@ string SageFunctionType::to_string() {
     return value;
 }
 
-SageValue::SageValue(int size, int _value, SageType *valuetype) : bitsize(size), valuetype(valuetype) {
+SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
+    member_types(member_types) {
+    this->size = size;
+    this->alignment = alignment;
+}
+
+CanonicalType SageStructType::identify() {
+    return CUSTOM;
+}
+
+bool SageStructType::match(SageType *other) {
+    if (other->identify() != CUSTOM) return false;
+
+    SageStructType *other_struct = dynamic_cast<SageStructType *>(other);
+
+    int lowest_member_length = (other_struct->member_types.size() > member_types.size())
+                                          ? member_types.size()
+                                          : other_struct->member_types.size();
+    SageType *other_current_member;
+    SageType *self_current_member;
+    for (int i = 0; i < lowest_member_length; ++i) {
+        other_current_member = other_struct->member_types[i];
+        self_current_member = member_types[i];
+        if (!self_current_member->match(other_current_member)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+string SageStructType::to_string() {
+    return name;
+}
+
+SageValue::SageValue(int _value, SageType *valuetype) : valuetype(valuetype) {
     value.int_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(int size, float _value, SageType *valuetype) : bitsize(size), valuetype(valuetype) {
+SageValue::SageValue(float _value, SageType *valuetype) : valuetype(valuetype) {
     value.float_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(int size, char _value, SageType *valuetype) : bitsize(size), valuetype(valuetype) {
+SageValue::SageValue(char _value, SageType *valuetype) : valuetype(valuetype) {
     value.char_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(int size, bool _value, SageType *valuetype) : bitsize(size), valuetype(valuetype) {
+SageValue::SageValue(bool _value, SageType *valuetype) : valuetype(valuetype) {
     value.bool_value = _value;
     nullvalue = false;
 }
 
-// SageValue::SageValue(int size, string* _value, SageType* valuetype) : bitsize(size), valuetype(valuetype) {
-//     value.string_value = _value;
-//     nullvalue = false;
-// }
-
-SageValue::SageValue(int size, void *_value, SageType *valuetype) : bitsize(size), valuetype(valuetype) {
+SageValue::SageValue(void *_value, SageType *valuetype) : valuetype(valuetype) {
     value.complex_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(int _value) : bitsize(64), valuetype(TypeRegistery::get_builtin_type(I64)) {
+SageValue::SageValue(int _value) : valuetype(TypeRegistery::get_integer_type(8)) {
     value.int_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(float _value) : bitsize(64), valuetype(TypeRegistery::get_builtin_type(F64)) {
+SageValue::SageValue(float _value) : valuetype(TypeRegistery::get_float_type(8)) {
     value.float_value = _value;
     nullvalue = false;
 }
@@ -191,19 +220,16 @@ SageValue::SageValue(ui64 register_value) {
 
     switch (reg_type) {
         case I32_REG:
-            bitsize = 32;
             value.int_value = unpack_int(register_value);
-            valuetype = TypeRegistery::get_builtin_type(I32);
+            valuetype = TypeRegistery::get_integer_type(4);
             break;
         case F32_REG:
-            bitsize = 32;
             value.float_value = unpack_float(register_value);
-            valuetype = TypeRegistery::get_builtin_type(F32);
+            valuetype = TypeRegistery::get_float_type(4);
             break;
         case PTR_REG:
-            bitsize = 64;
             value.complex_value = unpack_pointer(register_value);
-            valuetype = TypeRegistery::get_builtin_type(POINTER);
+            valuetype = TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(VOID));
             break;
     }
 }
@@ -217,12 +243,9 @@ SageValue::~SageValue() {
 // For instruction operands
 int SageValue::as_operand() const {
     switch (valuetype->identify()) {
-        case I32:
-        case I8:
-        case I64:
+        case INT:
             return value.int_value;
-        case F32:
-        case F64:
+        case FLOAT:
             return static_cast<int>(value.float_value);
         case CHAR:
             return value.char_value;
@@ -242,12 +265,9 @@ uint64_t SageValue::load() {
             return pack_int(value.char_value);
         case BOOL:
             return pack_int(value.bool_value);
-        case I8:
-        case I32:
-        case I64:
+        case INT:
             return pack_int(value.int_value);
-        case F32:
-        case F64:
+        case FLOAT:
             return pack_float(value.float_value);
         case POINTER:
         case ARRAY:
@@ -276,12 +296,9 @@ bool SageValue::equals(const SageValue &other) {
             return value.char_value == other.value.char_value && this_type == other.valuetype->identify();
         case BOOL:
             return value.bool_value == other.value.bool_value && this_type == other.valuetype->identify();
-        case I8:
-        case I32:
-        case I64:
+        case INT:
             return value.int_value == other.value.int_value && this_type == other.valuetype->identify();
-        case F32:
-        case F64:
+        case FLOAT:
             return value.float_value == other.value.float_value && this_type == other.valuetype->identify();
         case POINTER:
         case ARRAY:
@@ -301,14 +318,35 @@ bool SageValue::equals(const SageValue &other) {
 
 
 /// Type Registery
-SageType *TypeRegistery::get_builtin_type(CanonicalType canonical_type) {
+SageType *TypeRegistery::get_builtin_type(CanonicalType canonical_type, int bytesize) {
     auto it = builtin_types.find(canonical_type);
-    if (
-        it != builtin_types.end()) {
-        return it->second.get();
-    }
+    if (it != builtin_types.end()) return it->second.get();
 
-    auto type = std::make_unique<SageBuiltinType>(canonical_type);
+    auto type = std::make_unique<SageBuiltinType>(canonical_type, bytesize, bytesize);
+    SageType *ptr = type.get();
+    builtin_types[canonical_type] = std::move(type);
+    return ptr;
+}
+
+SageType *TypeRegistery::get_integer_type(int bytesize) {
+    auto type = std::make_unique<SageBuiltinType>(INT, bytesize, bytesize);
+    SageType *ptr = type.get();
+    return ptr;
+}
+
+SageType *TypeRegistery::get_float_type(int bytesize) {
+    auto type = std::make_unique<SageBuiltinType>(FLOAT, bytesize, bytesize);
+    SageType *ptr = type.get();
+    return ptr;
+}
+
+SageType *TypeRegistery::get_byte_type(CanonicalType canonical_type) {
+    if (canonical_type != VOID && canonical_type != CHAR && canonical_type != BOOL) return nullptr;
+
+    auto it = builtin_types.find(canonical_type);
+    if (it != builtin_types.end()) return it->second.get();
+
+    auto type = std::make_unique<SageBuiltinType>(canonical_type, 1, 1);
     SageType *ptr = type.get();
     builtin_types[canonical_type] = std::move(type);
     return ptr;
@@ -326,16 +364,36 @@ SageType *TypeRegistery::get_pointer_type(SageType *base_type) {
     return ptr;
 }
 
-SageType *TypeRegistery::get_array_type(SageType *element_type, int size) {
-    auto key = std::make_pair(element_type, size);
+SageType *TypeRegistery::get_array_type(SageType *element_type, int length) {
+    auto key = std::make_pair(element_type, length);
     auto it = array_types.find(key);
     if (it != array_types.end()) {
         return it->second.get();
     }
 
-    auto type = std::make_unique<SageArrayType>(element_type, size);
+    auto type = std::make_unique<SageArrayType>(element_type, length);
     SageType *ptr = type.get();
     array_types[key] = std::move(type);
+    return ptr;
+}
+
+
+SageType *TypeRegistery::get_struct_type(string name, std::vector<SageType *> member_types) {
+    auto it = struct_types.find(name);
+    if (it != struct_types.end()) {
+        return it->second.get();
+    }
+
+    int largest_alignment = 0;
+    int size = 0;
+    for (auto member: member_types) {
+        if (member->alignment > largest_alignment) largest_alignment = member->alignment;
+        size += member->size;
+    }
+
+    auto type = std::make_unique<SageStructType>(name, member_types, size, largest_alignment);
+    SageType *ptr = type.get();
+    struct_types[name] = std::move(type);
     return ptr;
 }
 

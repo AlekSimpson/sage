@@ -84,22 +84,20 @@ void *unpack_pointer(ui64 reg) {
 }
 
 SageValue register_to_value(ui64 reg) {
-    // FIX: need to figure out how to properly unload the contents of a register into a SageValue
     RegType register_type = unpack_type(reg);
 
     switch (register_type) {
         case I32_REG: {
             int32_t value = unpack_int(reg);
-            return SageValue(32, value, TypeRegistery::get_builtin_type(I32));
+            return SageValue(value, TypeRegistery::get_integer_type(4));
         }
         case F32_REG: {
             float value = unpack_float(reg);
-            return SageValue(32, value, TypeRegistery::get_builtin_type(F32));
+            return SageValue(value, TypeRegistery::get_float_type(4));
         }
         case PTR_REG: {
             void *value = unpack_pointer(reg);
-            // NOTE: not sure if we are really unpacking the type here correctly, theoretically this void* could be holding any kind of type but maybe its fine? We'll probably have to do some testing to see how it plays out
-            return SageValue(64, value, TypeRegistery::get_builtin_type(POINTER));
+            return SageValue(value, TypeRegistery::get_byte_type(POINTER));
         }
         default:
             return SageValue();

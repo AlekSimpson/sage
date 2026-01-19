@@ -77,7 +77,7 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
         case PN_KEYWORD:
             return visit_keyword(node);
         case PN_RUN_DIRECTIVE: {
-            if (!interpreter_mode) {
+            if (!generate_compile_time_bytecode) {
                 return SAGE_NULL_SYMBOL;
             }
 
@@ -164,7 +164,7 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
     auto body_node = node_manager->get_right(trinary_node);
     visit(body_node);
 
-    SageType *voidtype = TypeRegistery::get_builtin_type(VOID);
+    SageType *voidtype = TypeRegistery::get_byte_type(VOID);
     if (!symbol_table.function_visitor_state.top().has_returned()) {
         if (!return_type->match(voidtype)) {
             auto token = node_manager->get_token(node);
@@ -257,11 +257,6 @@ ui32 SageCompiler::visit_expression(NodeIndex node) {
     return visit_literal(node);
 }
 
-// ui32 SageCompiler::visit_varref(NodeIndex node) {
-//     auto node_lexeme = node_manager->get_lexeme(node);
-//     return build_load(node_lexeme);
-// }
-
 // todo: might make more sense to change this func name to "visit_atom"
 ui32 SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
@@ -270,26 +265,25 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
         case PN_VAR_REF:
         case PN_IDENTIFIER:
             return build_load(node);
-            //return visit_varref(node);
         case PN_FUNCCALL:
             return visit_funccall(node);
         case PN_STRING: {
             node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
             process_escape_sequences(node_lexeme);
-            auto *char_type = TypeRegistery::get_builtin_type(CHAR);
+            auto *char_type = TypeRegistery::get_byte_type(CHAR);
             auto *array_type = TypeRegistery::get_pointer_type(char_type);
-            SageValue literal_value(64, const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
+            SageValue literal_value(const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
             auto table_idx = symbol_table.declare_literal(node, literal_value);
             return table_idx;
         }
         case PN_NUMBER: {
-            auto *builtin_type = TypeRegistery::get_builtin_type(I64);
-            auto table_idx = symbol_table.declare_literal(node, SageValue(64, stoi(node_lexeme), builtin_type));
+            auto *builtin_type = TypeRegistery::get_integer_type(8);
+            auto table_idx = symbol_table.declare_literal(node, SageValue(stoi(node_lexeme), builtin_type));
             return table_idx;
         }
         case PN_FLOAT: {
-            auto *builtin_type = TypeRegistery::get_builtin_type(F64);
-            auto table_idx = symbol_table.declare_literal(node, SageValue(64, stof(node_lexeme), builtin_type));
+            auto *builtin_type = TypeRegistery::get_float_type(8);
+            auto table_idx = symbol_table.declare_literal(node, SageValue(stof(node_lexeme), builtin_type));
             return table_idx;
         }
         default:

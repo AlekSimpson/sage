@@ -2,7 +2,6 @@
 #include <stack>
 #include <queue>
 #include <boost/algorithm/string.hpp>
-#include <sys/syscall.h>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -26,7 +25,7 @@ SageCompiler::SageCompiler(string mainfile)
       node_manager(new NodeManager()),
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager, mainfile)),
-      interpreter(nullptr),
+      interpreter(new SageInterpreter(&symbol_table, 4046)),
       builder(BytecodeBuilder()) {
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
@@ -82,7 +81,7 @@ bytecode SageCompiler::compile(NodeIndex ast_index) {
     //     compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
     // }
     visit(ast_index);
-    bytecode output = builder.final(interpreter->proc_line_locations, &symbol_table, interpreter_mode);
+    bytecode output = builder.final(interpreter->proc_line_locations, &symbol_table, generate_compile_time_bytecode);
 
     printf("======================\n");
     print_bytecode(output);
@@ -99,7 +98,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
 
     NodeIndex ast_root = parser.parse_program(debug == PARSING || debug == ALL);
-    if (ast_root == -1) {
+    if (ast_root == NULL_INDEX) {
         logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
         return;
     }
@@ -112,24 +111,21 @@ void SageCompiler::begin_compilation(string mainfile) {
     symbol_table = SageSymbolTable(&scope_manager, node_manager, symbol_count);
     symbol_table.initialize();
 
+    scan_all_program_symbols(ast_root);
 
-    // first AST pass
-    // - creates all symbols
-    // - TODO: does type checking
-    perform_first_compilation_pass(ast_root);
+    type_resolution(ast_root);
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
 
-    // second pass - auto resolves symbol definition ordering
+    // auto resolve symbol definition ordering
     forward_declaration_resolution(ast_root);
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
 
-    // third pass
     register_allocation();
     if (logger.has_errors()) {
         logger.report_errors();
@@ -137,8 +133,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     }
 
     // execute run directives
-    interpreter = new SageInterpreter(&symbol_table, 4046);
-    interpreter_mode = true;
+    generate_compile_time_bytecode = true;
     comptime_ast_bookmark mark;
     string rundir_name;
     bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
@@ -155,7 +150,7 @@ void SageCompiler::begin_compilation(string mainfile) {
         interpreter->load_program(code);
         interpreter->execute();
     }
-    interpreter_mode = false;
+    generate_compile_time_bytecode = false;
 
     // final program compilation pass
     // compile runtime code
@@ -184,7 +179,7 @@ void SageCompiler::begin_compilation(string mainfile) {
     // }
 }
 
-void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
+void SageCompiler::scan_all_program_symbols(NodeIndex root) {
     NodeIndex current_node;
 
     queue<NodeIndex> fringe;
@@ -252,11 +247,13 @@ void SageCompiler::perform_first_compilation_pass(NodeIndex root) {
                 continue;
         }
     }
+}
+// TODO: type resolution
+void SageCompiler::type_resolution(NodeIndex root) {
 
-    // TODO: type checking and resolution
 }
 
-bool SageCompiler::check_filename_valid(string filename) {
+bool SageCompiler::check_filename_valid(const string &filename) {
     // validate that file is valid
     if (filename.find('.') == string::npos) {
         logger.log_error(filename, -1, "cannot target files that have no file extension.", GENERAL);
@@ -286,36 +283,41 @@ void SageCompiler::register_allocation() {
      *  2. allocate free registers to variables declared in current scope (allocations written to symbol table)
      */
 
+    auto symbols_by_scope = symbol_table.variables_sorted_by_scope_id();
     set<int> available_registers;
-    map<string, int> current_reg_assignments;
     set<string> working_symbols;
+    int current_scope = 0;
+    int current_relative_stack_location = 0;
     for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
         available_registers.insert(r);
     }
 
-    int scope_range_max = scope_manager.scopes.size() - 1;
-    for (int current_scope = 0; current_scope < scope_range_max; ++current_scope) {
-        auto new_symbols = scope_manager.in_scope_identifiers(node_manager, current_scope);
-        working_symbols.insert(new_symbols.begin(), new_symbols.end());
-
-        for (auto symbol_ident: working_symbols) {
-            auto symbol_address = symbol_table.lookup(symbol_ident, current_scope);
-            if (symbol_address == nullptr) {
-                // expire old symbol
-                available_registers.insert(current_reg_assignments[symbol_ident]);
-                current_reg_assignments.erase(symbol_ident);
-                continue;
-            }
-
-            // if symbol is not already allocated
-            if (current_reg_assignments.find(symbol_ident) == current_reg_assignments.end()) {
-                auto next_available_register = *available_registers.begin();
-                available_registers.erase(next_available_register);
-
-                current_reg_assignments[symbol_ident] = next_available_register;
-                symbol_address->assigned_register = next_available_register;
-            }
+    symbol_entry *entry;
+    int assigned_register;
+    for (table_index idx: symbols_by_scope) {
+        if (current_scope != symbol_table.entries[idx].scope_id) {
+            current_relative_stack_location = 0;
+            current_scope = symbol_table.entries[idx].scope_id;
         }
+
+        for (auto symbol: working_symbols) {
+            entry = symbol_table.lookup(symbol, current_scope);
+            if (entry != nullptr) continue;
+
+            working_symbols.erase(symbol);
+            available_registers.insert(symbol_table.entries[current_scope].assigned_register);
+        }
+
+        if (available_registers.empty()) { // no room -> spill
+            symbol_table.entries[idx].spill(current_relative_stack_location);
+            current_relative_stack_location++;
+            continue;
+        }
+
+        assigned_register = *available_registers.begin();
+        symbol_table.entries[idx].assigned_register = assigned_register;
+        working_symbols.insert(symbol_table.entries[idx].identifier);
+        available_registers.erase(assigned_register);
     }
 }
 
@@ -331,4 +333,171 @@ int SageCompiler::get_volatile() {
 
 bool SageCompiler::volatile_is_stale(SageValue &live, int volatile_idx) {
     return !volatile_register_state[volatile_idx].equals(live);
+}
+
+
+void SageCompiler::get_in_degree_of(
+    const string &root_definition_identifier,
+    NodeIndex current_node,
+    int working_scope) {
+    switch (node_manager->get_host_nodetype(current_node)) {
+        case PN_UNARY: {
+            auto nodetype = node_manager->get_nodetype(current_node);
+            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
+                return;
+            }
+
+            auto identifier = node_manager->get_identifier(current_node);
+            auto symbol = symbol_table.lookup(identifier, working_scope);
+            if (symbol == nullptr) { return; }
+            if (previously_processed.find(identifier) != previously_processed.end()) { return; }
+            if (symbol_table.builtins.find(symbol->symbol_id) != symbol_table.builtins.end()) { return; }
+            if (symbol->definition_ast_index == -1) {
+                Token found_tok = node_manager->get_token(current_node);
+                logger.log_error(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
+                return;
+            }
+
+            // if the found reference is in scope of working scope
+            // then add data dependency and increment in degree
+            if (definition_dependencies.find(identifier) == definition_dependencies.end()) {
+                definition_dependencies[identifier] = set<string>();
+            }
+            definition_dependencies[identifier].insert(root_definition_identifier);
+
+            if (in_degree_map.find(root_definition_identifier) == in_degree_map.end()) {
+                in_degree_map[root_definition_identifier] = 0;
+            }
+            in_degree_map[root_definition_identifier] += 1;
+            break;
+        }
+        case PN_BINARY: {
+            auto left = node_manager->get_left(current_node);
+            auto right = node_manager->get_right(current_node);
+            get_in_degree_of(root_definition_identifier, left, working_scope);
+            get_in_degree_of(root_definition_identifier, right, working_scope);
+            break;
+        }
+        case PN_TRINARY: {
+            auto left = node_manager->get_left(current_node);
+            auto middle = node_manager->get_middle(current_node);
+            auto right = node_manager->get_right(current_node);
+            get_in_degree_of(root_definition_identifier, left, working_scope);
+            get_in_degree_of(root_definition_identifier, middle, working_scope);
+            get_in_degree_of(root_definition_identifier, right, working_scope);
+            break;
+        }
+        case PN_BLOCK: {
+            for (auto child: node_manager->get_children(current_node)) {
+                get_in_degree_of(root_definition_identifier, child, working_scope);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void SageCompiler::resolve_definition_order(int target_scope) {
+    vector<NodeIndex> result_order;
+    stack<string> fringe;
+    map<string, NodeIndex> identifier_to_ast;
+    int sum_of_in_degrees = 0;
+    for (const auto &[identifier, in_degree]: in_degree_map) {
+        auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
+        identifier_to_ast[identifier] = ast_id;
+        sum_of_in_degrees += in_degree;
+
+        if (in_degree != 0) { continue; }
+        fringe.push(identifier);
+    }
+
+    if (sum_of_in_degrees == 0) {
+        return;
+    }
+
+    string current;
+    set<string> visited;
+    while (!fringe.empty()) {
+        current = fringe.top();
+        fringe.pop();
+
+        if (visited.find(current) != visited.end()) {
+            auto token = node_manager->get_token(identifier_to_ast[current]);
+            logger.log_error(token, sen("Invalid redefinition of symbol:", current), SEMANTIC);
+            break;
+        }
+
+        result_order.push_back(identifier_to_ast[current]);
+
+        for (string child_dependency: definition_dependencies[current]) {
+            in_degree_map[child_dependency] -= 1;
+            if (in_degree_map[child_dependency] == 0) {
+                fringe.push(child_dependency);
+            }
+        }
+    }
+
+    if (result_order.empty()) { return; }
+
+    NodeIndex target_ast_root = scope_manager.scope_to_astroot[target_scope];
+
+    // preserve order of non definition statements in scope while prepending new resolved defintion statement order
+    for (auto child: node_manager->get_children(target_ast_root)) {
+        auto nodetype = node_manager->get_nodetype(child);
+        if (nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT) {
+            continue;
+        }
+
+        result_order.push_back(child);
+    }
+
+    node_manager->set_children(target_ast_root, result_order);
+}
+
+void SageCompiler::forward_declaration_resolution(int program_root) {
+    auto symbols_by_scope = symbol_table.symbols_sorted_by_scope_id();
+    symbols_by_scope.push_back(SAGE_NULL_SYMBOL);
+    // note: we can cache the output of this until program source changes are detected
+    int current_scope = node_manager->get_scope_id(program_root);
+    in_degree_map.clear();
+    previously_processed.clear();
+
+    // for each scope, find every native definition and get its in_degree,
+    // then sort those definitions into a valid compilation order
+    //  *** in_degree represents amount of in sope references contained within the definition
+    for (int symbol_id: symbols_by_scope) {
+        if (current_scope != symbol_table.entries[symbol_id].scope_id) {
+            resolve_definition_order(current_scope);
+            if (symbol_id == SAGE_NULL_SYMBOL) break;
+
+            current_scope = symbol_table.entries[symbol_id].scope_id;
+
+            for (const auto& [identifier, in_degree]: in_degree_map) {
+                previously_processed.insert(identifier);
+            }
+            in_degree_map.clear();
+            definition_dependencies.clear();
+        }
+
+        auto ast_id = symbol_table.entries[symbol_id].definition_ast_index;
+        if (ast_id == -1) continue; // find all definitions in that scope
+
+        in_degree_map[node_manager->get_identifier(ast_id)] = 0;
+        switch (node_manager->get_nodetype(ast_id)) {
+            case PN_FUNCDEF:
+            case PN_VAR_DEC: {
+                auto rhs = node_manager->get_right(ast_id);
+                get_in_degree_of(node_manager->get_identifier(ast_id), rhs, current_scope);
+                break;
+            }
+            case PN_STRUCT: {
+                auto body = node_manager->get_branch(ast_id);
+                get_in_degree_of(node_manager->get_identifier(ast_id), body, current_scope);
+                break;
+            }
+            default:
+                break;
+        }
+    }
 }

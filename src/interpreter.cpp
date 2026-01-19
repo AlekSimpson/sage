@@ -78,7 +78,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
         switch (map[i]) {
             case 0:
                 // Raw immediate value
-                return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
+                return_values.push_back(SageValue(raw_operands[i], TypeRegistery::get_integer_type(4)));
                 break;
             case 1:
                 // Dereference register
@@ -98,7 +98,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
                 break;
             default:
                 // Fallback for unhandled cases (2=stack, 3=heap - not yet implemented)
-                return_values.push_back(SageValue(32, raw_operands[i], TypeRegistery::get_builtin_type(I32)));
+                return_values.push_back(SageValue(raw_operands[i], TypeRegistery::get_integer_type(4)));
                 break;
         }
     }
@@ -117,10 +117,8 @@ void SageInterpreter::execute_add(vector<SageValue> operands) {
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
         return;
@@ -140,10 +138,8 @@ void SageInterpreter::execute_sub(vector<SageValue> operands) {
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() - operands[2].as_float());
         return;
@@ -163,10 +159,8 @@ void SageInterpreter::execute_mul(vector<SageValue> operands) {
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() * operands[2].as_float());
         return;
@@ -194,10 +188,8 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
 
     int target_register = operands[0].as_operand();
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == F32 || operands[2].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
         registers[target_register] = SageValue(operands[1].as_float() / operands[2].as_float());
         return;
@@ -262,53 +254,46 @@ void SageInterpreter::execute_return() {
 }
 
 void SageInterpreter::execute_eqcomp(vector<SageValue> operands) {
-    registers[21] = SageValue(8, operands[0].equals(operands[1]), TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue(operands[0].equals(operands[1]), TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_ltcomp(vector<SageValue> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[0].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(8, operands[0].as_float() < operands[1].as_float(),
-                                  TypeRegistery::get_builtin_type(BOOL));
+        registers[21] = SageValue(operands[0].as_float() < operands[1].as_float(),
+                                  TypeRegistery::get_byte_type(BOOL));
     }
 
-    registers[21] = SageValue(8, operands[0].as_i32() < operands[1].as_i32(), TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue(operands[0].as_i32() < operands[1].as_i32(), TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_gtcomp(vector<SageValue> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == F32 || operands[0].valuetype->identify() ==
-                                    F64);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == F32 || operands[1].valuetype->identify() ==
-                                     F64);
+    bool first_operator_is_float = (operands[0].valuetype->identify() == FLOAT);
+    bool second_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
     if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(8, operands[0].as_float() > operands[1].as_float(),
-                                  TypeRegistery::get_builtin_type(BOOL));
+        registers[21] = SageValue(operands[0].as_float() > operands[1].as_float(),
+                                  TypeRegistery::get_byte_type(BOOL));
     }
 
-    registers[21] = SageValue(8, operands[0].as_i32() > operands[1].as_i32(), TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue(operands[0].as_i32() > operands[1].as_i32(), TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_and(vector<SageValue> operands) {
-    registers[21] = SageValue(8,
-                              (operands[0].as_i32() && operands[1].as_i32()) == 1,
-                              TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue((operands[0].as_i32() && operands[1].as_i32()) == 1,
+                              TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_or(vector<SageValue> operands) {
-    registers[21] = SageValue(8,
-                              (operands[0].as_i32() && operands[1].as_i32()) == 1,
-                              TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue((operands[0].as_i32() && operands[1].as_i32()) == 1,
+                              TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_not(vector<SageValue> operands) {
     int value = unpack_int(operands[0]);
     registers[21] = pack_int(!value);
-    registers[21] = SageValue(8,
-                              (!operands[0].as_i32()),
-                              TypeRegistery::get_builtin_type(BOOL));
+    registers[21] = SageValue((!operands[0].as_i32()),
+                              TypeRegistery::get_byte_type(BOOL));
 }
 
 void SageInterpreter::execute_syscall() {
@@ -341,6 +326,8 @@ void SageInterpreter::execute_syscall() {
 }
 
 void SageInterpreter::execute() {
+    if (frame_pointer == nullptr) return;
+
     program_pointer = 0;
     registers[STACK_POINTER] = 0;
 
@@ -440,6 +427,10 @@ int SageInterpreter::store_in_heap(SageValue value) {
     int pointer = heap.size();
     heap[pointer] = value;
     return pointer;
+}
+
+void SageInterpreter::open() {
+    if (frame_pointer == nullptr) frame_pointer = new StackFrame();
 }
 
 void SageInterpreter::close() {
