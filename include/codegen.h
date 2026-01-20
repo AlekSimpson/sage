@@ -72,7 +72,7 @@ public:
   bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);
   void scan_all_program_symbols(NodeIndex root);
-  void type_resolution(NodeIndex root);
+  void type_resolution();
   void forward_declaration_resolution(int program_root);
   void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);

@@ -2,6 +2,7 @@
 #include <stack>
 #include <queue>
 #include <boost/algorithm/string.hpp>
+#include <numeric>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -113,7 +114,7 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     scan_all_program_symbols(ast_root);
 
-    type_resolution(ast_root);
+    type_resolution();
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -240,17 +241,46 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
             }
 
             case PN_VAR_DEC: {
-                string identifier = node_manager->get_identifier(current_node);
                 symbol_table.declare_symbol(current_node, nullptr);
+                continue;
+            }
+            case PN_TYPE: {
+                symbol_table.declare_type_symbol(current_node, nullptr);
             }
             default:
                 continue;
         }
     }
 }
-// TODO: type resolution
-void SageCompiler::type_resolution(NodeIndex root) {
 
+// TODO: type resolution
+void SageCompiler::type_resolution() {
+    vector<table_index> indices(symbol_table.entries.size());
+    std::iota(indices.begin(), indices.end(), 0);
+
+    // isolate just program symbols (ignore builtins)
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return (symbol_table.builtins.find(b) == symbol_table.builtins.end());
+    });
+    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
+
+    for (table_index idx: indices) {
+        if (symbol_table.entries[idx].definition_ast_index == NULL_INDEX) continue;
+
+        // 1. figure what kind of symbol is being resolved
+        // variable -> ast_id will be PN_VAR_DEC
+        // parameter ast_id will be PN_VAR_DEC
+
+        // struct -> ast_id will be PN_STRUCT
+
+        // function -> ast_id will be PN_FUNCDEF
+
+        // constant ->
+        // literal ->
+
+        // 2. then based on the result of 1 we walk the ast acordingly to find all needed information to fully resolve
+        // the symbol
+    }
 }
 
 bool SageCompiler::check_filename_valid(const string &filename) {
@@ -308,7 +338,8 @@ void SageCompiler::register_allocation() {
             available_registers.insert(symbol_table.entries[current_scope].assigned_register);
         }
 
-        if (available_registers.empty()) { // no room -> spill
+        if (available_registers.empty()) {
+            // no room -> spill
             symbol_table.entries[idx].spill(current_relative_stack_location);
             current_relative_stack_location++;
             continue;
@@ -473,7 +504,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
 
             current_scope = symbol_table.entries[symbol_id].scope_id;
 
-            for (const auto& [identifier, in_degree]: in_degree_map) {
+            for (const auto &[identifier, in_degree]: in_degree_map) {
                 previously_processed.insert(identifier);
             }
             in_degree_map.clear();

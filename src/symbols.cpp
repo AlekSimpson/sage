@@ -96,12 +96,18 @@ void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type)
 table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
+    for (table_index literal: literals) {
+        if (entries[literal].identifier == name && entries[literal].value.equals(value)) {
+            return literal;
+        }
+    }
 
     symbol_entry entry;
     entry.value = value;
     entry.type = value.valuetype;
     entry.identifier = name;
     entry.scope_id = current_scope;
+    entry.definition_ast_index = ast_id;
     entry.symbol_id = capacity;
     entries.push_back(entry);
 
@@ -116,12 +122,18 @@ table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) 
 table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
+    for (table_index constant: constants) {
+        if (entries[constant].identifier == name && entries[constant].value.equals(value)) {
+            return constant;
+        }
+    }
 
     symbol_entry entry;
     entry.value = value;
     entry.type = value.valuetype;
     entry.identifier = name;
     entry.scope_id = current_scope;
+    entry.definition_ast_index = ast_id;
     entry.symbol_id = capacity;
     entries.push_back(entry);
 
@@ -154,8 +166,12 @@ table_index SageSymbolTable::declare_temporary(int register_alloc) {
 }
 
 void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
-    int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
+    int scope_id = nm->get_scope_id(ast_id);
+    auto symbol_check = lookup(name, scope_id);
+    if (symbol_check != nullptr) return;
+
+    int current_scope = nm->get_scope_id(ast_id);
 
     symbol_entry entry;
     entry.type = type;
@@ -175,6 +191,8 @@ void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
 table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetype) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
+    auto symbol_check = lookup(name, scope_id);
+    if (symbol_check != nullptr) return symbol_check->symbol_id;
 
     symbol_entry entry;
     entry.type = valuetype;
@@ -194,6 +212,8 @@ table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetyp
 table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuetype) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
+    auto symbol_check = lookup(name, scope_id);
+    if (symbol_check != nullptr) return symbol_check->symbol_id;
 
     symbol_entry entry;
     entry.type = valuetype;
@@ -214,6 +234,8 @@ table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuet
 table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
+    auto symbol_check = lookup(name, scope_id);
+    if (symbol_check != nullptr) return symbol_check->symbol_id;
 
     symbol_entry entry;
     entry.type = valuetype;
@@ -349,10 +371,9 @@ bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
 }
 
 void SageSymbolTable::initialize() {
-    // Initialize root stack with sage built-in datatypes and methods
-    auto chartype = TypeRegistery::get_byte_type(CHAR);
+    // setup builtin primitives
     declare_builtin_type_symbol("bool", TypeRegistery::get_byte_type(BOOL));
-    declare_builtin_type_symbol("char", chartype);
+    declare_builtin_type_symbol("char", TypeRegistery::get_byte_type(CHAR));
     declare_builtin_type_symbol("int", TypeRegistery::get_integer_type(8));
     declare_builtin_type_symbol("i8", TypeRegistery::get_integer_type(1));
     declare_builtin_type_symbol("i32", TypeRegistery::get_integer_type(4));
@@ -361,9 +382,6 @@ void SageSymbolTable::initialize() {
     declare_builtin_type_symbol("f32", TypeRegistery::get_float_type(4));
     declare_builtin_type_symbol("f64", TypeRegistery::get_float_type(8));
     declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
-
-    // TODO FIX: this interpretation of pointer syntax does not account for the fact that there could be double or triple pointers
-    //declare_builtin_type_symbol("char*", TypeRegistery::get_pointer_type(chartype));
 
     // setup builtin functions
     vector<SageType *> puti_params = {

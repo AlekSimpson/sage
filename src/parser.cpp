@@ -675,6 +675,7 @@ NodeIndex SageParser::parse_type() {
     }
     if (match_types(current_token->token_type, TT_LBRACKET)) {
         // keep track of how many dims this array has
+        // TODO: rework array syntax
         int lbracket_nest_count = 0;
         string token_lexeme = "";
         while (match_types(current_token->token_type, TT_LBRACKET)) {
@@ -733,6 +734,7 @@ NodeIndex SageParser::parse_type() {
         return_node = node_manager->create_unary(type_token, PN_VARARG);
         advance();
     } else {
+        // just a normal type
         Token type_token = Token();
         type_token.fill_with(*current_token);
         return_node = node_manager->create_unary(type_token, PN_TYPE);

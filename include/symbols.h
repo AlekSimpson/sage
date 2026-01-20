@@ -65,6 +65,7 @@ public:
 
     SageType *resolve_sage_type(NodeManager*, NodeIndex);
 
+    // TODO: FIX: these functions are only used once so far... inline them into their own functions
     vector<table_index> symbols_sorted_by_scope_id(); // returns ALL program symbols
     vector<table_index> variables_sorted_by_scope_id(); // returns variable program symbols
 
@@ -72,6 +73,7 @@ public:
     bool is_parameter(table_index idx) { return parameters.find(idx) != parameters.end(); }
     bool is_constant(table_index idx) { return constants.find(idx) != constants.end(); }
     bool is_literal(table_index idx) { return literals.find(idx) != literals.end(); }
+    bool is_type(table_index idx) { return types.find(idx) != types.end(); }
 
     // Symbol declarations
     void declare_builtin_type_symbol(const string &name, SageType *type);
