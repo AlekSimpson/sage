@@ -576,7 +576,7 @@ NodeIndex SageParser::parse_function() {
         NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
         vector<NodeIndex> list_ = vector<NodeIndex>();
         list_.push_back(return_type_node);
-        NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_TYPE, list_);
+        NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_BLOCK, list_);
         Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
         NodeIndex body_node = parse_body();
@@ -601,7 +601,7 @@ NodeIndex SageParser::parse_function() {
     NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
     vector<NodeIndex> list_ = vector<NodeIndex>();
     list_.push_back(return_type_node);
-    NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_TYPE, list_);
+    NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_BLOCK, list_);
     signature_lexeme += return_type_token.lexeme;
     advance(); // move past type keyword
 

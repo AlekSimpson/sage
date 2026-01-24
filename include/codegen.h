@@ -28,7 +28,6 @@ enum debug_level {
 };
 
 struct comptime_ast_bookmark {
-  DependencyGraph* graph;
   NodeIndex ast_position;
   int scope_level;
 };

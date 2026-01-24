@@ -99,7 +99,7 @@ table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) 
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
     for (table_index literal: literals) {
-        if (entries[literal].identifier == name && entries[literal].value.equals(value)) {
+        if (entries[literal].value.equals(value)) {
             return literal;
         }
     }
@@ -167,11 +167,11 @@ table_index SageSymbolTable::declare_temporary(int register_alloc) {
     return capacity - 1;
 }
 
-void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
+table_index SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
     string name = nm->get_identifier(ast_id);
     int scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return;
+    if (symbol_check != nullptr) return symbol_check->symbol_id;
 
     symbol_entry entry;
     entry.type = type;
@@ -186,6 +186,7 @@ void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
     scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
+    return capacity - 1;
 }
 
 table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetype) {
@@ -231,16 +232,19 @@ table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuet
     return capacity - 1;
 }
 
-table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype) {
+table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
     if (symbol_check != nullptr) return symbol_check->symbol_id;
 
+    // TODO: handle auto function spilling when there are more than 6 parameters
+
     symbol_entry entry;
     entry.type = valuetype;
     entry.identifier = name;
     entry.scope_id = scope_id;
+    entry.assigned_register = parameter_register_assignment;
     entry.definition_ast_index = ast_id;
     entry.symbol_id = capacity;
     entries.push_back(entry);
@@ -251,59 +255,6 @@ table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *value
 
     capacity++;
     return capacity - 1;
-}
-
-vector<table_index> SageSymbolTable::symbols_sorted_by_scope_id() {
-    // note: we can cache the output of this until program source changes are detected
-    vector<table_index> indices(entries.size());
-    std::iota(indices.begin(), indices.end(), 0);
-
-    // isolate just program symbols (ignore builtins)
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (builtins.find(b) == builtins.end());
-    });
-    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
-
-    // then arange what is left according to scope_id descending
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (entries[a].scope_id < entries[b].scope_id);
-    });
-
-    return indices;
-}
-
-
-vector<table_index> SageSymbolTable::variables_sorted_by_scope_id() {
-    // note: we can cache the output of this until program source changes are detected
-    vector<table_index> indices(entries.size());
-    std::iota(indices.begin(), indices.end(), 0);
-
-    // isolate just program symbols (ignore builtins)
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (builtins.find(b) == builtins.end());
-    });
-    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
-
-    // then arange what is left according to scope_id descending
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (entries[a].scope_id < entries[b].scope_id);
-    });
-    int var_max_length = indices.size();
-
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        bool a_is_target = (entries[a].type->identify() == FUNC);
-        bool b_is_target = (entries[b].type->identify() == FUNC);
-
-        if (a_is_target != b_is_target) {
-            return !a_is_target;
-        }
-
-        return entries[a].scope_id < entries[b].scope_id;
-    });
-    int difference = var_max_length - variables.size();
-    indices.erase(indices.begin() + difference, indices.end());
-
-    return indices;
 }
 
 const symbol_entry *SageSymbolTable::global_lookup(const string &name) {

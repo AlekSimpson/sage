@@ -183,6 +183,11 @@ void SageCompiler::begin_compilation(string mainfile) {
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
     NodeIndex current_node;
 
+    map<string, int> function_max_parameters_mapping;
+    map<string, int> function_parameter_register_generator;
+    map<string, string> parameter_name_to_parent_function;
+    set<string> scanned_literals;
+
     queue<NodeIndex> fringe;
     fringe.push(root);
 
@@ -194,7 +199,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
         auto nodetype = node_manager->get_nodetype(current_node);
         switch (nodetype) {
             case PN_STRUCT: {
-                symbol_table.declare_type_symbol(current_node, nullptr);
+                table_index table_idx = symbol_table.declare_type_symbol(current_node, nullptr);
+                symbol_table.structs.insert(table_idx);
 
                 auto bodynode = node_manager->reach_right(current_node, 2);
                 for (auto child: node_manager->get_children(bodynode)) {
@@ -203,14 +209,21 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_FUNCDEF: {
-                symbol_table.declare_symbol(current_node, nullptr);
+                auto table_idx = symbol_table.declare_symbol(current_node, nullptr);
+                symbol_table.functions.insert(table_idx);
+                string identifier = node_manager->get_identifier(current_node);
 
                 auto signature_trinary = node_manager->get_right(current_node);
 
                 auto paramnode = node_manager->get_left(signature_trinary);
                 auto bodynode = node_manager->reach_right(current_node, 2);
+                function_max_parameters_mapping[identifier] = node_manager->get_children(paramnode).size();
+                function_parameter_register_generator[identifier] = 0;
+                string child_ident;
                 for (auto child: node_manager->get_children(paramnode)) {
+                    child_ident = node_manager->get_identifier(child);
                     fringe.push(child);
+                    parameter_name_to_parent_function[child_ident] = identifier;
                 }
                 fringe.push(node_manager->get_middle(signature_trinary)); // scan the return type
                 for (auto child: node_manager->get_children(bodynode)) {
@@ -219,7 +232,14 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_VAR_DEC: {
-                symbol_table.declare_symbol(current_node, nullptr);
+                auto identifier = node_manager->get_identifier(current_node);
+                if (parameter_name_to_parent_function.find(identifier) != parameter_name_to_parent_function.end()) {
+                    string parent_function_name = parameter_name_to_parent_function[identifier];
+                    symbol_table.declare_parameter(current_node, nullptr, function_parameter_register_generator[parent_function_name]);
+                    function_parameter_register_generator[parent_function_name]++;
+                }else {
+                    symbol_table.declare_variable(current_node, nullptr);
+                }
                 fringe.push(node_manager->get_right(current_node));
                 continue;
             }
@@ -247,14 +267,27 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 }
                 continue;
             }
+            case PN_TRINARY:
             case PN_BINARY: {
                 fringe.push(node_manager->get_right(current_node));
+                continue;
+            }
+            case PN_FUNCCALL: {
+                fringe.push(node_manager->get_branch(current_node));
+                continue;
+            }
+            case PN_KEYWORD: {
+                if (node_manager->get_branch(current_node) == NULL_INDEX) continue;
+                fringe.push(node_manager->get_branch(current_node));
                 continue;
             }
 
             case PN_STRING: {
                 auto node_lexeme = node_manager->get_lexeme(current_node);
                 node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
+                if (scanned_literals.find(node_lexeme) != scanned_literals.end()) continue;
+                scanned_literals.insert(node_lexeme);
+
                 process_escape_sequences(node_lexeme);
                 auto *char_type = TypeRegistery::get_byte_type(CHAR);
                 auto *array_type =  TypeRegistery::get_array_type(char_type, node_lexeme.length());
@@ -262,35 +295,20 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 symbol_table.declare_literal(current_node, literal_value);
                 continue;
             }
-            case PN_NUMBER: {
-                auto node_lexeme = node_manager->get_lexeme(current_node);
-                auto *builtin_type = TypeRegistery::get_integer_type(8); // TODO: this should auto align with the system bit size
-                SageValue literal_value(stoi(node_lexeme), builtin_type);
-                symbol_table.declare_literal(current_node, literal_value);
-            }
-            case PN_FLOAT: {
-                auto node_lexeme = node_manager->get_lexeme(current_node);
-                auto *builtin_type = TypeRegistery::get_float_type(8); // TODO: this should auto align with the system bit size
-                SageValue literal_value(stof(node_lexeme), builtin_type);
-                symbol_table.declare_literal(current_node, literal_value);
-            }
             default:
                 continue;
         }
     }
+
+    return;
 }
 
 void SageCompiler::perform_type_resolution() {
-    vector<table_index> indices(symbol_table.entries.size());
-    std::iota(indices.begin(), indices.end(), 0);
+    vector<table_index> program_symbols(symbol_table.entries.size());
+    std::iota(program_symbols.begin(), program_symbols.end(), 0);
 
-    // isolate just program symbols (ignore builtins)
-    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
-        return (symbol_table.builtins.find(b) == symbol_table.builtins.end());
-    });
-    indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
-
-    for (table_index idx: indices) {
+    for (table_index idx: program_symbols) {
+        if (symbol_table.builtins.find(idx) != symbol_table.builtins.end()) continue;
         if (symbol_table.entries[idx].type_is_resolved()) continue;
 
         auto nodetype = node_manager->get_nodetype(symbol_table.entries[idx].definition_ast_index);
@@ -344,7 +362,15 @@ void SageCompiler::register_allocation() {
      *  2. allocate free registers to variables declared in current scope (allocations written to symbol table)
      */
 
-    auto symbols_by_scope = symbol_table.variables_sorted_by_scope_id();
+    //auto symbols_by_scope = symbol_table.variables_sorted_by_scope_id();
+    vector<table_index> variables_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
+    variables_by_scope.insert(variables_by_scope.end(), symbol_table.constants.begin(), symbol_table.constants.end());
+
+    // then arange what is left according to scope_id descending
+    std::sort(variables_by_scope.begin(), variables_by_scope.end(), [this](int a, int b) {
+        return (symbol_table.entries[a].scope_id < symbol_table.entries[b].scope_id);
+    });
+
     set<int> available_registers;
     set<string> working_symbols;
     int current_scope = 0;
@@ -355,7 +381,8 @@ void SageCompiler::register_allocation() {
 
     symbol_entry *entry;
     int assigned_register;
-    for (table_index idx: symbols_by_scope) {
+    for (table_index idx: variables_by_scope) {
+        auto current_ident = symbol_table.entries[idx].identifier;
         if (current_scope != symbol_table.entries[idx].scope_id) {
             current_relative_stack_location = 0;
             current_scope = symbol_table.entries[idx].scope_id;
@@ -518,9 +545,15 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 }
 
 void SageCompiler::forward_declaration_resolution(int program_root) {
-    auto symbols_by_scope = symbol_table.symbols_sorted_by_scope_id();
-    symbols_by_scope.push_back(SAGE_NULL_SYMBOL);
-    // note: we can cache the output of this until program source changes are detected
+    vector<table_index> definitions_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
+    definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.structs.begin(), symbol_table.structs.end());
+    definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(), symbol_table.functions.end());
+    // then arange what is left according to scope_id descending
+    std::sort(definitions_by_scope.begin(), definitions_by_scope.end(), [this](int a, int b) {
+        return (symbol_table.entries[a].scope_id < symbol_table.entries[b].scope_id);
+    });
+    definitions_by_scope.push_back(SAGE_NULL_SYMBOL);
+
     int current_scope = node_manager->get_scope_id(program_root);
     in_degree_map.clear();
     previously_processed.clear();
@@ -528,7 +561,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // for each scope, find every native definition and get its in_degree,
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
-    for (int symbol_id: symbols_by_scope) {
+    for (int symbol_id: definitions_by_scope) {
         if (current_scope != symbol_table.entries[symbol_id].scope_id) {
             resolve_definition_order(current_scope);
             if (symbol_id == SAGE_NULL_SYMBOL) break;

@@ -29,6 +29,7 @@ public:
     virtual CanonicalType identify() = 0;
     virtual bool match(SageType *) = 0;
     virtual string to_string() = 0;
+    // TODO: virtual SageValue get_default_value() = 0;
 };
 
 class SageBuiltinType : public SageType {

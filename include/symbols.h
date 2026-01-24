@@ -47,9 +47,11 @@ public:
     stack<function_visit> function_visitor_state;
     set<table_index> builtins;
     set<table_index> variables;
+    set<table_index> structs;
+    set<table_index> functions;
     set<table_index> parameters;
     set<table_index> constants;
-    set<table_index> literals;
+    set<table_index> literals; // used for strings and big literal values
     set<table_index> types;
 
     // (scope_id, name) -> entry index for fast lookup
@@ -67,10 +69,6 @@ public:
     SageType *resolve_function_type(table_index);
     SageType *resolve_struct_type(table_index);
 
-    // TODO: FIX: these functions are only used once so far... inline them into their own functions
-    vector<table_index> symbols_sorted_by_scope_id(); // returns ALL program symbols
-    vector<table_index> variables_sorted_by_scope_id(); // returns variable program symbols
-
     bool is_variable(table_index idx) { return variables.find(idx) != variables.end(); }
     bool is_parameter(table_index idx) { return parameters.find(idx) != parameters.end(); }
     bool is_constant(table_index idx) { return constants.find(idx) != constants.end(); }
@@ -86,8 +84,8 @@ public:
     table_index declare_temporary(int register_alloc);
     table_index declare_symbol(NodeIndex ast_id, SageType *valuetype);
     table_index declare_variable(NodeIndex ast_id, SageType *valuetype);
-    table_index declare_parameter(NodeIndex ast_id, SageType *valuetype);
-    void declare_type_symbol(NodeIndex ast_id, SageType *type);
+    table_index declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment);
+    table_index declare_type_symbol(NodeIndex ast_id, SageType *type);
 
     // Lookups
     const symbol_entry *global_lookup(const string &name);

@@ -246,7 +246,7 @@ ui32 SageCompiler::visit_expression(NodeIndex node) {
 // todo: might make more sense to change this func name to "visit_atom"
 ui32 SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
-    string node_lexeme = node_manager->get_lexeme(node);
+    table_index table_idx;
     switch (nodetype) {
         case PN_VAR_REF:
         case PN_IDENTIFIER:
@@ -254,22 +254,15 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
         case PN_FUNCCALL:
             return visit_funccall(node);
         case PN_STRING: {
-            node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
-            process_escape_sequences(node_lexeme);
-            auto *char_type = TypeRegistery::get_byte_type(CHAR);
-            auto *array_type = TypeRegistery::get_pointer_type(char_type);
-            SageValue literal_value(const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
-            auto table_idx = symbol_table.declare_literal(node, literal_value);
+            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         case PN_NUMBER: {
-            auto *builtin_type = TypeRegistery::get_integer_type(8);
-            auto table_idx = symbol_table.declare_literal(node, SageValue(stoi(node_lexeme), builtin_type));
+            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         case PN_FLOAT: {
-            auto *builtin_type = TypeRegistery::get_float_type(8);
-            auto table_idx = symbol_table.declare_literal(node, SageValue(stof(node_lexeme), builtin_type));
+            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         default:
