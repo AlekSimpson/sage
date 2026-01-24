@@ -498,7 +498,7 @@ NodeIndex SageParser::parse_construct() {
         case TT_LPAREN:
             // its a function
             binding_node = parse_function();
-            nodetype = node_manager->get_nodetype(binding_node);
+            nodetype = PN_FUNCDEF;
             break;
 
         default:
@@ -574,11 +574,14 @@ NodeIndex SageParser::parse_function() {
 
         signature_lexeme += ") -> void";
         NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
+        vector<NodeIndex> list_ = vector<NodeIndex>();
+        list_.push_back(return_type_node);
+        NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_TYPE, list_);
         Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 
         NodeIndex body_node = parse_body();
         scope_manager->exit_scope(current_token->linenum, body_node);
-        return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node,
+        return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_list,
                                             body_node);
     }
 
@@ -596,6 +599,9 @@ NodeIndex SageParser::parse_function() {
 
     signature_lexeme += ") -> ";
     NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
+    vector<NodeIndex> list_ = vector<NodeIndex>();
+    list_.push_back(return_type_node);
+    NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_TYPE, list_);
     signature_lexeme += return_type_token.lexeme;
     advance(); // move past type keyword
 
@@ -603,7 +609,7 @@ NodeIndex SageParser::parse_function() {
 
     NodeIndex body_node = parse_body();
     scope_manager->exit_scope(current_token->linenum, body_node);
-    return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_node, body_node);
+    return node_manager->create_trinary(function_signature, PN_FUNCDEF, parameter_list, return_type_list, body_node);
 }
 
 NodeIndex SageParser::parse_function_call() {

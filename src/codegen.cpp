@@ -156,26 +156,12 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
         logger.log_internal_error("codegen.cpp", current_linenum, str("expected type node to be UNARY"));
         return SAGE_NULL_SYMBOL;
     }
-    SageType *return_type = symbol_table.resolve_sage_type(node_manager, return_node);
-    vector<SageType *> return_types(1); // until we support more return types this is always length one
-    return_types.push_back(return_type);
 
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(trinary_node);
     visit(body_node);
 
-    SageType *voidtype = TypeRegistery::get_byte_type(VOID);
     if (!symbol_table.function_visitor_state.top().has_returned()) {
-        if (!return_type->match(voidtype)) {
-            auto token = node_manager->get_token(node);
-            logger.log_error(
-                token,
-                str("function (", function_name, ") missing return statement"),
-                GENERAL);
-            symbol_table.function_visitor_state.pop();
-            return SAGE_NULL_SYMBOL;
-        }
-
         // auto return on void functions
         build_return(-1, function_name == "main");
     }

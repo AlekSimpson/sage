@@ -63,7 +63,9 @@ public:
     SageSymbolTable(ScopeManager* scopeman, NodeManager *nm, int size);
     ~SageSymbolTable();
 
-    SageType *resolve_sage_type(NodeManager*, NodeIndex);
+    SageType *resolve_variable_type(table_index);
+    SageType *resolve_function_type(table_index);
+    SageType *resolve_struct_type(table_index);
 
     // TODO: FIX: these functions are only used once so far... inline them into their own functions
     vector<table_index> symbols_sorted_by_scope_id(); // returns ALL program symbols

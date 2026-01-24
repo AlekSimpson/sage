@@ -107,7 +107,7 @@ union primitive_union {
 
 class TypeRegistery {
 private:
-    static std::unordered_map<CanonicalType, std::unique_ptr<SageType> > builtin_types;
+    static std::unordered_map<std::pair<CanonicalType, int>, std::unique_ptr<SageType> > builtin_types;
     static std::unordered_map<SageType *, std::unique_ptr<SageType> > pointer_types;
     static std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > array_types;
     static std::unordered_map<string, std::unique_ptr<SageType> > struct_types;
@@ -161,6 +161,16 @@ public:
 };
 
 namespace std {
+    // Hash function for std::pair<CanonicalType, int>
+    template<>
+    struct hash<std::pair<CanonicalType, int> > {
+        size_t operator()(const std::pair<CanonicalType, int> &p) const {
+            size_t h1 = std::hash<int>{}(static_cast<int>(p.first));
+            size_t h2 = std::hash<int>{}(p.second);
+            return h1 ^ (h2 << 1);
+        }
+    };
+
     // Hash function for std::pair<SageType*, int>
     template<>
     struct hash<std::pair<SageType *, int> > {

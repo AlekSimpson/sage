@@ -83,6 +83,8 @@ string SageArrayType::to_string() {
 
 SageFunctionType::SageFunctionType(vector<SageType *> returns, vector<SageType *> params) : return_type(returns),
     parameter_types(params) {
+    this->size = 0;
+    this->alignment = 0;
 }
 
 CanonicalType SageFunctionType::identify() {
@@ -319,37 +321,45 @@ bool SageValue::equals(const SageValue &other) {
 
 /// Type Registery
 SageType *TypeRegistery::get_builtin_type(CanonicalType canonical_type, int bytesize) {
-    auto it = builtin_types.find(canonical_type);
+    auto key = std::make_pair(canonical_type, bytesize);
+    auto it = builtin_types.find(key);
     if (it != builtin_types.end()) return it->second.get();
 
     auto type = std::make_unique<SageBuiltinType>(canonical_type, bytesize, bytesize);
-    SageType *ptr = type.get();
-    builtin_types[canonical_type] = std::move(type);
-    return ptr;
+    builtin_types[key] = std::move(type);
+    return builtin_types[key].get();
 }
 
 SageType *TypeRegistery::get_integer_type(int bytesize) {
+    auto key = std::make_pair(INT, bytesize);
+    auto it = builtin_types.find(key);
+    if (it != builtin_types.end()) return it->second.get();
+
     auto type = std::make_unique<SageBuiltinType>(INT, bytesize, bytesize);
-    SageType *ptr = type.get();
-    return ptr;
+    builtin_types[key] = std::move(type);
+    return builtin_types[key].get();
 }
 
 SageType *TypeRegistery::get_float_type(int bytesize) {
+    auto key = std::make_pair(FLOAT, bytesize);
+    auto it = builtin_types.find(key);
+    if (it != builtin_types.end()) return it->second.get();
+
     auto type = std::make_unique<SageBuiltinType>(FLOAT, bytesize, bytesize);
-    SageType *ptr = type.get();
-    return ptr;
+    builtin_types[key] = std::move(type);
+    return builtin_types[key].get();
 }
 
 SageType *TypeRegistery::get_byte_type(CanonicalType canonical_type) {
     if (canonical_type != VOID && canonical_type != CHAR && canonical_type != BOOL) return nullptr;
 
-    auto it = builtin_types.find(canonical_type);
+    auto key = std::make_pair(canonical_type, 1);
+    auto it = builtin_types.find(key);
     if (it != builtin_types.end()) return it->second.get();
 
     auto type = std::make_unique<SageBuiltinType>(canonical_type, 1, 1);
-    SageType *ptr = type.get();
-    builtin_types[canonical_type] = std::move(type);
-    return ptr;
+    builtin_types[key] = std::move(type);
+    return builtin_types[key].get();
 }
 
 SageType *TypeRegistery::get_pointer_type(SageType *base_type) {
@@ -359,9 +369,8 @@ SageType *TypeRegistery::get_pointer_type(SageType *base_type) {
     }
 
     auto type = std::make_unique<SagePointerType>(base_type);
-    SageType *ptr = type.get();
     pointer_types[base_type] = std::move(type);
-    return ptr;
+    return pointer_types[base_type].get();
 }
 
 SageType *TypeRegistery::get_array_type(SageType *element_type, int length) {
@@ -372,11 +381,9 @@ SageType *TypeRegistery::get_array_type(SageType *element_type, int length) {
     }
 
     auto type = std::make_unique<SageArrayType>(element_type, length);
-    SageType *ptr = type.get();
     array_types[key] = std::move(type);
-    return ptr;
+    return array_types[key].get();
 }
-
 
 SageType *TypeRegistery::get_struct_type(string name, std::vector<SageType *> member_types) {
     auto it = struct_types.find(name);
@@ -392,9 +399,8 @@ SageType *TypeRegistery::get_struct_type(string name, std::vector<SageType *> me
     }
 
     auto type = std::make_unique<SageStructType>(name, member_types, size, largest_alignment);
-    SageType *ptr = type.get();
     struct_types[name] = std::move(type);
-    return ptr;
+    return struct_types[name].get();
 }
 
 SageType *TypeRegistery::get_function_type(std::vector<SageType *> return_types,
@@ -406,7 +412,6 @@ SageType *TypeRegistery::get_function_type(std::vector<SageType *> return_types,
     }
 
     auto type = std::make_unique<SageFunctionType>(return_types, parameter_types);
-    SageType *ptr = type.get();
     function_types[key] = std::move(type);
-    return ptr;
+    return function_types[key].get();
 }

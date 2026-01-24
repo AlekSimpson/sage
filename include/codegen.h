@@ -16,7 +16,7 @@
 #define GENERAL_REGISTER_COUNT 100
 #define GENERAL_REG_RANGE_BEGIN 24
 #define GENERAL_REG_RANGE_END 124
-#define BUILTIN_COUNT 14
+#define BUILTIN_COUNT 13
 
 #define SAGESYS_write_int 600
 
@@ -72,7 +72,7 @@ public:
   bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);
   void scan_all_program_symbols(NodeIndex root);
-  void type_resolution();
+  void perform_type_resolution();
   void forward_declaration_resolution(int program_root);
   void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);

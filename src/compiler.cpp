@@ -114,7 +114,7 @@ void SageCompiler::begin_compilation(string mainfile) {
 
     scan_all_program_symbols(ast_root);
 
-    type_resolution();
+    perform_type_resolution();
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -193,7 +193,15 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 
         auto nodetype = node_manager->get_nodetype(current_node);
         switch (nodetype) {
-            case PN_STRUCT:
+            case PN_STRUCT: {
+                symbol_table.declare_type_symbol(current_node, nullptr);
+
+                auto bodynode = node_manager->reach_right(current_node, 2);
+                for (auto child: node_manager->get_children(bodynode)) {
+                    fringe.push(child);
+                }
+                continue;
+            }
             case PN_FUNCDEF: {
                 symbol_table.declare_symbol(current_node, nullptr);
 
@@ -208,6 +216,11 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 for (auto child: node_manager->get_children(bodynode)) {
                     fringe.push(child);
                 }
+                continue;
+            }
+            case PN_VAR_DEC: {
+                symbol_table.declare_symbol(current_node, nullptr);
+                fringe.push(node_manager->get_right(current_node));
                 continue;
             }
             case PN_FOR:
@@ -235,17 +248,31 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_BINARY: {
-                fringe.push(node_manager->get_left(current_node));
                 fringe.push(node_manager->get_right(current_node));
                 continue;
             }
 
-            case PN_VAR_DEC: {
-                symbol_table.declare_symbol(current_node, nullptr);
+            case PN_STRING: {
+                auto node_lexeme = node_manager->get_lexeme(current_node);
+                node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
+                process_escape_sequences(node_lexeme);
+                auto *char_type = TypeRegistery::get_byte_type(CHAR);
+                auto *array_type =  TypeRegistery::get_array_type(char_type, node_lexeme.length());
+                SageValue literal_value(const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
+                symbol_table.declare_literal(current_node, literal_value);
                 continue;
             }
-            case PN_TYPE: {
-                symbol_table.declare_type_symbol(current_node, nullptr);
+            case PN_NUMBER: {
+                auto node_lexeme = node_manager->get_lexeme(current_node);
+                auto *builtin_type = TypeRegistery::get_integer_type(8); // TODO: this should auto align with the system bit size
+                SageValue literal_value(stoi(node_lexeme), builtin_type);
+                symbol_table.declare_literal(current_node, literal_value);
+            }
+            case PN_FLOAT: {
+                auto node_lexeme = node_manager->get_lexeme(current_node);
+                auto *builtin_type = TypeRegistery::get_float_type(8); // TODO: this should auto align with the system bit size
+                SageValue literal_value(stof(node_lexeme), builtin_type);
+                symbol_table.declare_literal(current_node, literal_value);
             }
             default:
                 continue;
@@ -253,8 +280,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
     }
 }
 
-// TODO: type resolution
-void SageCompiler::type_resolution() {
+void SageCompiler::perform_type_resolution() {
     vector<table_index> indices(symbol_table.entries.size());
     std::iota(indices.begin(), indices.end(), 0);
 
@@ -265,21 +291,26 @@ void SageCompiler::type_resolution() {
     indices.erase(indices.begin(), indices.begin() + BUILTIN_COUNT);
 
     for (table_index idx: indices) {
-        if (symbol_table.entries[idx].definition_ast_index == NULL_INDEX) continue;
+        if (symbol_table.entries[idx].type_is_resolved()) continue;
 
-        // 1. figure what kind of symbol is being resolved
-        // variable -> ast_id will be PN_VAR_DEC
-        // parameter ast_id will be PN_VAR_DEC
-
-        // struct -> ast_id will be PN_STRUCT
-
-        // function -> ast_id will be PN_FUNCDEF
-
-        // constant ->
-        // literal ->
-
-        // 2. then based on the result of 1 we walk the ast acordingly to find all needed information to fully resolve
-        // the symbol
+        auto nodetype = node_manager->get_nodetype(symbol_table.entries[idx].definition_ast_index);
+        switch (nodetype) {
+            case PN_VAR_DEC:
+                symbol_table.entries[idx].type = symbol_table.resolve_variable_type(idx);
+                break;
+            case PN_STRUCT:
+                symbol_table.entries[idx].type = symbol_table.resolve_struct_type(idx);
+                break;
+            case PN_FUNCDEF:
+                symbol_table.entries[idx].type = symbol_table.resolve_function_type(idx);
+                break;
+            default:
+                logger.log_internal_error(
+                    "compiler.cpp",
+                    current_linenum,
+                    "Type resolution encountered unknown symbol type");
+                break;
+        }
     }
 }
 

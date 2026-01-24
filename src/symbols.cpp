@@ -3,9 +3,11 @@
 #include <stack>
 #include <numeric>
 #include <algorithm>
+#include <cassert>
 
 #include "../include/codegen.h"
 #include "../include/symbols.h"
+
 #include "../include/node_manager.h"
 #include "../include/sage_types.h"
 
@@ -171,18 +173,16 @@ void SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
     auto symbol_check = lookup(name, scope_id);
     if (symbol_check != nullptr) return;
 
-    int current_scope = nm->get_scope_id(ast_id);
-
     symbol_entry entry;
     entry.type = type;
     entry.identifier = name;
-    entry.scope_id = current_scope;
+    entry.scope_id = scope_id;
     entry.definition_ast_index = ast_id;
     entry.symbol_id = capacity;
     entries.push_back(entry);
 
     types.insert(capacity);
-    scope_symbol_map[{current_scope, name}] = capacity;
+    scope_symbol_map[{scope_id, name}] = capacity;
     scope_manager->register_symbol_in_current_scope(capacity);
 
     capacity++;
@@ -396,6 +396,88 @@ void SageSymbolTable::initialize() {
     declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()));
 }
 
-SageType *SageSymbolTable::resolve_sage_type(NodeManager *man, NodeIndex typenode) {
-    return nullptr;
+SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
+    auto entry = entries[entry_index];
+    if (entry.type_is_resolved()) {
+        return entry.type;
+    }
+
+    auto hosttype = nm->get_host_nodetype(entry.definition_ast_index);
+    NodeIndex type_ast_id = nm->get_right(entry.definition_ast_index);
+    if (hosttype == PN_TRINARY) {
+        type_ast_id = nm->get_middle(entry.definition_ast_index);
+    }
+
+    auto scope_id = nm->get_scope_id(type_ast_id);
+    auto identifier = nm->get_identifier(type_ast_id);
+    auto type_symbol = lookup(identifier, scope_id);
+    assert(type_symbol != nullptr);
+
+    if (!type_symbol->type_is_resolved()) {
+        return resolve_struct_type(type_symbol->symbol_id);
+    }
+
+    return type_symbol->type;
+}
+
+SageType *SageSymbolTable::resolve_struct_type(table_index entry_index) {
+    vector<SageType *> member_types;
+    symbol_entry struct_entry = entries[entry_index];
+    if (struct_entry.type_is_resolved()) {
+        return struct_entry.type;
+    }
+
+    NodeIndex struct_signature = nm->get_right(struct_entry.definition_ast_index);
+
+    int scope_id = nm->get_scope_id(struct_entry.definition_ast_index);
+    for (auto member_expression: nm->get_children(struct_signature)) {
+        auto type_expression = nm->get_right(member_expression);
+        if (nm->get_host_nodetype(member_expression) == PN_TRINARY) {
+            type_expression = nm->get_middle(member_expression);
+        }
+        auto identifier = nm->get_identifier(type_expression);
+        auto type_symbol = lookup(identifier, scope_id);
+        assert(type_symbol != nullptr);
+
+        member_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+    }
+
+    return TypeRegistery::get_struct_type(struct_entry.identifier, member_types);
+}
+
+SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
+    vector<SageType *> parameter_types;
+    vector<SageType *> return_types;
+    symbol_entry function_entry = entries[entry_index];
+    if (function_entry.type_is_resolved()) {
+        return function_entry.type;
+    }
+
+    NodeIndex function_signature = nm->get_right(function_entry.definition_ast_index);
+
+    int scope_id = nm->get_scope_id(function_entry.definition_ast_index);
+    for (auto parameter_expression: nm->get_children(nm->get_left(function_signature))) {
+        auto type_expression = nm->get_right(parameter_expression);
+        if (nm->get_host_nodetype(parameter_expression) == PN_TRINARY) {
+            type_expression = nm->get_middle(parameter_expression);
+        }
+        auto identifier = nm->get_identifier(type_expression);
+        auto type_symbol = lookup(identifier, scope_id);
+        assert(type_symbol != nullptr);
+
+        parameter_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+    }
+    for (auto return_type_expression: nm->get_children(nm->get_middle(function_signature))) {
+        auto identifier = nm->get_identifier(return_type_expression);
+        auto type_symbol = lookup(identifier, scope_id);
+        assert(type_symbol != nullptr);
+
+        return_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+    }
+
+    if (return_types.empty()) {
+        return_types.push_back(TypeRegistery::get_byte_type(VOID));
+    }
+
+    return TypeRegistery::get_function_type(return_types, parameter_types);
 }

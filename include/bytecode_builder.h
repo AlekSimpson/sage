@@ -42,6 +42,7 @@ struct BytecodeBuilder {
     // Constant pool variants - operand is an index into constant_pool
     void build_constpool_im(SageOpCode, int pool_index, SageValue);
 
+    void build_all_builtins();
     void build_puti();
     void build_puts();
 
