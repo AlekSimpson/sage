@@ -1,18 +1,13 @@
 #include <memory>
-#include <algorithm>
+#include <functional>
 
 #include "../include/symbols.h"
-#include "../include/sage_types.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 
 using namespace std;
 
 ui32 SageCompiler::visit(NodeIndex node) {
-    if (node_is_precompiled(node)) {
-        return SAGE_NULL_SYMBOL;
-    }
-
     switch (node_manager->get_nodetype(node)) {
         case PN_BLOCK: {
             for (auto child: node_manager->get_children(node)) {
@@ -55,10 +50,6 @@ ui32 SageCompiler::visit(NodeIndex node) {
  */
 
 ui32 SageCompiler::visit_statement(NodeIndex node) {
-    if (node_is_precompiled(node)) {
-        return SAGE_NULL_SYMBOL;
-    }
-
     switch (node_manager->get_nodetype(node)) {
         case PN_FUNCDEF:
             return visit_funcdef(node);
@@ -232,10 +223,6 @@ ui32 SageCompiler::visit_funcret(NodeIndex node) {
 
 
 ui32 SageCompiler::visit_expression(NodeIndex node) {
-    if (node_is_precompiled(node)) {
-        return SAGE_NULL_SYMBOL;
-    }
-
     if (node_manager->get_host_nodetype(node) == PN_BINARY) {
         return visit_binop(node);
     }
@@ -258,11 +245,11 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
             return table_idx;
         }
         case PN_NUMBER: {
-            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
+            table_idx = symbol_table.lookup_table_idx(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         case PN_FLOAT: {
-            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
+            table_idx = symbol_table.lookup_table_idx(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         default:

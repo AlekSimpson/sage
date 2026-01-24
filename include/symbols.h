@@ -79,6 +79,7 @@ public:
     void declare_builtin_type_symbol(const string &name, SageType *type);
     void declare_builtin_symbol(const string &name, SageType *type);
 
+    table_index declare_immediate(SageValue value, string lexeme);
     table_index declare_literal(NodeIndex ast_id, SageValue value);
     table_index declare_constant(NodeIndex ast_id, SageValue value);
     table_index declare_temporary(int register_alloc);

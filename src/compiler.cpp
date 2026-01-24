@@ -13,10 +13,6 @@
 
 using namespace std;
 
-int ast_bookmark_sorter(comptime_ast_bookmark mark) {
-    return mark.scope_level;
-}
-
 SageCompiler::SageCompiler() {
 }
 
@@ -73,28 +69,9 @@ NodeIndex SageCompiler::parse_codefile(string target_file) {
     return parsetree;
 }
 
-bytecode SageCompiler::compile(NodeIndex ast_index) {
-    if (ast_index == NULL_INDEX) {
-        return bytecode();
-    }
-
-    // if (compiling_root) {
-    //     compile_dependency_resolution_order(node_manager->get_dependencies(ast_index));
-    // }
-    visit(ast_index);
-    bytecode output = builder.final(interpreter->proc_line_locations, &symbol_table, generate_compile_time_bytecode);
-
-    printf("======================\n");
-    print_bytecode(output);
-    printf("======================\n");
-    builder.reset();
-
-    return output;
-}
-
-void SageCompiler::begin_compilation(string mainfile) {
+void SageCompiler::compile_file(string mainfile) {
     if (!check_filename_valid(mainfile)) {
-        logger.log_error(mainfile, -1, "Main program filename is not valid. Make sure it ends in '.sage'", GENERAL);
+        logger.log_error(mainfile, -1, "Program filename is not valid. Make sure it ends in '.sage'", GENERAL);
         return;
     }
 
@@ -133,34 +110,23 @@ void SageCompiler::begin_compilation(string mainfile) {
         return;
     }
 
-    // execute run directives
-    generate_compile_time_bytecode = true;
-    comptime_ast_bookmark mark;
-    string rundir_name;
-    bookmarked_run_directives = ascending_list<comptime_ast_bookmark>(node_manager->get_node_count());
-    for (int i = 0; i < bookmarked_run_directives.size; ++i) {
-        mark = bookmarked_run_directives[i];
-        rundir_name = str("rundir", i);
-        builder.procedures[hash_djb2(rundir_name)] = procedure_frame(rundir_name);
-        builder.procedure_stack.push(hash_djb2(rundir_name));
-        bytecode code = compile(mark.ast_position);
-        if (code.empty()) {
-            continue;
-        }
-        precompiled.insert(mark.ast_position);
-        interpreter->load_program(code);
-        interpreter->execute();
-    }
-    generate_compile_time_bytecode = false;
+    // compile code
+    visit(ast_root);
+    bytecode code = builder.final(interpreter->proc_line_locations, &symbol_table, generate_compile_time_bytecode);
 
-    // final program compilation pass
-    // compile runtime code
-    bytecode code = compile(ast_root);
+    //printf("======================\n");
+    //print_bytecode(output);
+    //printf("======================\n");
+
+    builder.reset();
 
     if (logger.has_errors()) {
         logger.report_errors();
         return;
     }
+
+    // execute run directives
+
 
     ///////////////
     interpreter->load_program(code);
@@ -295,6 +261,18 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 symbol_table.declare_literal(current_node, literal_value);
                 continue;
             }
+            case PN_FLOAT: {
+                auto node_lexeme = node_manager->get_lexeme(current_node);
+                SageValue float_literal = SageValue(stof(node_lexeme));
+                symbol_table.declare_immediate(float_literal, node_lexeme);
+                continue;
+            }
+            case PN_NUMBER: {
+                auto node_lexeme = node_manager->get_lexeme(current_node);
+                SageValue integer_literal = SageValue(stoi(node_lexeme));
+                symbol_table.declare_immediate(integer_literal, node_lexeme);
+                continue;
+            }
             default:
                 continue;
         }
@@ -362,7 +340,6 @@ void SageCompiler::register_allocation() {
      *  2. allocate free registers to variables declared in current scope (allocations written to symbol table)
      */
 
-    //auto symbols_by_scope = symbol_table.variables_sorted_by_scope_id();
     vector<table_index> variables_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
     variables_by_scope.insert(variables_by_scope.end(), symbol_table.constants.begin(), symbol_table.constants.end());
 
@@ -408,10 +385,6 @@ void SageCompiler::register_allocation() {
         working_symbols.insert(symbol_table.entries[idx].identifier);
         available_registers.erase(assigned_register);
     }
-}
-
-bool SageCompiler::node_is_precompiled(NodeIndex node) {
-    return precompiled.find(node) != precompiled.end();
 }
 
 int SageCompiler::get_volatile() {

@@ -95,6 +95,23 @@ void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type)
     capacity++;
 }
 
+table_index SageSymbolTable::declare_immediate(SageValue value, string lexeme) {
+    auto search = lookup(lexeme, 0);
+    if (search != nullptr) return search->symbol_id;
+
+    symbol_entry entry;
+    entry.value = value;
+    entry.type = value.valuetype;
+    entry.identifier = lexeme;
+    entry.scope_id = 0;
+    entry.definition_ast_index = -1;
+    entry.symbol_id = capacity;
+    entries.push_back(entry);
+
+    capacity++;
+    return capacity - 1;
+}
+
 table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);

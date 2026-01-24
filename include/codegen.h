@@ -8,7 +8,6 @@
 #include "symbols.h"
 #include "bytecode_builder.h"
 #include "sage_bytecode.h"
-#include "ascending_list.h"
 
 #define ui32 uint32_t
 #define ui64 uint64_t
@@ -27,13 +26,6 @@ enum debug_level {
   ALL
 };
 
-struct comptime_ast_bookmark {
-  NodeIndex ast_position;
-  int scope_level;
-};
-
-int ast_bookmark_sorter(comptime_ast_bookmark mark);
-
 class SageCompiler {
 public:
   NodeIndex ast;
@@ -46,8 +38,7 @@ public:
   SageSymbolTable symbol_table;
   SageInterpreter *interpreter;
   BytecodeBuilder builder;
-  set<NodeIndex> precompiled;
-  ascending_list<comptime_ast_bookmark> bookmarked_run_directives;
+
   bool generate_compile_time_bytecode = false;
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
@@ -62,11 +53,9 @@ public:
 
   bool check_filename_valid(const string &filename);
   NodeIndex parse_codefile(string target_file);
-  void begin_compilation(string mainfile);
-  bytecode compile(NodeIndex ast);
+  void compile_file(string mainfile);
 
   void register_allocation();
-  bool node_is_precompiled(NodeIndex);
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);

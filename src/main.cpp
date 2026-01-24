@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
     string target_file = string(argv[1]);
 
     SageCompiler compiler = SageCompiler(target_file);
-    compiler.begin_compilation(target_file);
+    compiler.compile_file(target_file);
 
     if (ErrorLogger::get().has_errors()) {
         ErrorLogger::get().report_errors();
