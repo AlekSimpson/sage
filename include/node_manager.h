@@ -24,6 +24,8 @@ private:
     ScopeManager *scope_manager;  // Reference for auto-assigning scope IDs
 
 public:
+    map<NodeIndex, NodeIndex> parent_map;
+
     ~NodeManager();
     NodeManager();
     
@@ -49,11 +51,24 @@ public:
     NodeIndex reach_right(NodeIndex, int);
     vector<NodeIndex> get_children(NodeIndex);
     string get_identifier(NodeIndex);
+    NodeIndex get_parent(NodeIndex);
 
+    void set_parent(NodeIndex, NodeIndex);
     void set_children(NodeIndex, vector<NodeIndex>);
 
     void add_child(NodeIndex self, NodeIndex new_child);
     void delete_node(NodeIndex index);
+
+    // NEW: AST modification operations
+    void replace_node(NodeIndex old_node, NodeIndex new_node);
+    void splice_nodes(NodeIndex target, vector<NodeIndex> replacements);
+    void remove_node(NodeIndex node);
+    void insert_after(NodeIndex target, NodeIndex new_node);
+
+    // NEW: Track modifications for incremental reanalysis
+    set<NodeIndex> modified_subtrees;
+    void mark_modified(NodeIndex node);
+    bool has_modifications() const;
     
     // Scope and symbol binding accessors
     void set_scope_id(NodeIndex node, int scope_id);

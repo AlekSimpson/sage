@@ -1,3 +1,4 @@
+#include <atomic>
 #include <unistd.h>
 #include <sys/syscall.h>
 
@@ -15,7 +16,7 @@ std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >,
 TypeRegistery::function_types;
 std::unordered_map<std::string, std::unique_ptr<SageType>> TypeRegistery::struct_types;
 
-int hash_djb2(const std::string &str) {
+int create_procedure_frame_id(const std::string &str) {
     uint64_t hash = 5381;
     for (char c: str) {
         hash = ((hash << 5) + hash) + c;
@@ -24,88 +25,151 @@ int hash_djb2(const std::string &str) {
 }
 
 BytecodeBuilder::BytecodeBuilder() {
+    int global_id = get_procedure_frame_id("GLOBAL");
+    comptime_procedures[global_id] = ProcedureFrame("GLOBAL");
+    comptime_procedure_stack.push(global_id);
+
+    runtime_procedures[global_id] = ProcedureFrame("GLOBAL");
+    runtime_procedure_stack.push(global_id);
+
     build_puts();
     build_puti();
+}
+
+
+map<int, ProcedureFrame> &BytecodeBuilder::get_active_procedures() {
+    if (emitting_comptime) return comptime_procedures;
+    return runtime_procedures;
+}
+
+stack<int> &BytecodeBuilder::get_active_procedure_stack() {
+    if (emitting_comptime) return comptime_procedure_stack;
+    return runtime_procedure_stack;
+}
+
+int &BytecodeBuilder::get_total_instruction_count() {
+    if (emitting_comptime) return comptime_total_instructions;
+    return runtime_total_instructions;
+}
+
+void BytecodeBuilder::increment_total_instruction_count(int delta) {
+    if (emitting_comptime) {
+        comptime_total_instructions += delta;
+        return;
+    }
+    runtime_total_instructions += delta;
+}
+
+void BytecodeBuilder::enter_comptime() {
+    emitting_comptime = true;
+}
+
+void BytecodeBuilder::exit_comptime() {
+    emitting_comptime = false;
 }
 
 void BytecodeBuilder::new_frame(string name) {
-    auto frame = procedure_frame(name);
-    if (name == "main") {
-        has_main_function = true;
+    auto frame = ProcedureFrame(name);
+    if (!emitting_comptime && name == "main") {
+        runtime_has_main_function = true;
     }
-    int id = hash_djb2(name);
-    procedures[id] = frame;
-    procedure_stack.push(id);
+    int id = create_procedure_frame_id(name);
+
+    auto &active_procedure_stack = get_active_procedure_stack();
+    auto &active_procedures = get_active_procedures();
+    active_procedures[id] = frame;
+    active_procedure_stack.push(id);
 }
 
 void BytecodeBuilder::exit_frame() {
-    procedure_stack.pop();
+    auto &active_procedure_stack = get_active_procedure_stack();
+    active_procedure_stack.pop();
 }
 
 void BytecodeBuilder::reset() {
+    comptime_total_instructions = 0;
+    runtime_total_instructions = 0;
+
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
     procedures.clear();
     procedure_stack = stack<int>();
+
+    int global_id = get_procedure_frame_id("GLOBAL");
+    procedures[global_id] = ProcedureFrame("GLOBAL");
+    procedure_stack.push(global_id);
 
     build_puts();
     build_puti();
 }
 
-bytecode BytecodeBuilder::final(map<int, int> &proc_line_locations, SageSymbolTable *table, bool is_comptime) {
+bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_line_locations) {
+    int total_instruction_count = get_total_instruction_count();
+    int neutral_operand_encoding[4] = {0, 0, 0, 0};
     bytecode result;
+    result.reserve(total_instruction_count);
 
-    if (!has_main_function) {
-        if (!is_comptime) {
-            result.reserve(total_instruction_count + 2);
-
-            int encoding[4] = {0, 0, 0, 0};
-            result.push_back(command(OP_LABEL, hash_djb2("main"), encoding));
-            result.push_back(command(VOP_EXIT, -1, encoding));
-        }
-    } else {
-        result.reserve(total_instruction_count);
-        auto hash = hash_djb2("main");
-        bytecode &current_instructions = procedures[hash].procedure_instructions;
-        result.insert(
-            result.end(),
-            current_instructions.begin(), current_instructions.end());
-    }
-    proc_line_locations[hash_djb2("main")] = 0;
-
-    for (const auto &[id, frame]: procedures) {
-        string pname = frame.name;
-        if (pname == "main") continue;
+    for (const auto &[id, frame]: comptime_procedures) {
+        string procedure_name = frame.name;
+        if (procedure_name == "GLOBAL") continue;
 
         bytecode current_instructions = frame.procedure_instructions;
-        proc_line_locations[id] = result.size();
+        procedure_line_locations[id] = result.size();
 
-        result.insert(
-            result.end(),
-            current_instructions.begin(), current_instructions.end());
-        int enc[4] = {0, 0, 0, 0};
-        result.push_back(command(VOP_EXIT, -1, enc));
+        result.insert(result.end(), current_instructions.begin(), current_instructions.end());
     }
 
-    for (int builtin: table->builtins) {
-        string pname = table->entries[builtin].identifier;
-        if (pname == "main") continue;
+    int global_id = get_procedure_frame_id("GLOBAL");
+    auto global_instructions = comptime_procedures[global_id].procedure_instructions;
+    procedure_line_locations[global_id] = result.size();
+    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
+    result.push_back(command(VOP_EXIT, -1, neutral_operand_encoding));
+    return result;
+}
 
-        bytecode &current_instructions = procedures[hash_djb2(pname)].procedure_instructions;
-        proc_line_locations[hash_djb2(pname)] = result.size();
+bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_line_locations) {
+    int total_instruction_count = get_total_instruction_count();
+    int neutral_operand_encoding[4] = {0, 0, 0, 0};
+    bytecode result;
+    result.reserve(total_instruction_count);
 
-        result.insert(
-            result.end(),
-            current_instructions.begin(), current_instructions.end());
+    for (const auto &[id, frame]: runtime_procedures) {
+        string procedure_name = frame.name;
+        if (procedure_name == "GLOBAL") continue;
+
+        bytecode current_instructions = frame.procedure_instructions;
+        procedure_line_locations[id] = result.size();
+
+        result.insert(result.end(), current_instructions.begin(), current_instructions.end());
     }
+
+    int global_id = get_procedure_frame_id("GLOBAL");
+    auto global_instructions = runtime_procedures[global_id].procedure_instructions;
+
+    if (runtime_has_main_function) {
+        // interpreter program pointer always starts at procedure_line_locations[id("GLOBAL")]
+        // but we want runtime execution to start at "main" function so we point the global starter to the main func line location
+        procedure_line_locations[global_id] = procedure_line_locations[get_procedure_frame_id("main")];
+    }
+
+    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
+    result.push_back(command(VOP_EXIT, -1, neutral_operand_encoding));
     return result;
 }
 
 void BytecodeBuilder::build_im(SageOpCode opcode, SageValue op) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
     int encoding[4] = {0, 0, 0, 0};
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(opcode, op.as_operand(), encoding));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -114,10 +178,12 @@ void BytecodeBuilder::build_im_im(SageOpCode opcode, SageValue imm1, SageValue i
         imm2.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_reg(SageOpCode opcode, SageValue immediate, int reg_index) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -126,10 +192,12 @@ void BytecodeBuilder::build_im_reg(SageOpCode opcode, SageValue immediate, int r
         reg_index,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_im(SageOpCode opcode, int reg_index, SageValue immediate) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -138,10 +206,12 @@ void BytecodeBuilder::build_reg_im(SageOpCode opcode, int reg_index, SageValue i
         immediate.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_reg(SageOpCode opcode, int reg1, int reg2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -150,10 +220,12 @@ void BytecodeBuilder::build_reg_reg(SageOpCode opcode, int reg1, int reg2) {
         reg2,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_im_im(SageOpCode opcode, int reg, SageValue imm1, SageValue imm2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -163,10 +235,12 @@ void BytecodeBuilder::build_reg_im_im(SageOpCode opcode, int reg, SageValue imm1
         imm2.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_reg_reg(SageOpCode opcode, int reg1, int reg2, int reg3) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 1, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -176,10 +250,12 @@ void BytecodeBuilder::build_reg_reg_reg(SageOpCode opcode, int reg1, int reg2, i
         reg3,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_im_reg(SageOpCode opcode, int reg1, SageValue immediate, int reg2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 1, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -189,10 +265,12 @@ void BytecodeBuilder::build_reg_im_reg(SageOpCode opcode, int reg1, SageValue im
         reg2,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_reg_reg_im(SageOpCode opcode, int reg1, int reg2, SageValue immediate) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -202,10 +280,12 @@ void BytecodeBuilder::build_reg_reg_im(SageOpCode opcode, int reg1, int reg2, Sa
         immediate.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2, SageValue imm3) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -215,10 +295,12 @@ void BytecodeBuilder::build_im_im_im(SageOpCode opcode, SageValue imm1, SageValu
         imm3.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_reg_reg(SageOpCode opcode, SageValue immediate, int reg1, int reg2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 1, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -228,10 +310,12 @@ void BytecodeBuilder::build_im_reg_reg(SageOpCode opcode, SageValue immediate, i
         reg2,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_reg_im(SageOpCode opcode, SageValue imm1, int reg, SageValue imm2) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -241,10 +325,12 @@ void BytecodeBuilder::build_im_reg_im(SageOpCode opcode, SageValue imm1, int reg
         imm2.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageValue imm2, int reg) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 1, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
@@ -254,11 +340,13 @@ void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageVal
         reg,
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_constpool_im(SageOpCode opcode, int pool_index, SageValue immediate) {
     int deref_encoding[4] = {4, 0, 0, 0}; // 4 = constant pool dereference
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
         opcode,
@@ -266,13 +354,17 @@ void BytecodeBuilder::build_constpool_im(SageOpCode opcode, int pool_index, Sage
         immediate.as_operand(),
         deref_encoding
     ));
-    total_instruction_count++;
+    increment_total_instruction_count(1);
 }
 
 void BytecodeBuilder::build_puti() {
-    procedures[hash_djb2("puti")] = procedure_frame("puti");
-    procedure_stack.push(hash_djb2("puti"));
-    build_im(OP_LABEL, hash_djb2("puti"));
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
+    int id = get_procedure_frame_id("puti");
+    procedures[id] = ProcedureFrame("puti");
+    procedure_stack.push(id);
+    build_im(OP_LABEL, id);
     build_im_im(OP_MOV, SAGESYS_write_int, 22);
     build_reg_im(OP_MOV, 1, 10); // save digit count (r1) in temp register r10
     build_reg_im(OP_MOV, 0, 1); // save integer to print into r1
@@ -284,9 +376,13 @@ void BytecodeBuilder::build_puti() {
 }
 
 void BytecodeBuilder::build_puts() {
-    procedures[hash_djb2("puts")] = procedure_frame("puts");
-    procedure_stack.push(hash_djb2("puts"));
-    build_im(OP_LABEL, hash_djb2("puts"));
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
+    int id = get_procedure_frame_id("puts");
+    procedures[id] = ProcedureFrame("puts");
+    procedure_stack.push(id);
+    build_im(OP_LABEL, id);
     build_im_im(OP_MOV, SYS_write, 22);
     build_reg_im(OP_MOV, 1, 10);
     build_reg_im(OP_MOV, 0, 1);
@@ -385,7 +481,7 @@ ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
 
 ui32 SageCompiler::build_function_with_block(string function_name) {
     builder.new_frame(function_name);
-    builder.build_im(OP_LABEL, hash_djb2(function_name));
+    builder.build_im(OP_LABEL, get_procedure_frame_id(function_name));
     return SAGE_NULL_SYMBOL;
 }
 
@@ -480,7 +576,7 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, int table_index) {
     symbol_entry *symbol = symbol_table.lookup_by_index(table_index);
     string function_name = symbol->identifier;
     if (args.size() > 6) {
-        logger.log_internal_error(
+        logger.log_internal_error_unsafe(
             "builders.cpp",
             current_linenum,
             sen(function_name, "with more than 6 arguments is unimplemented."));
@@ -504,7 +600,7 @@ ui32 SageCompiler::build_function_call(vector<ui32> args, int table_index) {
         }
     }
 
-    builder.build_im(OP_CALL, hash_djb2(function_name));
+    builder.build_im(OP_CALL, get_procedure_frame_id(function_name));
 
     symbol->assigned_register = 6;
     // TODO: (temporary) when we support more than one return value we will need to beef up the logic around this

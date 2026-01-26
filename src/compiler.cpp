@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <stack>
 #include <queue>
 #include <boost/algorithm/string.hpp>
@@ -13,16 +12,12 @@
 
 using namespace std;
 
-SageCompiler::SageCompiler() {
-}
-
-SageCompiler::SageCompiler(string mainfile)
-    : ast(NULL_INDEX),
-      debug(COMPILATION),
+SageCompiler::SageCompiler()
+    : debug(COMPILATION),
       node_manager(new NodeManager()),
       scope_manager(ScopeManager()),
-      parser(SageParser(&scope_manager, node_manager, mainfile)),
-      interpreter(new SageInterpreter(&symbol_table, 4046)),
+      parser(SageParser(&scope_manager, node_manager)),
+      interpreter(new SageInterpreter(&symbol_table)),
       builder(BytecodeBuilder()) {
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
@@ -49,7 +44,7 @@ SageCompiler::~SageCompiler() {
 
 void SageCompiler::print_bytecode(bytecode &code) {
     int count = 0;
-    for (const auto &[id, frame]: builder.procedures) {
+    for (const auto &[id, frame]: builder.get_active_procedures()) {
         printf("%s: %d\n", frame.name.c_str(), id);
     }
     printf("------------\n");
@@ -59,25 +54,16 @@ void SageCompiler::print_bytecode(bytecode &code) {
     }
 }
 
-NodeIndex SageCompiler::parse_codefile(string target_file) {
-    parser.filename = target_file;
-    NodeIndex parsetree = parser.parse_program(false);
-    if (parsetree == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
-        return NULL_INDEX;
-    }
-    return parsetree;
-}
-
 void SageCompiler::compile_file(string mainfile) {
+    /// 1. INITIAL PROGRAM COMPILATION PASS
     if (!check_filename_valid(mainfile)) {
-        logger.log_error(mainfile, -1, "Program filename is not valid. Make sure it ends in '.sage'", GENERAL);
+        logger.log_error_unsafe(mainfile, -1, "Program filename is not valid. Make sure it ends in '.sage'", GENERAL);
         return;
     }
 
-    NodeIndex ast_root = parser.parse_program(debug == PARSING || debug == ALL);
+    NodeIndex ast_root = parser.parse_program(mainfile);
     if (ast_root == NULL_INDEX) {
-        logger.log_internal_error("compiler.cpp", current_linenum, "AST root was null. Parsing failed.");
+        logger.log_internal_error_unsafe("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
         return;
     }
     if (logger.has_errors()) {
@@ -104,46 +90,25 @@ void SageCompiler::compile_file(string mainfile) {
         return;
     }
 
-    register_allocation();
-    if (logger.has_errors()) {
-        logger.report_errors();
-        return;
-    }
-
-    // compile code
-    visit(ast_root);
-    bytecode code = builder.final(interpreter->proc_line_locations, &symbol_table, generate_compile_time_bytecode);
-
-    //printf("======================\n");
-    //print_bytecode(output);
-    //printf("======================\n");
-
-    builder.reset();
-
-    if (logger.has_errors()) {
-        logger.report_errors();
-        return;
-    }
-
-    // execute run directives
+    // 2. COMPTIME EXECUTION AND PROCESSING
 
 
-    ///////////////
-    interpreter->load_program(code);
+
+
+
+
+
+
+
+    /// 3. RUNTIME GENERATION
+    /// temporary: for now only runtime target is sageVM
+    bytecode runtime_code;
+    interpreter->load_program(runtime_code);
     interpreter->execute();
     interpreter->close();
-    // ^^^^^^^^TEMP!!!
-
     // 3. Compiling to target instructions (if sagevm not the target)
-
     // 4. Linking
     /*bool success = emit_and_link_llvm(module, "sage.out"); */
-
-    // if (success) {
-    //     printf("Compilation finished successfully.\n");
-    // }else {
-    //     printf("Compilation finished unsuccessfully.\n");
-    // }
 }
 
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
@@ -301,7 +266,7 @@ void SageCompiler::perform_type_resolution() {
                 symbol_table.entries[idx].type = symbol_table.resolve_function_type(idx);
                 break;
             default:
-                logger.log_internal_error(
+                logger.log_internal_error_unsafe(
                     "compiler.cpp",
                     current_linenum,
                     "Type resolution encountered unknown symbol type");
@@ -313,7 +278,7 @@ void SageCompiler::perform_type_resolution() {
 bool SageCompiler::check_filename_valid(const string &filename) {
     // validate that file is valid
     if (filename.find('.') == string::npos) {
-        logger.log_error(filename, -1, "cannot target files that have no file extension.", GENERAL);
+        logger.log_error_unsafe(filename, -1, "cannot target files that have no file extension.", GENERAL);
         return false;
     }
 
@@ -321,7 +286,7 @@ bool SageCompiler::check_filename_valid(const string &filename) {
     boost::split(delimited, filename, boost::is_any_of("."));
 
     if (delimited[1] != "sage") {
-        logger.log_error(filename, -1, "cannot target non-sage source files.", GENERAL);
+        logger.log_error_unsafe(filename, -1, "cannot target non-sage source files.", GENERAL);
         return false;
     }
 
@@ -416,7 +381,7 @@ void SageCompiler::get_in_degree_of(
             if (symbol_table.builtins.find(symbol->symbol_id) != symbol_table.builtins.end()) { return; }
             if (symbol->definition_ast_index == -1) {
                 Token found_tok = node_manager->get_token(current_node);
-                logger.log_error(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
+                logger.log_error_unsafe(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
                 return;
             }
 
@@ -486,7 +451,7 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 
         if (visited.find(current) != visited.end()) {
             auto token = node_manager->get_token(identifier_to_ast[current]);
-            logger.log_error(token, sen("Invalid redefinition of symbol:", current), SEMANTIC);
+            logger.log_error_unsafe(token, sen("Invalid redefinition of symbol:", current), SEMANTIC);
             break;
         }
 

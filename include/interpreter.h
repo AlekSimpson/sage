@@ -62,9 +62,9 @@ public:
     bool vm_running = false;
 
     SageInterpreter();
-    SageInterpreter(SageSymbolTable *table, int stack_size);
+    SageInterpreter(SageSymbolTable *table);
 
-    void open();
+    void open(map<int, int>, int stack_size);
     void close();
     int store_in_heap(SageValue value);
     void load_program(bytecode program);
@@ -72,6 +72,7 @@ public:
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
     vector<SageValue> dereference_map(instruction*, int [4]);
+    SageValue get_return_value() const;
 
     void execute_add(vector<SageValue>);
     void execute_sub(vector<SageValue>);

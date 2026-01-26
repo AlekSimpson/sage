@@ -19,12 +19,10 @@ int decide_precedence_inc(TokenType curr_op_type, TokenType op_type);
 SageParser::SageParser() {
 }
 
-SageParser::SageParser(ScopeManager *scope_manager, NodeManager *node_manager, string filename) {
-    lexer = new SageLexer(filename);
-
+SageParser::SageParser(ScopeManager *scope_manager, NodeManager *node_manager) {
+    lexer = nullptr;
     this->scope_manager = scope_manager;
     this->node_manager = node_manager;
-    this->filename = filename;
     current_token = nullptr;
     node_cache = NULL_INDEX;
     errors = vector<Token>();
@@ -37,8 +35,28 @@ SageParser::~SageParser() {
     }
 }
 
-NodeIndex SageParser::parse_program(bool debug_lexer) {
-    current_token = lexer->get_token();
+NodeIndex SageParser::parse_fragment(const string &source, const string &fragment_name, bool debug_lexer) {
+    istringstream charbuffer(source);
+    this->sourcename = fragment_name;
+    symbol_count = 0;
+    errors = vector<Token>();
+    fragment_mode = true;
+    lexer = new SageLexer(charbuffer, sourcename);
+    advance();
+
+
+
+    return NULL_INDEX;
+}
+
+NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
+    ifstream charbuffer(filename);
+    this->sourcename = filename;
+    symbol_count = 0;
+    errors = vector<Token>();
+    fragment_mode = false;
+    lexer = new SageLexer(charbuffer, filename);
+    advance();
 
     // Global scope is already created in ScopeManager constructor
 
@@ -66,6 +84,7 @@ NodeIndex SageParser::parse_program(bool debug_lexer) {
 
     // Global scope doesn't need to be exited
 
+    delete lexer;
     return program_root;
 }
 
@@ -140,7 +159,7 @@ NodeIndex SageParser::parse_run_directive() {
     scope_manager->enter_scope("#run", current_token->linenum);
 
     if (current_token->token_type != TT_KEYWORD || current_token->lexeme != "run") {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Expected 'run' keyword in run directive statement.",
             SYNTAX);
@@ -168,7 +187,7 @@ NodeIndex SageParser::parse_value_dec() {
 
     NodeIndex type_identifier_node = parse_type();
     if (type_identifier_node == NULL_INDEX) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Found invalid type in value declaration list.",
             SYNTAX);
@@ -211,7 +230,7 @@ NodeIndex SageParser::parse_value_dec_list() {
     }
 
     if (!match_types(current_token->token_type, TT_IDENT)) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Expecting value dec to begin with identifier.",
             SYNTAX);
@@ -228,7 +247,7 @@ NodeIndex SageParser::parse_value_dec_list() {
         NodeIndex value_dec = parse_value_dec();
 
         if (node_manager->get_host_nodetype(value_dec) == PN_TRINARY) {
-            ErrorLogger::get().log_error(
+            ErrorLogger::get().log_error_unsafe(
                 *current_token,
                 "Cannot initialize value in value declaration list.",
                 SYNTAX);
@@ -331,7 +350,7 @@ NodeIndex SageParser::parse_keyword_statement() {
             break;
     }
 
-    ErrorLogger::get().log_error(
+    ErrorLogger::get().log_error_unsafe(
         *current_token,
         "Could not recognize statement.",
         SYNTAX);
@@ -362,7 +381,7 @@ NodeIndex SageParser::parse_if_statement() {
         scope_manager->enter_scope("else", current_token->linenum);
 
         if (current_token->lexeme != "if" && current_token->lexeme != "{") {
-            ErrorLogger::get().log_error(
+            ErrorLogger::get().log_error_unsafe(
                 *current_token,
                 "Expected body or if statements after else keywords.",
                 SYNTAX);
@@ -416,7 +435,7 @@ NodeIndex SageParser::parse_for_statement() {
     scope_manager->enter_scope("for", current_token->linenum);
 
     if (match_types(current_token->token_type, TT_IDENT)) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "For statement expects iterator name.",
             SYNTAX);
@@ -438,7 +457,7 @@ NodeIndex SageParser::parse_for_statement() {
     advance(); // move past iterator
 
     if (current_token->lexeme != "in") {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Expected 'in' keyword in for statement.",
             SYNTAX);
@@ -473,7 +492,7 @@ NodeIndex SageParser::parse_range() {
 
 NodeIndex SageParser::parse_construct() {
     if (!match_types(current_token->token_type, TT_IDENT)) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Expected identifier name at the beginning of construct statement.",
             SYNTAX);
@@ -518,7 +537,7 @@ NodeIndex SageParser::parse_construct() {
 
 NodeIndex SageParser::parse_struct() {
     if (current_token->lexeme != "struct") {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             "Expected 'struct' keyword in structure definition.",
             SYNTAX);
@@ -559,7 +578,7 @@ NodeIndex SageParser::parse_function() {
     Token return_type_token = Token();
     if (current_token->token_type != TT_FUNC_RETURN_TYPE) {
         if (current_token->token_type != TT_LBRACE) {
-            ErrorLogger::get().log_error(
+            ErrorLogger::get().log_error_unsafe(
                 *current_token,
                 sen("function that implicitly returns void expected to have '{ ... }' body found",
                     current_token->lexeme, "instead."),
@@ -588,7 +607,7 @@ NodeIndex SageParser::parse_function() {
     consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.");
 
     if (!match_types(current_token->token_type, TT_KEYWORD)) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_unsafe(
             *current_token,
             sen("function must have a return type."),
             SYNTAX);
@@ -692,7 +711,7 @@ NodeIndex SageParser::parse_type() {
 
         TokenType slice[2] = {TT_KEYWORD, TT_IDENT};
         if (!matches_any(current_token->token_type, slice, 2)) {
-            ErrorLogger::get().log_error(*current_token, "Expected valid type identifier in array type.", SYNTAX);
+            ErrorLogger::get().log_error_unsafe(*current_token, "Expected valid type identifier in array type.", SYNTAX);
             return NULL_INDEX;
         }
 
@@ -706,7 +725,7 @@ NodeIndex SageParser::parse_type() {
             advance(); // advance past the colon
 
             if (!match_types(current_token->token_type, TT_NUM)) {
-                ErrorLogger::get().log_error(
+                ErrorLogger::get().log_error_unsafe(
                     *current_token,
                     "Expected a number to define the length of the array type declaration.",
                     SYNTAX);
@@ -724,7 +743,7 @@ NodeIndex SageParser::parse_type() {
         }
 
         if (lbracket_nest_count != 0) {
-            ErrorLogger::get().log_error(
+            ErrorLogger::get().log_error_unsafe(
                 *current_token,
                 "Unambiguous array nesting found, please ensure all '[' have a matching ']'.",
                 SYNTAX);
@@ -871,7 +890,7 @@ NodeIndex SageParser::parse_struct_field_access() {
     while (match_types(current_token->token_type, TT_FIELD_ACCESSOR)) {
         advance();
         if (!match_types(current_token->token_type, TT_IDENT)) {
-            ErrorLogger::get().log_error(
+            ErrorLogger::get().log_error_unsafe(
                 *current_token,
                 "Expected identifier in struct field accessor statement.",
                 SYNTAX);
@@ -911,7 +930,7 @@ bool SageParser::matches_any(TokenType type_a, TokenType *possible_types, int ty
 // used to expected certain tokens in the input
 void SageParser::consume(TokenType tokentype, string message) {
     if (current_token->token_type == TT_EOF) {
-        ErrorLogger::get().log_error(*current_token, message, SYNTAX);
+        ErrorLogger::get().log_error_unsafe(*current_token, message, SYNTAX);
         return;
     }
 
@@ -920,7 +939,7 @@ void SageParser::consume(TokenType tokentype, string message) {
         return;
     }
 
-    ErrorLogger::get().log_error(*current_token, message, SYNTAX);
+    ErrorLogger::get().log_error_unsafe(*current_token, message, SYNTAX);
 }
 
 void SageParser::advance() {

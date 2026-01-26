@@ -3,27 +3,38 @@
 #include <map>
 #include <stack>
 
-struct procedure_frame {
+struct ProcedureFrame {
     string name;
     bytecode procedure_instructions;
 
-    procedure_frame() : name("") {
+    ProcedureFrame() : name("") {
     }
 
-    procedure_frame(string name) : name(name) {
+    ProcedureFrame(string name) : name(name) {
     }
 };
 
-int hash_djb2(const std::string &str);
+int get_procedure_frame_id(const std::string &str);
 
-// TODO: honestly this struct could just be apart of the Compiler class
 struct BytecodeBuilder {
-    map<int, procedure_frame> procedures;
-    stack<int> procedure_stack;
-    int total_instruction_count = 0;
-    bool has_main_function = false;
+    map<int, ProcedureFrame> comptime_procedures;
+    map<int, ProcedureFrame> runtime_procedures;
+    stack<int> runtime_procedure_stack;
+    stack<int> comptime_procedure_stack;
+    int comptime_total_instructions = 0;
+    int runtime_total_instructions = 0;
+    bool runtime_has_main_function = false;
+    bool emitting_comptime = false;
 
     BytecodeBuilder();
+
+    map<int, ProcedureFrame> &get_active_procedures();
+    stack<int> &get_active_procedure_stack();
+    int &get_total_instruction_count();
+    void increment_total_instruction_count(int delta);
+
+    void enter_comptime();
+    void exit_comptime();
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);
@@ -38,16 +49,15 @@ struct BytecodeBuilder {
     void build_im_reg(SageOpCode, SageValue, int);
     void build_im_im(SageOpCode, SageValue, SageValue);
     void build_im(SageOpCode, SageValue);
-
-    // Constant pool variants - operand is an index into constant_pool
     void build_constpool_im(SageOpCode, int pool_index, SageValue);
 
-    void build_all_builtins();
     void build_puti();
     void build_puts();
 
     void new_frame(string name);
     void exit_frame();
     void reset();
-    bytecode final(map<int, int>& proc_locations, SageSymbolTable *table, bool is_comptime);
+
+    bytecode finalize_comptime_bytecode(map<int, int> &procedure_line_locations);
+    bytecode finalize_runtime_bytecode(map<int, int> &procedure_line_locations);
 };

@@ -32,11 +32,13 @@ struct symbol_entry {
     int scope_id;
     table_index symbol_id;
     bool spilled;
+    bool is_comptime_constant = false;
 
     symbol_entry();
     symbol_entry(SageValue, string);
     bool type_is_resolved();
     void spill(int offset);
+    bool needs_comptime_resolution();
 };
 
 class SageSymbolTable {
@@ -87,6 +89,7 @@ public:
     table_index declare_variable(NodeIndex ast_id, SageType *valuetype);
     table_index declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment);
     table_index declare_type_symbol(NodeIndex ast_id, SageType *type);
+    table_index declare_comptime_result(const string &name, int scope_id, SageValue value);
 
     // Lookups
     const symbol_entry *global_lookup(const string &name);

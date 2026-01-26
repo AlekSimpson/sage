@@ -279,7 +279,7 @@ uint64_t SageValue::load() {
         default:
             break;
     }
-    ErrorLogger::get().log_internal_error(
+    ErrorLogger::get().log_internal_error_safe(
         "sage_types.cpp",
         current_linenum,
         "unimplemented load() for function types");
@@ -310,7 +310,7 @@ bool SageValue::equals(const SageValue &other) {
         default:
             break;
     }
-    ErrorLogger::get().log_internal_error(
+    ErrorLogger::get().log_internal_error_safe(
         "sage_types.cpp",
         current_linenum,
         "Unknown sage type encountered");
@@ -326,6 +326,16 @@ SageType *TypeRegistery::get_builtin_type(CanonicalType canonical_type, int byte
     if (it != builtin_types.end()) return it->second.get();
 
     auto type = std::make_unique<SageBuiltinType>(canonical_type, bytesize, bytesize);
+    builtin_types[key] = std::move(type);
+    return builtin_types[key].get();
+}
+
+SageType *TypeRegistery::get_pending_comptime_type() {
+    auto key = std::make_pair(PENDING_COMPTIME, 1);
+    auto it = builtin_types.find(key);
+    if (it != builtin_types.end()) return it->second.get();
+
+    auto type = std::make_unique<SageBuiltinType>(PENDING_COMPTIME, 1, 1);
     builtin_types[key] = std::move(type);
     return builtin_types[key].get();
 }

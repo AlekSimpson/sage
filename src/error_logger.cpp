@@ -115,22 +115,97 @@ ErrorLogger::ErrorLogger() {
 }
 
 ErrorLogger::~ErrorLogger() {
-    // if (internal_errors.size() > 0) {
-    //     ofstream outfile(outfile_name, ios::app);
-    //     string fulllog = "";
-    //     for (int i = 0; i < internal_errors.size(); ++i) {
-    //         fulllog = fulllog + internal_errors[i]->print();
-    //     }
-    //     outfile << fulllog;
-    //     outfile.close();
-    // }
+    if (!pending_comptime_errors.empty()) {
+        collect_pending_errors();
+    }
 
     for (int i = 0; i < error_amount + warning_amount; ++i) {
         delete errors[i];
     }
 }
 
-void ErrorLogger::log_internal_error(
+void ErrorLogger::collect_pending_errors() {
+    SageError *error;
+    set<size_t> reported_error_hashes;
+    while (!pending_comptime_errors.empty()) {
+        error = pending_comptime_errors.front();
+        pending_comptime_errors.pop();
+
+        if (reported_error_hashes.find(error->hash()) != reported_error_hashes.end()) {
+            delete error;
+            continue;
+        }
+
+        errors.push_back(error);
+        if ((error->error_type != WARNING && !warnings_are_errors) && error->error_type != INTERNAL) {
+            error_amount++;
+        }
+    }
+}
+
+void ErrorLogger::log_internal_error_safe(
+    string sourcefile,
+    int lineno,
+    string message) {
+    // note: it says this memory will leak but im not really sure thats the case because we will collect the errors in the destructor to ensure all comptime errors also get freed
+    SageError *error = new SageError(
+        message,
+        sourcefile,
+        lineno,
+        0,
+        INTERNAL);
+
+    lock_guard<mutex> lock(error_mutex);
+    pending_comptime_errors.push(error);
+}
+
+void ErrorLogger::log_error_safe(
+    string filename,
+    int lineno,
+    string message,
+    ErrorType type) {
+    SageError *error = new SageError(
+        message,
+        filename,
+        lineno,
+        0,
+        type);
+
+    lock_guard<mutex> lock(error_mutex);
+    pending_comptime_errors.push(error);
+}
+
+void ErrorLogger::log_error_safe(
+    Token &token,
+    string message,
+    ErrorType type) {
+    SageError *error = new SageError(
+        message,
+        token.filename,
+        token.linenum,
+        token.linedepth,
+        type);
+
+    lock_guard<mutex> lock(error_mutex);
+    pending_comptime_errors.push(error);
+}
+
+void ErrorLogger::log_warning_safe(
+    Token &token,
+    string message,
+    ErrorType type) {
+    SageError *error = new SageError(
+        message,
+        token.filename,
+        token.linenum,
+        token.linedepth,
+        type);
+
+    lock_guard<mutex> lock(error_mutex);
+    pending_comptime_errors.push(error);
+}
+
+void ErrorLogger::log_internal_error_unsafe(
     string sourcefile,
     int lineno,
     string message) {
@@ -150,7 +225,7 @@ void ErrorLogger::log_internal_error(
     error_hashes.insert(error->hash());
 }
 
-void ErrorLogger::log_error(
+void ErrorLogger::log_error_unsafe(
     string filename,
     int lineno,
     string message,
@@ -173,7 +248,7 @@ void ErrorLogger::log_error(
     error_hashes.insert(error->hash());
 }
 
-void ErrorLogger::log_error(
+void ErrorLogger::log_error_unsafe(
     Token &token,
     string message,
     ErrorType type) {
@@ -195,7 +270,7 @@ void ErrorLogger::log_error(
     error_hashes.insert(error->hash());
 }
 
-void ErrorLogger::log_warning(
+void ErrorLogger::log_warning_unsafe(
     Token &token,
     string message,
     ErrorType type) {

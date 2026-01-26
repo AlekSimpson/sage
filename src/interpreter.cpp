@@ -28,15 +28,16 @@ StackFrame::StackFrame()
 SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {
 }
 
-SageInterpreter::SageInterpreter(SageSymbolTable *table, int stack_size) : symbol_table(table) {
-    stack.reserve(stack_size);
-    frame_pointer = new StackFrame();
+SageInterpreter::SageInterpreter(SageSymbolTable *table) : symbol_table(table), frame_pointer(nullptr) {}
+
+SageValue SageInterpreter::get_return_value() const {
+    return register_to_value(registers[6]);
 }
 
 void SageInterpreter::push_stack_scope(int func_id) {
     int32_t return_address = program_pointer + 1;
     if (return_address + 1 == (int) stack.capacity()) {
-        ErrorLogger::get().log_error(
+        ErrorLogger::get().log_error_safe(
             "interpreter.cpp",
             current_linenum,
             "stackoverflow", GENERAL);
@@ -89,7 +90,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
                 if (raw_operands[i] >= 0 && raw_operands[i] < (int) symbol_table->constants.size()) {
                     return_values.push_back(symbol_table->entries[raw_operands[i]].value);
                 } else {
-                    ErrorLogger::get().log_internal_error(
+                    ErrorLogger::get().log_internal_error_safe(
                         "interpreter.cpp",
                         current_linenum,
                         "constant pool index out of bounds");
@@ -108,7 +109,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
 
 void SageInterpreter::execute_add(vector<SageValue> operands) {
     if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 3 operands but less were found!");
@@ -129,7 +130,7 @@ void SageInterpreter::execute_add(vector<SageValue> operands) {
 
 void SageInterpreter::execute_sub(vector<SageValue> operands) {
     if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 3 operands but less were found!");
@@ -150,7 +151,7 @@ void SageInterpreter::execute_sub(vector<SageValue> operands) {
 
 void SageInterpreter::execute_mul(vector<SageValue> operands) {
     if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 3 operands but less were found!");
@@ -171,7 +172,7 @@ void SageInterpreter::execute_mul(vector<SageValue> operands) {
 
 void SageInterpreter::execute_div(vector<SageValue> operands) {
     if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 3 operands but less were found!");
@@ -179,7 +180,7 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
     }
 
     if (operands[2].value.int_value == 0) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 3 operands but less were found!");
@@ -200,7 +201,7 @@ void SageInterpreter::execute_div(vector<SageValue> operands) {
 
 void SageInterpreter::execute_load(vector<SageValue> operands) {
     if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 2 operands but less were found!");
@@ -213,7 +214,7 @@ void SageInterpreter::execute_load(vector<SageValue> operands) {
 
 void SageInterpreter::execute_store(vector<SageValue> operands) {
     if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 2 operands but less were found!");
@@ -227,7 +228,7 @@ void SageInterpreter::execute_store(vector<SageValue> operands) {
 
 void SageInterpreter::execute_mov(vector<SageValue> operands) {
     if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error(
+        ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
             "execution requires 2 operands but less were found!");
@@ -408,7 +409,7 @@ void SageInterpreter::execute() {
                 vm_running = false;
                 continue;
             default:
-                ErrorLogger::get().log_internal_error(
+                ErrorLogger::get().log_internal_error_safe(
                     "interpreter.cpp",
                     current_linenum,
                     "VM tried to execute unrecognized bytecode");
@@ -429,11 +430,17 @@ int SageInterpreter::store_in_heap(SageValue value) {
     return pointer;
 }
 
-void SageInterpreter::open() {
+void SageInterpreter::open(map<int, int> procedure_line_locations, int stack_size) {
     if (frame_pointer == nullptr) frame_pointer = new StackFrame();
+    stack.reserve(stack_size);
+    proc_line_locations = procedure_line_locations;
+    vm_running = false;
 }
 
 void SageInterpreter::close() {
+    heap.clear();
+    stack.clear();
+    program.clear();
     // deinit stackframe when done with interpreter
     if (frame_pointer != nullptr) {
         if (frame_pointer->previous_frame == nullptr) {

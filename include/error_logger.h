@@ -3,6 +3,9 @@
 #include <sstream>
 #include <vector>
 #include <set>
+#include <mutex>
+#include <queue>
+
 #include "token.h"
 using namespace std;
 
@@ -41,6 +44,10 @@ class ErrorLogger {
 private:
   vector<SageError*> errors;
   vector<SageError*> internal_errors;
+
+  mutex error_mutex;
+  queue<SageError*> pending_comptime_errors;
+
   set<size_t> error_hashes;
   int error_amount = 0;
   int warning_amount = 0;
@@ -57,12 +64,21 @@ public:
 
   static ErrorLogger &get();
 
-  void log_internal_error(string sourcefile, int lineno, string message);
-  void log_error(Token &token, string message, ErrorType type);
-  void log_error(string filename, int lineno, string message, ErrorType);
-  void log_warning(Token &token, string message, ErrorType type);
+  // thread safe
+  void log_internal_error_safe(string sourcefile, int lineno, string message);
+  void log_error_safe(Token &token, string message, ErrorType type);
+  void log_error_safe(string filename, int lineno, string message, ErrorType);
+  void log_warning_safe(Token &token, string message, ErrorType type);
+
+  // non thread safe
+  void log_internal_error_unsafe(string sourcefile, int lineno, string message);
+  void log_error_unsafe(Token &token, string message, ErrorType type);
+  void log_error_unsafe(string filename, int lineno, string message, ErrorType);
+  void log_warning_unsafe(Token &token, string message, ErrorType type);
+
   bool has_errors();
   void report_errors();
+  void collect_pending_errors();
 };
 
 struct SageError {

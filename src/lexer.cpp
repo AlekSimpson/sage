@@ -8,31 +8,30 @@
 
 using namespace std;
 
-SageLexer::SageLexer(string fname) {
-    filename = fname;
+SageLexer::SageLexer(istream &stream, string sourcename): char_buffer(stream), sourcename(sourcename) {
     linenum = 1;
     linedepth = 0;
     current_token = new Token();
-    char_buffer.open(fname);
     last_token = Token();
     peeked_tokens = stack<Token>();
 }
 
-SageLexer::SageLexer() {
-    filename = "";
-    linenum = 0;
-    linedepth = 0;
-    current_token = new Token();
-    // char_buffer.open(fname);
-    last_token = Token();
-    peeked_tokens = stack<Token>();
-}
+//SageLexer::SageLexer() {
+//    filename = "";
+//    linenum = 0;
+//    linedepth = 0;
+//    current_token = new Token();
+//    char_buffer = nullptr;
+//    // char_buffer.open(fname);
+//    last_token = Token();
+//    peeked_tokens = stack<Token>();
+//}
 
 SageLexer::~SageLexer() {
     delete current_token;
-    if (char_buffer.is_open()) {
-        char_buffer.close();
-    }
+    //if (char_buffer.is_open()) {
+    //    char_buffer.close();
+    //}
 }
 
 Token *SageLexer::check_for_string() {
@@ -184,7 +183,7 @@ Token *SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
 
     current_token->lexeme = lexeme;
     current_token->token_type = type;
-    current_token->filename = this->filename;
+    current_token->filename = this->sourcename;
     current_token->linenum = this->linenum;
     current_token->linedepth = d;
     return current_token;
@@ -325,7 +324,7 @@ Token *SageLexer::get_token() {
 
     string undefined_lexeme = str(current_char);
     tok = lexer_make_token(TT_ERROR, "unrecognized symbol");
-    ErrorLogger::get().log_error(*tok, sen("unrecognized symbol:", undefined_lexeme), SYNTAX);
+    ErrorLogger::get().log_error_unsafe(*tok, sen("unrecognized symbol:", undefined_lexeme), SYNTAX);
     last_token = *tok;
     return tok;
 }

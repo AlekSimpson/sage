@@ -17,7 +17,8 @@ enum CanonicalType {
     POINTER,
     ARRAY,
     FUNC,
-    CUSTOM
+    CUSTOM,
+    PENDING_COMPTIME
 };
 
 class SageType {
@@ -116,6 +117,7 @@ private:
     function_types;
 
 public:
+    static SageType *get_pending_comptime_type();
     static SageType *get_builtin_type(CanonicalType canonical_type, int bytesize);
     static SageType *get_byte_type(CanonicalType canonical_type);
     static SageType *get_float_type(int size);

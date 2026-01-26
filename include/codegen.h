@@ -7,6 +7,7 @@
 #include "node_manager.h"
 #include "symbols.h"
 #include "bytecode_builder.h"
+#include "comptime_manager.h"
 #include "sage_bytecode.h"
 
 #define ui32 uint32_t
@@ -28,7 +29,6 @@ enum debug_level {
 
 class SageCompiler {
 public:
-  NodeIndex ast;
   debug_level debug;
 
   NodeManager *node_manager;
@@ -38,8 +38,9 @@ public:
   SageSymbolTable symbol_table;
   SageInterpreter *interpreter;
   BytecodeBuilder builder;
+  ComptimeManager comptime_manager;
 
-  bool generate_compile_time_bytecode = false;
+  bool generating_compile_time_bytecode = false;
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
 
@@ -48,13 +49,12 @@ public:
   map<string, int> in_degree_map;
 
   SageCompiler();
-  SageCompiler(string mainfile);
   ~SageCompiler();
 
   bool check_filename_valid(const string &filename);
-  NodeIndex parse_codefile(string target_file);
   void compile_file(string mainfile);
 
+  void create_comptime_tasks();
   void register_allocation();
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);
@@ -94,6 +94,7 @@ public:
   ui32 visit_vardec(NodeIndex);
   ui32 visit_varassign(NodeIndex);
   ui32 visit_funcret(NodeIndex);
+  ui32 visit_run_directive(NodeIndex);
 
   ui32 visit_expression(NodeIndex);
   //ui32 visit_varref(NodeIndex);

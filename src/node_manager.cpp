@@ -361,6 +361,70 @@ NodeIndex NodeManager::create(AbstractParseNode *node, ParseNodeType hosttype) {
     return index;
 }
 
+NodeIndex NodeManager::get_parent(NodeIndex childnode) {
+    return parent_map[childnode];
+}
+
+void NodeManager::set_parent(NodeIndex new_parent, NodeIndex new_child) {
+    parent_map[new_child] = new_parent;
+}
+
+void NodeManager::mark_modified(NodeIndex node) { modified_subtrees.insert(node); }
+
+bool NodeManager::has_modifications() const { return !modified_subtrees.empty(); }
+
+void NodeManager::replace_node(NodeIndex old_node, NodeIndex new_node) {
+    NodeIndex parent = get_parent(old_node);
+    if (parent == NULL_INDEX) return;
+
+    auto& pbox = container[parent];
+
+    // Handle binary/trinary node references
+    if (pbox.host_type == PN_BINARY) {
+        auto* bin = static_cast<BinaryParseNode*>(pbox.node);
+        if (bin->left == old_node) bin->left = new_node;
+        if (bin->right == old_node) bin->right = new_node;
+    } else if (pbox.host_type == PN_TRINARY) {
+        auto* tri = static_cast<TrinaryParseNode*>(pbox.node);
+        if (tri->left == old_node) tri->left = new_node;
+        if (tri->middle == old_node) tri->middle = new_node;
+        if (tri->right == old_node) tri->right = new_node;
+    }
+
+    // Handle block children
+    if (pbox.host_type == PN_BLOCK) {
+        auto* blk = static_cast<BlockParseNode*>(pbox.node);
+        for (auto& child : blk->children) {
+            if (child == old_node) child = new_node;
+        }
+    }
+
+    set_parent(new_node, parent);
+    mark_modified(parent);
+}
+
+void NodeManager::splice_nodes(NodeIndex target, vector<NodeIndex> replacements) {
+    NodeIndex parent = get_parent(target);
+    if (parent == NULL_INDEX || get_host_nodetype(parent) != PN_BLOCK) return;
+
+    auto* blk = static_cast<BlockParseNode*>(container[parent].node);
+    vector<NodeIndex> new_children;
+
+    for (NodeIndex child : blk->children) {
+        if (child == target) {
+            for (NodeIndex rep : replacements) {
+                new_children.push_back(rep);
+                set_parent(rep, parent);
+            }
+        } else {
+            new_children.push_back(child);
+        }
+    }
+
+    blk->children = std::move(new_children);
+    mark_modified(parent);
+}
+
 void NodeManager::expand_container() {
     int old_capacity = capacity;
     capacity = capacity * 2;

@@ -13,17 +13,25 @@ public:
   SageLexer *lexer;
   Token *current_token;
   NodeIndex node_cache;
-  vector<Token> errors;
-  string filename;
+  vector<Token> errors; // TODO: integrate this with error logger
+  string sourcename;
   NodeManager *node_manager;
   ScopeManager *scope_manager;
   int symbol_count;
 
+  bool fragment_mode = false;
+  int insertion_scope_id = 0;
+
+
   SageParser();
-  SageParser(ScopeManager *scope_manager, NodeManager *node_manager, string filename);
+  SageParser(ScopeManager *scope_manager, NodeManager *node_manager);
   ~SageParser();
 
-  NodeIndex parse_program(bool debug_lexer);
+
+  void set_insertion_scope(int scope_id) { insertion_scope_id = scope_id; }
+
+  NodeIndex parse_fragment(const string &source, const string &fragment_name, bool debug_lexer = false);
+  NodeIndex parse_program(string filename, bool debug_lexer = false);
 
 private:
   // parsing methods

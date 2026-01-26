@@ -34,7 +34,7 @@ ui32 SageCompiler::visit(NodeIndex node) {
         case PN_FUNCCALL:
             return visit_expression(node);
         default:
-            ErrorLogger::get().log_internal_error(
+            ErrorLogger::get().log_internal_error_unsafe(
                 "codegen.cpp",
                 current_linenum,
                 sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)));
@@ -94,7 +94,7 @@ ui32 SageCompiler::visit_keyword(NodeIndex node) {
     if (lexeme == "include") {
         return SAGE_NULL_SYMBOL;
     }
-    ErrorLogger::get().log_internal_error(
+    ErrorLogger::get().log_internal_error_unsafe(
         "codegen.cpp",
         current_linenum,
         sen("found unrecognized keyword:", node_manager->get_lexeme(node)));
@@ -111,7 +111,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     auto scope_id = node_manager->get_scope_id(LHS);
     auto variable_symbol = symbol_table.lookup(lhs_identifier, scope_id);
     if (variable_symbol == nullptr) {
-        logger.log_internal_error("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
+        logger.log_internal_error_unsafe("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
         return SAGE_NULL_SYMBOL;
     }
 
@@ -121,7 +121,7 @@ ui32 SageCompiler::visit_varassign(NodeIndex node) {
     // check expression type against variable type
     auto expression_symbol = symbol_table.lookup_by_index(RHS);
     if (expression_symbol == nullptr) {
-        logger.log_internal_error("codegen.cpp", current_linenum, str("unrecognized symbol: ", RHS_idx));
+        logger.log_internal_error_unsafe("codegen.cpp", current_linenum, str("unrecognized symbol: ", RHS_idx));
         return SAGE_NULL_SYMBOL;
     }
 
@@ -135,7 +135,7 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
     NodeIndex trinary_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(trinary_node);
     if (right_host != PN_TRINARY) {
-        logger.log_internal_error(
+        logger.log_internal_error_unsafe(
             "codegen.cpp",
             current_linenum,
             str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host));
@@ -144,7 +144,7 @@ ui32 SageCompiler::visit_funcdef(NodeIndex node) {
 
     auto return_node = node_manager->get_middle(trinary_node);
     if (node_manager->get_host_nodetype(return_node) != PN_UNARY) {
-        logger.log_internal_error("codegen.cpp", current_linenum, str("expected type node to be UNARY"));
+        logger.log_internal_error_unsafe("codegen.cpp", current_linenum, str("expected type node to be UNARY"));
         return SAGE_NULL_SYMBOL;
     }
 
@@ -174,7 +174,7 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
         string variable_name = node_manager->get_lexeme(lhs);
         symbol_entry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
         if (var_symbol == nullptr) {
-            logger.log_internal_error("codegen.cpp", current_linenum, sen("Symbol declaration was never initialized"));
+            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, sen("Symbol declaration was never initialized"));
             return SAGE_NULL_SYMBOL;
         }
 
@@ -189,7 +189,7 @@ ui32 SageCompiler::visit_vardec(NodeIndex node) {
         symbol_entry *var_symbol = symbol_table.lookup(variable_name, scope_id);
         if (var_symbol == nullptr) {
             auto token = node_manager->get_token(lhs);
-            logger.log_error(token, sen("Reference to undefined symbol: '", variable_name, "'."), GENERAL);
+            logger.log_error_unsafe(token, sen("Reference to undefined symbol: '", variable_name, "'."), GENERAL);
             return SAGE_NULL_SYMBOL;
         }
 
@@ -329,7 +329,7 @@ ui32 SageCompiler::visit_binop(NodeIndex node) {
         case TT_EQUALITY:
             break;
         default:
-            ErrorLogger::get().log_internal_error(
+            ErrorLogger::get().log_internal_error_unsafe(
                 "codegen.cpp",
                 current_linenum,
                 str("Node", node, "recieved incorrect node type for binary operation."));

@@ -22,6 +22,10 @@ void symbol_entry::spill(int offset) {
     spill_offset = offset;
 }
 
+bool symbol_entry::needs_comptime_resolution() {
+    return type->match(TypeRegistery::get_pending_comptime_type());
+}
+
 symbol_entry::symbol_entry() : value(SageValue()),
                                type(nullptr),
                                identifier(""),
