@@ -137,7 +137,7 @@ void ErrorLogger::collect_pending_errors() {
         }
 
         errors.push_back(error);
-        if ((error->error_type != WARNING && !warnings_are_errors) && error->error_type != INTERNAL) {
+        if ((error->error_type != WARNING && !warnings_are_errors)) {
             error_amount++;
         }
     }
@@ -221,6 +221,7 @@ void ErrorLogger::log_internal_error_unsafe(
         return;
     }
 
+    error_amount++;
     errors.push_back(error);
     error_hashes.insert(error->hash());
 }

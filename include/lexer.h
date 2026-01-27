@@ -12,15 +12,15 @@ public:
     Token last_token;
     stack<Token> peeked_tokens;
     //ifstream char_buffer;
-    istream &char_buffer;
+    istream *char_buffer;
     Token *current_token;
     string sourcename;
     int linenum;
     int linedepth;
     char current_char;
 
-    SageLexer(istream &stream, string sourcename);
-    //SageLexer();
+    SageLexer(istream *stream, string sourcename);
+    SageLexer();
     ~SageLexer();
 
     Token *get_token();

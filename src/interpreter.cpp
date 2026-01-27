@@ -329,7 +329,7 @@ void SageInterpreter::execute_syscall() {
 void SageInterpreter::execute() {
     if (frame_pointer == nullptr) return;
 
-    program_pointer = 0;
+    program_pointer = proc_line_locations[get_procedure_frame_id("GLOBAL")];
     registers[STACK_POINTER] = 0;
 
     command current_command;
@@ -343,6 +343,7 @@ void SageInterpreter::execute() {
             break;
         }
         current_command = program[program_pointer];
+        auto debug_string = current_command.print();
 
         operands = dereference_map(&current_command.inst, current_command.deref_map);
         switch (current_command.inst.opcode) {

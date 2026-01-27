@@ -159,7 +159,7 @@ bool ComptimeManager::verify_comptime_dependencies() {
         }
     }
 
-    return logger.has_errors();
+    return !logger.has_errors();
 }
 
 

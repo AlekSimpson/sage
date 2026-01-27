@@ -127,11 +127,11 @@ table_index SageSymbolTable::declare_immediate(SageValue value, string lexeme) {
 table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
-    for (table_index literal: literals) {
-        if (entries[literal].value.equals(value)) {
-            return literal;
-        }
-    }
+    //for (table_index literal: literals) {
+    //    if (entries[literal].value.equals(value)) {
+    //        return literal;
+    //    }
+    //}
 
     symbol_entry entry;
     entry.value = value;

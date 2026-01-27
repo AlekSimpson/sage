@@ -32,6 +32,23 @@ enum CodegenMode {
   GEN_COMPTIME
 };
 
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE};
+
+struct VisitorResult {
+  table_index symbol_table_index = SAGE_NULL_SYMBOL;
+  SageValue immediate_value = SageValue();
+
+  VisitorResult() {};
+  VisitorResult(int value) : immediate_value(SageValue(value)) {}
+  VisitorResult(float value) : immediate_value(SageValue(value)) {}
+  VisitorResult(table_index symbol_index) : symbol_table_index(symbol_index) {}
+
+  bool is_immediate() { return !immediate_value.is_null(); }
+  bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
+  VisitorResultState get_result_state(SageSymbolTable *);
+};
+
+// TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
 public:
   debug_level debug;
@@ -49,7 +66,7 @@ public:
   int volatile_index = 0;
 
   set<string> previously_processed; // for forward decl auto resolution
-  map<string, set<string>> definition_dependencies; // the in degree is just the
+  map<string, set<string>> definition_dependencies;
   map<string, int> in_degree_map;
 
   SageCompiler();
@@ -70,41 +87,38 @@ public:
   void resolve_definition_order(int target_scope);
   void process_escape_sequences(string &str);
 
-  /* builders */
-  ui32 build_store(ui32 rhs, symbol_entry *var_symbol);
-  ui32 build_return(ui32, bool);
-  ui32 build_function_with_block(string);
-  ui32 build_alloca(symbol_entry *var_symbol);
-  ui32 build_add(ui32, ui32);
-  ui32 build_sub(ui32, ui32);
-  ui32 build_div(ui32, ui32);
-  ui32 build_mul(ui32, ui32);
-  ui32 build_and(ui32, ui32);
-  ui32 build_or(ui32, ui32);
-  ui32 build_load(NodeIndex);
-  ui32 build_function_call(vector<ui32>, int);
-  ui32 build_operator(ui32, ui32, SageOpCode);
+  /* builders -- TODO: these can just be inlined into the visitors, most of these don't need to be their own functions */
+  VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
+  VisitorResult build_return(VisitorResult, bool);
+  VisitorResult build_function_with_block(string);
+  VisitorResult build_alloca(symbol_entry *var_symbol);
+  VisitorResult build_add(VisitorResult, VisitorResult);
+  VisitorResult build_sub(VisitorResult, VisitorResult);
+  VisitorResult build_div(VisitorResult, VisitorResult);
+  VisitorResult build_mul(VisitorResult, VisitorResult);
+  VisitorResult build_and(VisitorResult, VisitorResult);
+  VisitorResult build_or(VisitorResult, VisitorResult);
+  VisitorResult build_load(NodeIndex);
+  VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode);
 
   /* visitors */
-  ui32 visit(NodeIndex); // equivalent to visit block
+  VisitorResult visit(NodeIndex);
 
-  ui32 visit_statement(NodeIndex);
-  ui32 visit_keyword(NodeIndex);
-  ui32 visit_funcdef(NodeIndex);
-  ui32 visit_struct(NodeIndex);
-  ui32 visit_if(NodeIndex);
-  ui32 visit_while(NodeIndex);
-  ui32 visit_for(NodeIndex);
-  ui32 visit_vardec(NodeIndex);
-  ui32 visit_varassign(NodeIndex);
-  ui32 visit_funcret(NodeIndex);
-  ui32 visit_run_directive(NodeIndex);
+  VisitorResult visit_statement(NodeIndex);
+  VisitorResult visit_keyword(NodeIndex);
+  VisitorResult visit_function_definition(NodeIndex);
+  VisitorResult visit_struct(NodeIndex);
+  VisitorResult visit_if(NodeIndex);
+  VisitorResult visit_while(NodeIndex);
+  VisitorResult visit_for(NodeIndex);
+  VisitorResult visit_variable_definition(NodeIndex);
+  VisitorResult visit_variable_assign(NodeIndex);
+  VisitorResult visit_function_return(NodeIndex);
 
-  ui32 visit_expression(NodeIndex);
-  //ui32 visit_varref(NodeIndex);
-  ui32 visit_literal(NodeIndex);
-  ui32 visit_funccall(NodeIndex);
-  ui32 visit_binop(NodeIndex);
-  ui32 visit_unop(NodeIndex);
+  VisitorResult visit_expression(NodeIndex);
+  VisitorResult visit_literal(NodeIndex);
+  VisitorResult visit_function_call(NodeIndex);
+  VisitorResult visit_binary_operator(NodeIndex);
+  VisitorResult visit_unary_operator(NodeIndex);
 
 };

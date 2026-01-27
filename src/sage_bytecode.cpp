@@ -36,7 +36,7 @@ command::command(SageOpCode code, int op1, int op2, int op3, int op4, int _map[4
     }
 }
 
-string command::print() {
+string command::print(const map<int, string>* label_names) {
     map<SageOpCode, string> opcode_map = {
         {OP_ADD, "ADD"},
         {OP_SUB, "SUB"},
@@ -118,6 +118,12 @@ string command::print() {
         }
         if (inst.opcode == OP_JMP || inst.opcode == OP_CALL || inst.opcode == OP_LABEL) {
             op1 = str("@", to_string(packer.s));
+            if (label_names) {
+                auto it = label_names->find(packer.s);
+                if (it != label_names->end()) {
+                    op1 = str("@", to_string(packer.s), " (", it->second, ")");
+                }
+            }
         }
 
         return sen(opcode_map[inst.opcode], op1);
@@ -140,6 +146,8 @@ string command::print() {
 
         return sen(opcode_map[inst.opcode], op1, op2);
     }
+
+    // "oh baby, its a triple!"
 
     string op1 = to_string(packer.t.one);
     if (deref_map[0] == 1 || inst.opcode == OP_ADD

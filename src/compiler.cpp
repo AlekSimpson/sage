@@ -45,12 +45,14 @@ SageCompiler::~SageCompiler() {
 
 void SageCompiler::print_bytecode(bytecode &code) {
     int count = 0;
+    map<int, string> label_names;
     for (const auto &[id, frame]: builder.get_active_procedures()) {
+        label_names[id] = frame.name;
         printf("%s: %d\n", frame.name.c_str(), id);
     }
     printf("------------\n");
     for (auto instruction: code) {
-        printf("%d: %s\n", count, instruction.print().c_str());
+        printf("%d: %s\n", count, instruction.print(&label_names).c_str());
         count++;
     }
 }
@@ -175,10 +177,19 @@ void SageCompiler::compile_file(string mainfile) {
     }
 
     /// 3. RUNTIME GENERATION
+
+    register_allocation();
+    if (logger.has_errors()) {
+        logger.report_errors();
+        return;
+    }
+
     codegen_mode = GEN_RUNTIME;
     visit(ast_root);
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
+
+    print_bytecode(runtime_code);
 
     /// 4. RUNTIME EXECUTION
     /// temporary: for now only runtime target is sageVM

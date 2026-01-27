@@ -41,7 +41,7 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
     symbol_count = 0;
     errors = vector<Token>();
     fragment_mode = true;
-    lexer = new SageLexer(charbuffer, sourcename);
+    lexer = new SageLexer(&charbuffer, sourcename);
 
     // Global scope is already created in ScopeManager constructor
 
@@ -69,7 +69,7 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
 
     // Global scope doesn't need to be exited
 
-    delete lexer;
+    //delete lexer;
     return program_root;
 }
 
@@ -79,7 +79,7 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
     symbol_count = 0;
     errors = vector<Token>();
     fragment_mode = false;
-    lexer = new SageLexer(charbuffer, filename);
+    lexer = new SageLexer(&charbuffer, filename);
     advance();
 
     // Global scope is already created in ScopeManager constructor
@@ -108,7 +108,7 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 
     // Global scope doesn't need to be exited
 
-    delete lexer;
+    //delete lexer;
     return program_root;
 }
 

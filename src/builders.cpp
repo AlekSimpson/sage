@@ -159,7 +159,7 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
     return result;
 }
 
-void BytecodeBuilder::build_im(SageOpCode opcode, SageValue op) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue op) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -168,7 +168,7 @@ void BytecodeBuilder::build_im(SageOpCode opcode, SageValue op) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 0, 0};
@@ -182,7 +182,7 @@ void BytecodeBuilder::build_im_im(SageOpCode opcode, SageValue imm1, SageValue i
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_reg(SageOpCode opcode, SageValue immediate, int reg_index) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue immediate, int reg_index) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 0, 0};
@@ -196,7 +196,7 @@ void BytecodeBuilder::build_im_reg(SageOpCode opcode, SageValue immediate, int r
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_im(SageOpCode opcode, int reg_index, SageValue immediate) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg_index, SageValue immediate) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 0, 0};
@@ -210,7 +210,7 @@ void BytecodeBuilder::build_reg_im(SageOpCode opcode, int reg_index, SageValue i
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_reg(SageOpCode opcode, int reg1, int reg2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 0, 0};
@@ -224,7 +224,7 @@ void BytecodeBuilder::build_reg_reg(SageOpCode opcode, int reg1, int reg2) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_im_im(SageOpCode opcode, int reg, SageValue imm1, SageValue imm2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg, SageValue imm1, SageValue imm2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 0, 0};
@@ -239,7 +239,7 @@ void BytecodeBuilder::build_reg_im_im(SageOpCode opcode, int reg, SageValue imm1
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_reg_reg(SageOpCode opcode, int reg1, int reg2, int reg3) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2, int reg3) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 1, 0};
@@ -254,7 +254,7 @@ void BytecodeBuilder::build_reg_reg_reg(SageOpCode opcode, int reg1, int reg2, i
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_im_reg(SageOpCode opcode, int reg1, SageValue immediate, int reg2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, SageValue immediate, int reg2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 0, 1, 0};
@@ -269,7 +269,7 @@ void BytecodeBuilder::build_reg_im_reg(SageOpCode opcode, int reg1, SageValue im
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_reg_reg_im(SageOpCode opcode, int reg1, int reg2, SageValue immediate) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2, SageValue immediate) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {1, 1, 0, 0};
@@ -284,7 +284,7 @@ void BytecodeBuilder::build_reg_reg_im(SageOpCode opcode, int reg1, int reg2, Sa
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_im_im(SageOpCode opcode, SageValue imm1, SageValue imm2, SageValue imm3) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2, SageValue imm3) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 0, 0};
@@ -299,7 +299,7 @@ void BytecodeBuilder::build_im_im_im(SageOpCode opcode, SageValue imm1, SageValu
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_reg_reg(SageOpCode opcode, SageValue immediate, int reg1, int reg2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue immediate, int reg1, int reg2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 1, 0};
@@ -314,7 +314,7 @@ void BytecodeBuilder::build_im_reg_reg(SageOpCode opcode, SageValue immediate, i
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_reg_im(SageOpCode opcode, SageValue imm1, int reg, SageValue imm2) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, int reg, SageValue imm2) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 1, 0, 0};
@@ -329,7 +329,7 @@ void BytecodeBuilder::build_im_reg_im(SageOpCode opcode, SageValue imm1, int reg
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageValue imm2, int reg) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2, int reg) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
     int deref_encoding[4] = {0, 0, 1, 0};
@@ -344,20 +344,6 @@ void BytecodeBuilder::build_im_im_reg(SageOpCode opcode, SageValue imm1, SageVal
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_constpool_im(SageOpCode opcode, int pool_index, SageValue immediate) {
-    int deref_encoding[4] = {4, 0, 0, 0}; // 4 = constant pool dereference
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        pool_index,
-        immediate.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
 void BytecodeBuilder::build_puti() {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
@@ -365,14 +351,14 @@ void BytecodeBuilder::build_puti() {
     int id = get_procedure_frame_id("puti");
     procedures[id] = ProcedureFrame("puti");
     procedure_stack.push(id);
-    build_im(OP_LABEL, id);
-    build_im_im(OP_MOV, SAGESYS_write_int, 22);
-    build_reg_im(OP_MOV, 1, 10); // save digit count (r1) in temp register r10
-    build_reg_im(OP_MOV, 0, 1); // save integer to print into r1
-    build_reg_im(OP_MOV, 10, 2); // save digit count into r2
-    build_im_im(OP_MOV, STDOUT_FILENO, 0); // tell system that this is outputting to stdout
-    build_im(OP_SYSCALL, -1);
-    build_im(OP_RET, -1);
+    build_instruction(OP_LABEL, id);
+    build_instruction(OP_MOV, SageValue(SAGESYS_write_int), 22);
+    build_instruction(OP_MOV, 1, 10); // save digit count (r1) in temp register r10
+    build_instruction(OP_MOV, 0, 1); // save integer to print into r1
+    build_instruction(OP_MOV, 10, 2); // save digit count into r2
+    build_instruction(OP_MOV, STDOUT_FILENO, 0); // tell system that this is outputting to stdout
+    build_instruction(OP_SYSCALL, -1);
+    build_instruction(OP_RET, -1);
     procedure_stack.pop();
 }
 
@@ -383,55 +369,81 @@ void BytecodeBuilder::build_puts() {
     int id = get_procedure_frame_id("puts");
     procedures[id] = ProcedureFrame("puts");
     procedure_stack.push(id);
-    build_im(OP_LABEL, id);
-    build_im_im(OP_MOV, SYS_write, 22);
-    build_reg_im(OP_MOV, 1, 10);
-    build_reg_im(OP_MOV, 0, 1);
-    build_reg_im(OP_MOV, 10, 2);
-    build_im_im(OP_MOV, STDOUT_FILENO, 0);
-    build_im(OP_SYSCALL, -1);
-    build_im(OP_RET, -1);
+    build_instruction(OP_LABEL, id);
+    build_instruction(OP_MOV, SageValue(SYS_write), 22);
+    build_instruction(OP_MOV, 1, 10);  // save digit count (r1) in temp register r10
+    build_instruction(OP_MOV, 0, 1);  // save integer to print into r1
+    build_instruction(OP_MOV, 10, 2);  // save digit count into r2
+    build_instruction(OP_MOV, STDOUT_FILENO, 0);  // tell system that this is outputting to stdout
+    build_instruction(OP_SYSCALL, -1);
+    build_instruction(OP_RET, -1);
     procedure_stack.pop();
 }
 
-ui32 SageCompiler::build_store(ui32 rhs, symbol_entry *var_symbol) {
-    symbol_entry *rhs_symbol = symbol_table.lookup_by_index(rhs);
+VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
+    string for_debugging = var_symbol->identifier;
+    auto right_value_state = right_value.get_result_state(&symbol_table);
+    auto variable_symbol_state = var_symbol->spilled ? VisitorResultState::SPILLED : VisitorResultState::REGISTER ;
 
-    // is it a variable
-    //   is it spilled -> is it stale?
-    //   otherwise it has an assigned register (wont be stale)
-    // is it a literal expr -> used assigned register
-    // is it a literal value
-    //     is it stale?
-
-    table_index idx = rhs_symbol->symbol_id;
-    if (symbol_table.is_variable(idx) || symbol_table.is_parameter(idx)) {
-        if (rhs_symbol->spilled) {
-            // load it from stack offset
-            int dest_reg = get_volatile();
-            builder.build_reg_im(OP_LOAD, dest_reg, rhs_symbol->spill_offset);
-            rhs_symbol->assigned_register = dest_reg;
+    int control_flow_path = ((int)right_value_state * 4) + (int)variable_symbol_state;
+    switch (control_flow_path) {
+        case 4: { /* right_value=IMMEDIATE, var_symbol=SPILLED */
+            builder.build_instruction(OP_STORE, right_value.immediate_value, var_symbol->spill_offset);
+            break;
         }
-    } else if (!rhs_symbol->value.is_null()) {
-        // literal value
-        if (var_symbol->spilled) {
-            builder.build_im_im(OP_STORE, rhs_symbol->value, var_symbol->spill_offset);
-        } else {
-            builder.build_im_im(OP_MOV, rhs_symbol->value, var_symbol->assigned_register);
+        case 5: {
+            /* right_value=SPILLED, var_symbol=SPILLED */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            int temporary_register = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_register, right_variable_symbol->spill_offset);
+            builder.build_instruction(OP_STORE, temporary_register, var_symbol->spill_offset);
+            break;
         }
-        return 0;
+        case 6: {
+            /* right_value=REGISTER, var_symbol=SPILLED */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            builder.build_instruction(OP_STORE, right_variable_symbol->assigned_register, var_symbol->spill_offset);
+            break;
+        }
+        case 7: {
+            /* right_value=VALUE, var_symbol=SPILLED */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            builder.build_instruction(OP_STORE, right_variable_symbol->value, var_symbol->spill_offset);
+            break;
+        }
+        case 8: {
+            /* right_value=IMMEDIATE, var_symbol=REGISTER */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            builder.build_instruction(OP_MOV, right_variable_symbol->assigned_register, var_symbol->assigned_register);
+            break;
+        }
+        case 9: {
+            /* right_value=SPILLED, var_symbol=REGISTER */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            int temporary_register = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_register, right_variable_symbol->spill_offset);
+            builder.build_instruction(OP_MOV, temporary_register, var_symbol->assigned_register);
+            break;
+        }
+        case 10: {
+            /* right_value=REGISTER, var_symbol=REGISTER */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            builder.build_instruction(OP_MOV, right_variable_symbol->assigned_register, var_symbol->assigned_register);
+            break;
+        }
+        case 11: {
+            /* right_value=VALUE, var_symbol=REGISTER */
+            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            builder.build_instruction(OP_MOV, right_variable_symbol->value, var_symbol->assigned_register);
+            break;
+        }
+        default:
+            break;
     }
-
-    if (var_symbol->spilled) {
-        builder.build_reg_im(OP_STORE, rhs_symbol->assigned_register, var_symbol->spill_offset);
-    } else {
-        builder.build_reg_im(OP_MOV, rhs_symbol->assigned_register, var_symbol->assigned_register);
-    }
-
-    return 0;
+    return VisitorResult();
 }
 
-ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
+VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_program_exit) {
     // TODO: doesn't yet support multiple return values
     // this is why we are just by default loading the
     // return value into sr6 because sr6 is the first
@@ -442,170 +454,230 @@ ui32 SageCompiler::build_return(ui32 return_value_id, bool is_program_exit) {
         retcode = VOP_EXIT;
     }
 
-    if (return_value_id == SAGE_NULL_SYMBOL) {
-        builder.build_im(retcode, 0);
+    if (return_value.is_null()) {
+        builder.build_instruction(retcode, 0);
         builder.exit_frame();
-        return SAGE_NULL_SYMBOL;
+        return VisitorResult();
+    }
+    if (return_value.is_immediate()) {
+        builder.build_instruction(OP_MOV, return_value.immediate_value, 6);
+        builder.build_instruction(retcode, 0);
+        builder.exit_frame();
+        return VisitorResult();
     }
 
-    auto return_symbol = symbol_table.lookup_by_index(return_value_id);
-
-    // is it a variable
-    //   is it spilled -> is it stale?
-    //   otherwise it has an assigned register (wont be stale)
-    // is it a literal expr -> used assigned register
-    // is it a literal value
-    //     is it stale?
-
-    table_index symbol_id = return_symbol->symbol_id;
-    bool is_var = (symbol_table.is_variable(symbol_id) || symbol_table.is_parameter(symbol_id));
-
-    if (is_var && return_symbol->spilled) {
-        // load it from stack offset
-        builder.build_reg_im(OP_LOAD, 6, return_symbol->spill_offset);
-        builder.build_im(retcode, 0);
-        builder.exit_frame();
-    } else if (is_var) {
-        builder.build_reg_im(OP_MOV, return_symbol->assigned_register, 6);
-    } else if (!return_symbol->value.is_null()) {
-        // literal value
-        builder.build_im_im(OP_MOV, return_symbol->value, 6);
-    } else {
-        builder.build_reg_im(OP_MOV, return_symbol->assigned_register, 6);
+    switch (return_value.get_result_state(&symbol_table)) {
+        case VisitorResultState::IMMEDIATE: {
+            builder.build_instruction(OP_MOV, return_value.immediate_value, 6);
+            break;
+        }
+        case VisitorResultState::SPILLED: {
+            auto *return_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            int temporary_register = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_register, return_symbol->spill_offset);
+            builder.build_instruction(OP_MOV, temporary_register, 6);
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            auto *return_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            builder.build_instruction(OP_MOV, return_symbol->assigned_register, 6);
+            break;
+        }
+        case VisitorResultState::VALUE: {
+            auto *return_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            builder.build_instruction(OP_MOV, return_symbol->value, 6);
+            break;
+        }
+        default:
+            break;
     }
 
-    builder.build_im(retcode, 0);
+    builder.build_instruction(retcode, 0);
     builder.exit_frame();
-
-    return SAGE_NULL_SYMBOL;
+    return VisitorResult();
 }
 
-ui32 SageCompiler::build_function_with_block(string function_name) {
+VisitorResult SageCompiler::build_function_with_block(string function_name) {
     builder.new_frame(function_name);
-    builder.build_im(OP_LABEL, get_procedure_frame_id(function_name));
-    return SAGE_NULL_SYMBOL;
+    builder.build_instruction(OP_LABEL, get_procedure_frame_id(function_name));
+    return VisitorResult();
 }
 
-ui32 SageCompiler::build_alloca(symbol_entry *var_symbol) {
+VisitorResult SageCompiler::build_alloca(symbol_entry *var_symbol) {
     if (var_symbol->spilled) {
-        builder.build_im_im_im(OP_ADD, STACK_POINTER, STACK_POINTER, 1);
+        builder.build_instruction(OP_ADD, STACK_POINTER, STACK_POINTER, 1);
     }
 
-    return SAGE_NULL_SYMBOL;
+    return VisitorResult();
 }
 
-ui32 SageCompiler::build_operator(ui32 value1_id, ui32 value2_id, SageOpCode opcode) {
-    auto lhs_symbol = symbol_table.lookup_by_index(value1_id);
-    auto rhs_symbol = symbol_table.lookup_by_index(value2_id);
-    SageValue lhs = SageValue();
-    SageValue rhs = SageValue();
-
-    if (lhs_symbol->spilled) {
-        // load it from stack offset
-        int dest_reg = get_volatile();
-        builder.build_reg_im(OP_LOAD, dest_reg, lhs_symbol->spill_offset);
-        lhs_symbol->assigned_register = dest_reg;
-    } else if (!lhs_symbol->value.is_null()) {
-        // literal value
-        lhs = lhs_symbol->value;
-    }
-
-    if (rhs_symbol->spilled) {
-        // load it from stack offset
-        int dest_reg = get_volatile();
-        builder.build_reg_im(OP_LOAD, dest_reg, lhs_symbol->spill_offset);
-        rhs_symbol->assigned_register = dest_reg;
-    } else if (!rhs_symbol->value.is_null()) {
-        // literal value
-        rhs = rhs_symbol->value;
-    }
-
+VisitorResult SageCompiler::build_operator(VisitorResult value1, VisitorResult value2, SageOpCode opcode) {
     int result_register = get_volatile();
-    if (lhs.is_null() && rhs.is_null()) {
-        builder.build_im_reg_reg(opcode, result_register, lhs_symbol->assigned_register, rhs_symbol->assigned_register);
-    } else if (lhs.is_null() && !rhs.is_null()) {
-        builder.build_im_reg_im(opcode, result_register, lhs_symbol->assigned_register, rhs);
-    } else if (!lhs.is_null() && rhs.is_null()) {
-        builder.build_im_im_reg(opcode, result_register, lhs, rhs_symbol->assigned_register);
-    } else if (!lhs.is_null() && !rhs.is_null()) {
-        builder.build_im_im_im(opcode, result_register, lhs, rhs);
+    int control_path_id = ((int)value1.get_result_state(&symbol_table) * 4) + (int)value2.get_result_state(&symbol_table);
+    switch (control_path_id) {
+        case 0:
+            builder.build_instruction(opcode, result_register, value1.immediate_value, value2.immediate_value);
+            break;
+        case 1: {
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            int temporary_result = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result, value2_entry->spill_offset);
+            builder.build_instruction(opcode, result_register, value1.immediate_value, temporary_result);
+            break;
+        }
+        case 2: {
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            builder.build_instruction(opcode, result_register, value1.immediate_value, value2_entry->assigned_register);
+            break;
+        }
+        case 3: {
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            builder.build_instruction(opcode, result_register, value1.immediate_value, value2_entry->value);
+            break;
+        }
+        case 4: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            int temporary_result = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result, value1_entry->spill_offset);
+            builder.build_instruction(opcode, result_register, temporary_result, value2.immediate_value);
+            break;
+        }
+        case 5: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            int temporary_result1 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result1, value1_entry->spill_offset);
+
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            int temporary_result2 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result2, value2_entry->spill_offset);
+
+            builder.build_instruction(opcode, result_register, temporary_result1, temporary_result2);
+            break;
+        }
+        case 6: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            int temporary_result1 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result1, value1_entry->spill_offset);
+
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            builder.build_instruction(opcode, result_register, temporary_result1, value2_entry->assigned_register);
+            break;
+        }
+        case 7: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            int temporary_result1 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result1, value1_entry->spill_offset);
+
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            builder.build_instruction(opcode, result_register, temporary_result1, value2_entry->value);
+            break;
+        }
+        case 8: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2.immediate_value);
+            break;
+        }
+        case 9: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            int temporary_result2 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result2, value2_entry->spill_offset);
+
+            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, temporary_result2);
+            break;
+        }
+        case 10: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2_entry->assigned_register);
+            break;
+        }
+        case 11: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2_entry->value);
+            break;
+        }
+        case 12: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->value, value2.immediate_value);
+            break;
+        }
+        case 13: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+            int temporary_result2 = get_volatile();
+            builder.build_instruction(OP_LOAD, temporary_result2, value2_entry->spill_offset);
+
+            builder.build_instruction(opcode, result_register, value1_entry->value, temporary_result2);
+            break;
+        }
+        case 14: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->value, value2_entry->assigned_register);
+            break;
+        }
+        case 15: {
+            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
+            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
+
+            builder.build_instruction(opcode, result_register, value1_entry->value, value2_entry->value);
+            break;
+        }
+        default:
+            logger.log_internal_error_unsafe(
+                "builders.cpp",
+                current_linenum,
+                "build operator tried to execute an invalid operator control path.");
+            break;
     }
 
-    ui32 result_symbol_id = symbol_table.declare_temporary(result_register);
-    return result_symbol_id;
+    return VisitorResult((table_index)symbol_table.declare_temporary(result_register));
 }
 
-ui32 SageCompiler::build_add(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_add(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_ADD);
 }
 
-ui32 SageCompiler::build_sub(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_sub(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_SUB);
 }
 
-ui32 SageCompiler::build_mul(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_mul(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_MUL);
 }
 
-ui32 SageCompiler::build_div(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_div(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_DIV);
 }
 
-ui32 SageCompiler::build_and(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_and(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_AND);
 }
 
-ui32 SageCompiler::build_or(ui32 value1, ui32 value2) {
+VisitorResult SageCompiler::build_or(VisitorResult value1, VisitorResult value2) {
     return build_operator(value1, value2, OP_OR);
 }
 
-ui32 SageCompiler::build_load(NodeIndex reference_node) {
+VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
     string reference_name = node_manager->get_identifier(reference_node);
     int scope_id = node_manager->get_scope_id(reference_node);
     auto symbol = symbol_table.lookup(reference_name, scope_id);
 
     if (symbol->spilled) {
         int volatile_reg = get_volatile();
-        builder.build_reg_im(OP_LOAD, volatile_reg, symbol->spill_offset);
+        builder.build_instruction(OP_LOAD, volatile_reg, symbol->spill_offset);
         symbol->assigned_register = volatile_reg;
     }
 
     return symbol_table.lookup_table_index(reference_name, scope_id);
-}
-
-ui32 SageCompiler::build_function_call(vector<ui32> args, int table_index) {
-    symbol_entry *symbol = symbol_table.lookup_by_index(table_index);
-    string function_name = symbol->identifier;
-    if (args.size() > 6) {
-        logger.log_internal_error_unsafe(
-            "builders.cpp",
-            current_linenum,
-            sen(function_name, "with more than 6 arguments is unimplemented."));
-        return SAGE_NULL_SYMBOL;
-    }
-
-    symbol_entry *param_symbol;
-    for (int i = 0; i < (int) args.size(); ++i) {
-        param_symbol = symbol_table.lookup_by_index(args[i]);
-
-        if (param_symbol->spilled) {
-            // is either a parameter or variable
-            builder.build_reg_im(OP_LOAD, i, param_symbol->spill_offset);
-        } else if (symbol_table.is_constant(param_symbol->symbol_id)) {
-            // Value is in constant pool - use constant pool dereference
-            builder.build_constpool_im(OP_MOV, param_symbol->symbol_id, i);
-        } else if (!param_symbol->value.is_null()) {
-            builder.build_im_im(OP_MOV, param_symbol->value, i);
-        } else {
-            builder.build_reg_im(OP_MOV, param_symbol->assigned_register, i);
-        }
-    }
-
-    builder.build_im(OP_CALL, get_procedure_frame_id(function_name));
-
-    symbol->assigned_register = 6;
-    // TODO: (temporary) when we support more than one return value we will need to beef up the logic around this
-    return table_index;
 }
 
 void SageCompiler::process_escape_sequences(string &str) {

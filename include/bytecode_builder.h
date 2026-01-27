@@ -36,20 +36,21 @@ struct BytecodeBuilder {
     void enter_comptime();
     void reset_and_exit_comptime();
 
-    void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
-    void build_reg_reg_im(SageOpCode, int, int, SageValue);
-    void build_reg_im_reg(SageOpCode, int, SageValue, int);
-    void build_reg_reg_reg(SageOpCode, int, int, int);
-    void build_reg_im_im(SageOpCode, int, SageValue, SageValue);
-    void build_im_reg_reg(SageOpCode, SageValue, int, int);
-    void build_im_reg_im(SageOpCode, SageValue, int, SageValue);
-    void build_im_im_reg(SageOpCode, SageValue, SageValue, int);
-    void build_reg_reg(SageOpCode, int, int);
-    void build_reg_im(SageOpCode, int, SageValue);
-    void build_im_reg(SageOpCode, SageValue, int);
-    void build_im_im(SageOpCode, SageValue, SageValue);
-    void build_im(SageOpCode, SageValue);
-    void build_constpool_im(SageOpCode, int pool_index, SageValue);
+    void build_instruction(SageOpCode, SageValue, SageValue, SageValue);
+    void build_instruction(SageOpCode, int, int, SageValue);
+    void build_instruction(SageOpCode, int, SageValue, int);
+    void build_instruction(SageOpCode, int, int, int);
+    void build_instruction(SageOpCode, int, SageValue, SageValue);
+    void build_instruction(SageOpCode, SageValue, int, int);
+    void build_instruction(SageOpCode, SageValue, int, SageValue);
+    void build_instruction(SageOpCode, SageValue, SageValue, int);
+
+    void build_instruction(SageOpCode, int, int);
+    void build_instruction(SageOpCode, int, SageValue);
+    void build_instruction(SageOpCode, SageValue, int);
+    void build_instruction(SageOpCode, SageValue, SageValue);
+
+    void build_instruction(SageOpCode, SageValue);
 
     void build_puti();
     void build_puts();

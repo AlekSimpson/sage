@@ -8,7 +8,7 @@
 
 using namespace std;
 
-SageLexer::SageLexer(istream &stream, string sourcename): char_buffer(stream), sourcename(sourcename) {
+SageLexer::SageLexer(istream *stream, string sourcename): char_buffer(stream), sourcename(sourcename) {
     linenum = 1;
     linedepth = 0;
     current_token = new Token();
@@ -16,34 +16,32 @@ SageLexer::SageLexer(istream &stream, string sourcename): char_buffer(stream), s
     peeked_tokens = stack<Token>();
 }
 
-//SageLexer::SageLexer() {
-//    filename = "";
-//    linenum = 0;
-//    linedepth = 0;
-//    current_token = new Token();
-//    char_buffer = nullptr;
-//    // char_buffer.open(fname);
-//    last_token = Token();
-//    peeked_tokens = stack<Token>();
-//}
+SageLexer::SageLexer() : char_buffer(nullptr) {
+    sourcename = "";
+    linenum = 0;
+    linedepth = 0;
+    current_token = new Token();
+    last_token = Token();
+    peeked_tokens = stack<Token>();
+}
 
 SageLexer::~SageLexer() {
-    delete current_token;
-    //if (char_buffer.is_open()) {
-    //    char_buffer.close();
-    //}
+    if (current_token != nullptr) {
+        delete current_token;
+        current_token = nullptr;
+    }
 }
 
 Token *SageLexer::check_for_string() {
     string lexeme;
     if (current_char == '"') {
         lexeme += '"';
-        char_buffer.get(current_char);
+        char_buffer->get(current_char);
         linedepth++;
 
         while (current_char != '"') {
             lexeme += current_char;
-            char_buffer.get(current_char);
+            char_buffer->get(current_char);
             linedepth++;
         }
 
@@ -97,7 +95,7 @@ Token *SageLexer::lex_for_symbols() {
         }
 
         case '-':
-            char_buffer.get(peekahead);
+            char_buffer->get(peekahead);
             if (peekahead == '>') {
                 linedepth++;
                 return lexer_make_token(TT_FUNC_RETURN_TYPE, "->");
@@ -107,23 +105,23 @@ Token *SageLexer::lex_for_symbols() {
                 return lexer_make_token(TT_DECREMENT, "--");
             }
 
-            char_buffer.putback(peekahead);
+            char_buffer->putback(peekahead);
             return lexer_make_token(TT_SUB, "-");
 
         case '.':
-            char_buffer.get(first_peek);
+            char_buffer->get(first_peek);
             current_char = first_peek;
 
             // if the '.' is in between an identifier token and unicode chars then its a field accessor
             // NOTE: isalpha(current_char) returns non zero value if the character is a letter
             if (last_token.token_type == TT_IDENT && (isalpha(current_char) != 0 || current_char == '_')) {
-                char_buffer.putback(first_peek);
+                char_buffer->putback(first_peek);
                 return lexer_make_token(TT_FIELD_ACCESSOR, ".");
             }
 
             if (first_peek == '.') {
                 char second_peek;
-                char_buffer.get(second_peek);
+                char_buffer->get(second_peek);
                 if (second_peek == '.') {
                     TokenType tok_type = TT_RANGE;
                     if (last_token.token_type == TT_IDENT) {
@@ -164,13 +162,13 @@ Token *SageLexer::lex_for_symbols() {
 }
 
 Token *SageLexer::followed_by(char expected_char, TokenType expected_type, string expected_lexeme) {
-    char_buffer.get(current_char);
+    char_buffer->get(current_char);
     linedepth++;
     if (current_char == expected_char) {
         return lexer_make_token(expected_type, expected_lexeme);
     }
 
-    char_buffer.putback(current_char);
+    char_buffer->putback(current_char);
     linedepth--;
     return nullptr;
 }
@@ -204,7 +202,7 @@ Token *SageLexer::lex_for_numbers() {
         }
 
         lexeme += string(1, current_char);
-        char_buffer.get(current_char);
+        char_buffer->get(current_char);
         linedepth++;
     }
 
@@ -213,10 +211,10 @@ Token *SageLexer::lex_for_numbers() {
     if (lexeme.length() != 0 && lexeme[lexeme.length() - 1] == '.') {
         tok_type = TT_NUM;
         lexeme.pop_back();
-        char_buffer.putback('.');
+        char_buffer->putback('.');
     }
 
-    char_buffer.putback(current_char);
+    char_buffer->putback(current_char);
     return lexer_make_token(tok_type, lexeme);
 }
 
@@ -256,11 +254,11 @@ Token *SageLexer::lex_for_identifiers() {
     int starting_linedepth = linedepth;
     while (isalpha(current_char) || isdigit(current_char) || current_char == '_') {
         lexeme += string(1, current_char);
-        char_buffer.get(current_char);
+        char_buffer->get(current_char);
         linedepth++;
     }
 
-    char_buffer.putback(current_char);
+    char_buffer->putback(current_char);
 
     lexer_make_token(TT_IDENT, lexeme, starting_linedepth);
     if (KEYWORDS.find(lexeme) != KEYWORDS.end()) {
@@ -282,17 +280,17 @@ Token *SageLexer::get_token() {
         return current_token;
     }
 
-    if (char_buffer.eof()) {
+    if (char_buffer->eof()) {
         tok = lexer_make_token(TT_EOF, "eof");
         last_token = *tok;
         return tok;
     }
 
-    char_buffer.get(current_char);
+    char_buffer->get(current_char);
     linedepth++;
 
     while (current_char == ' ' || current_char == '\t') {
-        char_buffer.get(current_char);
+        char_buffer->get(current_char);
         linedepth++;
     }
 

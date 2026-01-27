@@ -21,6 +21,8 @@ enum CanonicalType {
     PENDING_COMPTIME
 };
 
+class SageValue;
+
 class SageType {
 public:
     int size; // bytes

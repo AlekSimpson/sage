@@ -3,6 +3,7 @@
 #include "../include/sage_types.h"
 #include <cstdint>
 #include <vector>
+#include <map>
 
 using namespace std;
 
@@ -80,9 +81,6 @@ struct command {
     int deref_map[4] = {0, 0, 0, 0};
     // 0 - neutral, use raw immediate
     // 1 - deref register
-    // 2 - deref stack
-    // 3 - deref heap
-    // 4 - deref constant pool (for 64-bit values like pointers)
 
     command();
     command(SageOpCode, uint32_t, int [4]);
@@ -90,7 +88,7 @@ struct command {
     command(SageOpCode, int, int, int, int [4]);
     command(SageOpCode, int, int, int, int, int [4]);
 
-    string print();
+    string print(const map<int, string>* label_names = nullptr);
 };
 
 typedef vector<command> bytecode;
