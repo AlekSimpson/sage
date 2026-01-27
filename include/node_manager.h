@@ -62,8 +62,8 @@ public:
     // NEW: AST modification operations
     void replace_node(NodeIndex old_node, NodeIndex new_node);
     void splice_nodes(NodeIndex target, vector<NodeIndex> replacements);
-    void remove_node(NodeIndex node);
-    void insert_after(NodeIndex target, NodeIndex new_node);
+    void remove_node(NodeIndex node); // TODO
+    void insert_after(NodeIndex target, NodeIndex new_node); // TODO
 
     // NEW: Track modifications for incremental reanalysis
     set<NodeIndex> modified_subtrees;
@@ -75,6 +75,7 @@ public:
     int get_scope_id(NodeIndex node);
     void set_resolved_symbol(NodeIndex node, int symbol_index);
     int get_resolved_symbol(NodeIndex node);
+    set<int> get_in_scope_symbol_indices(int scope_id);
 
     NodeIndex create(AbstractParseNode*, ParseNodeType);
     NodeIndex create_block();

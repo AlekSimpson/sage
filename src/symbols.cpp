@@ -66,6 +66,14 @@ SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int in
 SageSymbolTable::~SageSymbolTable() {
 }
 
+void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager, NodeIndex ast_node, table_index i) {
+    comptime_values.insert(i);
+    entries[i].is_comptime_constant = true;
+    entries[i].task_id = comptime_manager.add_task(ast_node);
+    entries[i].type = TypeRegistery::get_pending_comptime_type();
+    comptime_task_id_to_symbol_id[entries[i].task_id] = i;
+}
+
 void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
     symbol_entry entry;
     entry.type = type;
@@ -295,7 +303,7 @@ const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
     return nullptr;
 }
 
-table_index SageSymbolTable::lookup_table_idx(const string &name, int scope_id) {
+table_index SageSymbolTable::lookup_table_index(const string &name, int scope_id) {
     // search starting from the given scope, then chain through parent scopes
     if (!scope_manager) return SAGE_NULL_SYMBOL;
 

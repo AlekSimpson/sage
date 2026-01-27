@@ -6,6 +6,7 @@
 #include <set>
 #include <map>
 
+#include "comptime_manager.h"
 #include "scope_manager.h"
 #include "node_manager.h"
 #include "sage_types.h"
@@ -31,6 +32,7 @@ struct symbol_entry {
     NodeIndex definition_ast_index = -1;
     int scope_id;
     table_index symbol_id;
+    comptime_task_id task_id;
     bool spilled;
     bool is_comptime_constant = false;
 
@@ -54,10 +56,13 @@ public:
     set<table_index> parameters;
     set<table_index> constants;
     set<table_index> literals; // used for strings and big literal values
+    set<table_index> comptime_values;
     set<table_index> types;
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, table_index> scope_symbol_map;
+
+    map<comptime_task_id, table_index> comptime_task_id_to_symbol_id;
 
     int size; // MAX SIZE THE TABLE CAN HOLD
     int capacity; // the current capacity of the table
@@ -89,16 +94,15 @@ public:
     table_index declare_variable(NodeIndex ast_id, SageType *valuetype);
     table_index declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment);
     table_index declare_type_symbol(NodeIndex ast_id, SageType *type);
-    table_index declare_comptime_result(const string &name, int scope_id, SageValue value);
 
     // Lookups
     const symbol_entry *global_lookup(const string &name);
     symbol_entry *lookup_by_index(table_index entry_index);
     symbol_entry *lookup(const string &name, int scope_id);
-    table_index lookup_table_idx(const string &name, int scope_id);
+    table_index lookup_table_index(const string &name, int scope_id);
     
     // Check if symbol is visible from a given scope
     bool is_visible(table_index symbol_index, int from_scope_id);
-
+    void register_comptime_value(ComptimeManager &, NodeIndex, table_index);
     void initialize();
 };

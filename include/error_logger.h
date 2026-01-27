@@ -33,6 +33,7 @@ enum ErrorType {
   GENERAL,
   SYNTAX,
   SEMANTIC,
+  COMPTIME,
   TYPE,
   INTERNAL,
   RUNTIME

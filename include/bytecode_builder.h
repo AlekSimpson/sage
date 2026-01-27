@@ -34,7 +34,7 @@ struct BytecodeBuilder {
     void increment_total_instruction_count(int delta);
 
     void enter_comptime();
-    void exit_comptime();
+    void reset_and_exit_comptime();
 
     void build_im_im_im(SageOpCode, SageValue, SageValue, SageValue);
     void build_reg_reg_im(SageOpCode, int, int, SageValue);

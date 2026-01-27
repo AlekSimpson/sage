@@ -64,7 +64,7 @@ public:
     SageInterpreter();
     SageInterpreter(SageSymbolTable *table);
 
-    void open(map<int, int>, int stack_size);
+    void open(const map<int, int> &, int stack_size);
     void close();
     int store_in_heap(SageValue value);
     void load_program(bytecode program);

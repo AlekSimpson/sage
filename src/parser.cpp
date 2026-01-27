@@ -42,11 +42,35 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
     errors = vector<Token>();
     fragment_mode = true;
     lexer = new SageLexer(charbuffer, sourcename);
-    advance();
 
+    // Global scope is already created in ScopeManager constructor
 
+    if (debug_lexer) {
+        Token *walk_token = current_token;
+        int counter = 0;
+        while (walk_token != nullptr && walk_token->token_type != TT_EOF) {
+            printf("[%d] %s\n", counter, walk_token->to_string().c_str());
+            current_token = lexer->get_token();
+            counter++;
+        }
 
-    return NULL_INDEX;
+        return NULL_INDEX;
+    }
+
+    NodeIndex program_root = parse_statements();
+
+    if (errors.size() != 0) {
+        for (Token err: errors) {
+            printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
+        }
+
+        return NULL_INDEX;
+    }
+
+    // Global scope doesn't need to be exited
+
+    delete lexer;
+    return program_root;
 }
 
 NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {

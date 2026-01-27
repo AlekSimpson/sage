@@ -2,6 +2,8 @@
 #include <queue>
 #include <boost/algorithm/string.hpp>
 #include <numeric>
+#include <thread>
+#include <cassert>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -17,8 +19,8 @@ SageCompiler::SageCompiler()
       node_manager(new NodeManager()),
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager)),
-      interpreter(new SageInterpreter(&symbol_table)),
-      builder(BytecodeBuilder()) {
+      builder(BytecodeBuilder()),
+      comptime_manager(ComptimeManager()){
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 
@@ -39,7 +41,6 @@ SageCompiler::SageCompiler()
 
 SageCompiler::~SageCompiler() {
     delete node_manager;
-    delete interpreter;
 }
 
 void SageCompiler::print_bytecode(bytecode &code) {
@@ -52,6 +53,10 @@ void SageCompiler::print_bytecode(bytecode &code) {
         printf("%d: %s\n", count, instruction.print().c_str());
         count++;
     }
+}
+
+bool SageCompiler::generating_compile_time_bytecode() {
+    return codegen_mode == GEN_COMPTIME;
 }
 
 void SageCompiler::compile_file(string mainfile) {
@@ -77,6 +82,13 @@ void SageCompiler::compile_file(string mainfile) {
 
     scan_all_program_symbols(ast_root);
 
+    comptime_manager.register_task_dependencies(symbol_table);
+    bool comptime_is_valid = comptime_manager.verify_comptime_dependencies();
+    if (!comptime_is_valid) {
+        logger.report_errors();
+        return;
+    }
+
     perform_type_resolution();
     if (logger.has_errors()) {
         logger.report_errors();
@@ -91,23 +103,92 @@ void SageCompiler::compile_file(string mainfile) {
     }
 
     // 2. COMPTIME EXECUTION AND PROCESSING
+    if (!comptime_manager.tasks.empty()) {
+        codegen_mode = GEN_COMPTIME;
+        bool on_last_batch = false;
 
+        assert(comptime_manager.task_min_heap.top()->prerequisite_tasks.size() == 0);
 
+        // get every task in current execution batch
+        int current_prerequisite_count = 0;
+        vector<ComptimeTask *> task_execution_batch;
+        while (!on_last_batch) {
+            if (comptime_manager.execution_iterations >= comptime_manager.MAX_ITERATIONS &&
+                comptime_manager.task_min_heap.empty()) {
+                logger.log_internal_error_unsafe(
+                    "compiler.cpp",
+                    current_linenum,
+                    "Reached maximum compile time iteration count. This should never happen");
+                break;
+            }
 
+            while (current_prerequisite_count == comptime_manager.get_next_task_prerequisite_count()) {
+                task_execution_batch.push_back(comptime_manager.task_min_heap.top());
+                comptime_manager.task_min_heap.pop();
 
+                if (comptime_manager.task_min_heap.empty()) {
+                    on_last_batch = true;
+                    break;
+                }
+            }
+            current_prerequisite_count = comptime_manager.get_next_task_prerequisite_count();
 
+            // if no tasks in current batch then stop
+            // for each task generate its bytecode
+            for (auto *task: task_execution_batch) {
+                builder.reset_and_exit_comptime();
+                builder.enter_comptime();
+                visit(task->associated_ast_root);
+                map<int, int> procedure_line_locations;
+                task->task_instructions = builder.finalize_comptime_bytecode(procedure_line_locations);
+                task->procedure_to_instruction_index = procedure_line_locations;
+                comptime_manager.staged_for_execution.push(task);
+            }
 
+            // execute each task in parallel
+            int thread_count = std::min((int)comptime_manager.tasks.size(), (int)std::thread::hardware_concurrency());
+            comptime_manager.execute_tasks_in_parallel(thread_count);
+            if (logger.has_errors()) {
+                logger.report_errors();
+                return;
+            }
 
+            // propogate comptime constants to symbol table
+            for (auto *finished_task: task_execution_batch) {
+                // skip any tasks that aren't associated with a symbol pending task execution
+                if (symbol_table.comptime_task_id_to_symbol_id.find(finished_task->task_id) == symbol_table.comptime_task_id_to_symbol_id.end()) {
+                    continue;
+                }
+                table_index symbol_index = symbol_table.comptime_task_id_to_symbol_id[finished_task->task_id];
+                symbol_table.entries[symbol_index].value = finished_task->symbol_injection_value;
+            }
 
+            if (comptime_manager.modifies_runtime_ast()) {
+                // TODO
+                // 1. perform AST modifications
+                // 2. rescan modified AST sections for symbols and do type resolution and
+                //    forward decl resolution for modified AST subtrees
+            }
+            // perform anymore needed context updating
+        }
+        builder.reset_and_exit_comptime();
+    }
 
     /// 3. RUNTIME GENERATION
+    codegen_mode = GEN_RUNTIME;
+    visit(ast_root);
+    map<int, int> procedure_to_instruction_index;
+    bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
+
+    /// 4. RUNTIME EXECUTION
     /// temporary: for now only runtime target is sageVM
-    bytecode runtime_code;
-    interpreter->load_program(runtime_code);
-    interpreter->execute();
-    interpreter->close();
-    // 3. Compiling to target instructions (if sagevm not the target)
-    // 4. Linking
+    auto interpreter = SageInterpreter(&symbol_table);
+    interpreter.open(procedure_to_instruction_index, 4000);
+    interpreter.load_program(runtime_code);
+    interpreter.execute();
+    interpreter.close();
+    // 5. Compiling to target instructions (if sagevm not the target)
+    // 6. Linking
     /*bool success = emit_and_link_llvm(module, "sage.out"); */
 }
 
@@ -164,13 +245,27 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
             }
             case PN_VAR_DEC: {
                 auto identifier = node_manager->get_identifier(current_node);
+                table_index new_variable_symbol;
                 if (parameter_name_to_parent_function.find(identifier) != parameter_name_to_parent_function.end()) {
                     string parent_function_name = parameter_name_to_parent_function[identifier];
-                    symbol_table.declare_parameter(current_node, nullptr, function_parameter_register_generator[parent_function_name]);
+                    new_variable_symbol = symbol_table.declare_parameter(current_node, nullptr, function_parameter_register_generator[parent_function_name]);
                     function_parameter_register_generator[parent_function_name]++;
                 }else {
-                    symbol_table.declare_variable(current_node, nullptr);
+                    new_variable_symbol = symbol_table.declare_variable(current_node, nullptr);
                 }
+
+                // if the right most child ast node is a run directive that means that this variable is going to be
+                // awaiting the compile time computed output of its child run directive
+                if (node_manager->get_nodetype(node_manager->get_right(current_node)) == PN_RUN_DIRECTIVE) {
+                    symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
+
+                    auto bodynode = node_manager->get_branch(current_node);
+                    for (auto child: node_manager->get_children(bodynode)) {
+                        fringe.push(child);
+                    }
+                    continue;
+                }
+
                 fringe.push(node_manager->get_right(current_node));
                 continue;
             }
@@ -186,6 +281,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_RUN_DIRECTIVE: {
+                comptime_manager.add_task(current_node);
                 auto bodynode = node_manager->get_branch(current_node);
                 for (auto child: node_manager->get_children(bodynode)) {
                     fringe.push(child);

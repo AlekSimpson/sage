@@ -2,12 +2,12 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+#include "../include/bytecode_builder.h"
 #include "../include/symbols.h"
 #include "../include/interpreter.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 #include "../include/sage_bytecode.h"
-#include "../include/bytecode_builder.h"
 
 std::unordered_map<std::pair<CanonicalType, int>, std::unique_ptr<SageType> > TypeRegistery::builtin_types;
 std::unordered_map<SageType *, std::unique_ptr<SageType> > TypeRegistery::pointer_types;
@@ -16,7 +16,7 @@ std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >,
 TypeRegistery::function_types;
 std::unordered_map<std::string, std::unique_ptr<SageType>> TypeRegistery::struct_types;
 
-int create_procedure_frame_id(const std::string &str) {
+int get_procedure_frame_id(const std::string &str) {
     uint64_t hash = 5381;
     for (char c: str) {
         hash = ((hash << 5) + hash) + c;
@@ -64,7 +64,8 @@ void BytecodeBuilder::enter_comptime() {
     emitting_comptime = true;
 }
 
-void BytecodeBuilder::exit_comptime() {
+void BytecodeBuilder::reset_and_exit_comptime() {
+    reset();
     emitting_comptime = false;
 }
 
@@ -73,7 +74,7 @@ void BytecodeBuilder::new_frame(string name) {
     if (!emitting_comptime && name == "main") {
         runtime_has_main_function = true;
     }
-    int id = create_procedure_frame_id(name);
+    int id = get_procedure_frame_id(name);
 
     auto &active_procedure_stack = get_active_procedure_stack();
     auto &active_procedures = get_active_procedures();
@@ -569,7 +570,7 @@ ui32 SageCompiler::build_load(NodeIndex reference_node) {
         symbol->assigned_register = volatile_reg;
     }
 
-    return symbol_table.lookup_table_idx(reference_name, scope_id);
+    return symbol_table.lookup_table_index(reference_name, scope_id);
 }
 
 ui32 SageCompiler::build_function_call(vector<ui32> args, int table_index) {

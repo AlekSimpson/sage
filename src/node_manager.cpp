@@ -373,6 +373,10 @@ void NodeManager::mark_modified(NodeIndex node) { modified_subtrees.insert(node)
 
 bool NodeManager::has_modifications() const { return !modified_subtrees.empty(); }
 
+void NodeManager::insert_after(NodeIndex target, NodeIndex new_node) { /* TODO */ }
+
+void NodeManager::remove_node(NodeIndex node) { /* TODO */ }
+
 void NodeManager::replace_node(NodeIndex old_node, NodeIndex new_node) {
     NodeIndex parent = get_parent(old_node);
     if (parent == NULL_INDEX) return;
@@ -474,6 +478,18 @@ int NodeManager::get_scope_id(NodeIndex node) {
         return -1;
     }
     return box.node->get_scope_id();
+}
+
+set<int> NodeManager::get_in_scope_symbol_indices(int scope_id) {
+    set<int> in_scope_symbol_indices;
+    auto &scopes = scope_manager->scopes;
+
+    int _current_scope_id = scope_id;
+    while (_current_scope_id <= 0) {
+        in_scope_symbol_indices.insert(scopes[_current_scope_id].symbol_indices.begin(), scopes[_current_scope_id].symbol_indices.end());
+        _current_scope_id--;
+    }
+    return in_scope_symbol_indices;
 }
 
 void NodeManager::set_resolved_symbol(NodeIndex node, int symbol_index) {

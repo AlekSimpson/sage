@@ -430,7 +430,7 @@ int SageInterpreter::store_in_heap(SageValue value) {
     return pointer;
 }
 
-void SageInterpreter::open(map<int, int> procedure_line_locations, int stack_size) {
+void SageInterpreter::open(const map<int, int> &procedure_line_locations, int stack_size) {
     if (frame_pointer == nullptr) frame_pointer = new StackFrame();
     stack.reserve(stack_size);
     proc_line_locations = procedure_line_locations;

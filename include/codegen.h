@@ -27,6 +27,11 @@ enum debug_level {
   ALL
 };
 
+enum CodegenMode {
+  GEN_RUNTIME,
+  GEN_COMPTIME
+};
+
 class SageCompiler {
 public:
   debug_level debug;
@@ -36,11 +41,10 @@ public:
   ErrorLogger &logger = ErrorLogger::get();
   SageParser parser;
   SageSymbolTable symbol_table;
-  SageInterpreter *interpreter;
   BytecodeBuilder builder;
   ComptimeManager comptime_manager;
 
-  bool generating_compile_time_bytecode = false;
+  CodegenMode codegen_mode;
   map<int, SageValue> volatile_register_state;
   int volatile_index = 0;
 
@@ -54,7 +58,7 @@ public:
   bool check_filename_valid(const string &filename);
   void compile_file(string mainfile);
 
-  void create_comptime_tasks();
+  bool generating_compile_time_bytecode();
   void register_allocation();
   int get_volatile();
   bool volatile_is_stale(SageValue&, int);

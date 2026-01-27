@@ -68,7 +68,7 @@ ui32 SageCompiler::visit_statement(NodeIndex node) {
         case PN_KEYWORD:
             return visit_keyword(node);
         case PN_RUN_DIRECTIVE: {
-            if (!generate_compile_time_bytecode) {
+            if (!generating_compile_time_bytecode()) {
                 return SAGE_NULL_SYMBOL;
             }
 
@@ -241,15 +241,15 @@ ui32 SageCompiler::visit_literal(NodeIndex node) {
         case PN_FUNCCALL:
             return visit_funccall(node);
         case PN_STRING: {
-            table_idx = symbol_table.lookup_table_idx(node_manager->get_identifier(node), node_manager->get_scope_id(node));
+            table_idx = symbol_table.lookup_table_index(node_manager->get_identifier(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         case PN_NUMBER: {
-            table_idx = symbol_table.lookup_table_idx(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
+            table_idx = symbol_table.lookup_table_index(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         case PN_FLOAT: {
-            table_idx = symbol_table.lookup_table_idx(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
+            table_idx = symbol_table.lookup_table_index(node_manager->get_lexeme(node), node_manager->get_scope_id(node));
             return table_idx;
         }
         default:
