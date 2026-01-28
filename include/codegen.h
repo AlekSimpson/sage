@@ -67,7 +67,8 @@ public:
 
   set<string> previously_processed; // for forward decl auto resolution
   map<string, set<string>> definition_dependencies;
-  map<string, int> in_degree_map;
+  map<string, int> in_degree_map; // TODO: rename, this is not a very good name
+  map<table_index, vector<uint8_t>> static_program_memory;
 
   SageCompiler();
   ~SageCompiler();

@@ -10,22 +10,20 @@
 #define SYSCALL_REG 22
 #define STACK_POINTER 23
 
-#define offset_t int
 #define ui64 uint64_t
 
 class StackFrame {
 public:
     int prog_return_address; // where the program resumes after the function finishes executing
-    int prog_start_address; // where the function begins
-    int stack_pointer; // keep track of where this frame starts in the stack, so we can pop the frame correctly
+    int prog_start_address; // where the function begins in bytecode
+    size_t stack_pointer; // keep track of where this frame starts in the stack, so we can pop the frame correctly
     StackFrame *previous_frame;
     map<int, int> saved_caller_values;
-    map<string, offset_t> local_variables; // tracks variable allocations
 
     StackFrame(StackFrame *previous,
                map<int, int> caller_cache,
                int ret_addr,
-               int stack_pointer,
+               size_t stack_pointer,
                int prog_start);
 
     StackFrame();
@@ -53,24 +51,43 @@ public:
     ui64 registers[125];
     int program_pointer;
 
+    bytecode program;
     map<int, int> proc_line_locations;
     StackFrame *frame_pointer; // keeps track of current frame
 
-    bytecode program;
-    map<int, SageValue> heap;
-    vector<SageValue> stack;
+    // memory layout:
+    // |--------|
+    // | static |
+    // |--------|
+    // | heap   | (grows down)
+    // |--------|
+    // | free   |
+    // |--------|
+    // | stack  | (stack grows up)
+    // |--------|
+    vector<uint8_t> memory;
+    const size_t static_start_pointer = 0;
+    size_t static_memory_end_pointer;
+    size_t heap_pointer; // HEAP begins where static ends
+
     bool vm_running = false;
 
     SageInterpreter();
     SageInterpreter(SageSymbolTable *table);
 
-    void open(const map<int, int> &, int stack_size);
-    void close();
-    int store_in_heap(SageValue value);
-    void load_program(bytecode program);
-    void execute();
+    // virtual memory operations
+    uint8_t *memory_read_bytes(uint8_t address);
+    void stack_write_i32(size_t addr, int32_t val);
+    int32_t stack_read_i32(size_t addr);
+    size_t allocate_on_heap(size_t bytes);
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
+
+    void open(const map<int, int> &, map<table_index, vector<uint8_t>> &static_section_components);
+    void close();
+    void load_program(bytecode program);
+    void execute();
+
     vector<SageValue> dereference_map(instruction*, int [4]);
     SageValue get_return_value() const;
 

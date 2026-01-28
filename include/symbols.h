@@ -13,8 +13,6 @@
 
 #define SAGE_NULL_SYMBOL 0
 
-typedef uint32_t table_index;
-
 struct function_visit {
     string function_name = "";
     int return_statement_count = 0;
@@ -61,7 +59,6 @@ public:
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, table_index> scope_symbol_map;
-
     map<comptime_task_id, table_index> comptime_task_id_to_symbol_id;
 
     int size; // MAX SIZE THE TABLE CAN HOLD

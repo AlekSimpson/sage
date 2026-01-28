@@ -14,8 +14,8 @@
 // StackFrame
 
 StackFrame::StackFrame(
-    StackFrame *previous, map<int, int> caller_cache, int ret_addr, int sp, int ps
-) : prog_return_address(ret_addr), prog_start_address(ps), stack_pointer(sp), previous_frame(previous),
+    StackFrame *previous, map<int, int> caller_cache, int ret_addr, size_t sp, int program_start
+) : prog_return_address(ret_addr), prog_start_address(program_start), stack_pointer(sp), previous_frame(previous),
     saved_caller_values(caller_cache) {
 }
 
@@ -25,13 +25,34 @@ StackFrame::StackFrame()
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
+
+SageInterpreter::SageInterpreter(SageSymbolTable *table)
+: symbol_table(table), frame_pointer(nullptr) {
 }
 
-SageInterpreter::SageInterpreter(SageSymbolTable *table) : symbol_table(table), frame_pointer(nullptr) {}
+uint8_t *SageInterpreter::memory_read_bytes(uint8_t address) {
+    return &memory[address];
+}
 
-SageValue SageInterpreter::get_return_value() const {
-    return register_to_value(registers[6]);
+void SageInterpreter::stack_write_i32(size_t addr, int32_t val) {
+    memory[addr + 0] = (val >> 0)  & 0xFF;
+    memory[addr + 1] = (val >> 8)  & 0xFF;
+    memory[addr + 2] = (val >> 16) & 0xFF;
+    memory[addr + 3] = (val >> 24) & 0xFF;
+}
+
+int32_t SageInterpreter::stack_read_i32(size_t addr) {
+    return memory[addr - 0]    |
+       (memory[addr - 1] << 8) |
+       (memory[addr - 2] << 16)|
+       (memory[addr - 3] << 24);
+}
+
+size_t SageInterpreter::allocate_on_heap(size_t bytes) {
+    size_t start_address = heap_pointer;
+    heap_pointer += bytes;
+    return start_address;
 }
 
 void SageInterpreter::push_stack_scope(int func_id) {
@@ -62,6 +83,10 @@ void SageInterpreter::pop_stack_scope() {
     frame_pointer = previous;
 }
 
+SageValue SageInterpreter::get_return_value() const {
+    return register_to_value(registers[6]);
+}
+
 void SageInterpreter::load_program(bytecode _program) {
     program = _program;
 }
@@ -85,21 +110,7 @@ vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]
                 // Dereference register
                 return_values.push_back(SageValue(registers[raw_operands[i]]));
                 break;
-            case 4:
-                // Dereference constant pool - operand is index into constant_pool
-                if (raw_operands[i] >= 0 && raw_operands[i] < (int) symbol_table->constants.size()) {
-                    return_values.push_back(symbol_table->entries[raw_operands[i]].value);
-                } else {
-                    ErrorLogger::get().log_internal_error_safe(
-                        "interpreter.cpp",
-                        current_linenum,
-                        "constant pool index out of bounds");
-                    return_values.push_back(SageValue());
-                }
-                break;
             default:
-                // Fallback for unhandled cases (2=stack, 3=heap - not yet implemented)
-                return_values.push_back(SageValue(raw_operands[i], TypeRegistery::get_integer_type(4)));
                 break;
         }
     }
@@ -208,8 +219,8 @@ void SageInterpreter::execute_load(vector<SageValue> operands) {
         return;
     }
 
-    int load_address = unpack_int(registers[STACK_POINTER]) + operands[1].as_i32();
-    registers[unpack_int(operands[0])] = stack.at(load_address);
+    int load_address = unpack_int(registers[STACK_POINTER]) - operands[1].as_i32();
+    registers[unpack_int(operands[0])] = memory[load_address];
 }
 
 void SageInterpreter::execute_store(vector<SageValue> operands) {
@@ -222,8 +233,8 @@ void SageInterpreter::execute_store(vector<SageValue> operands) {
     }
 
     int offset = operands[1].as_i32();
-    int store_address = unpack_int(int_reg_inc(registers[STACK_POINTER], offset));
-    stack[store_address] = operands[0];
+    int store_address = unpack_int(registers[STACK_POINTER]) - offset;
+    memory[store_address] = operands[0];
 }
 
 void SageInterpreter::execute_mov(vector<SageValue> operands) {
@@ -425,22 +436,35 @@ void SageInterpreter::execute() {
     }
 }
 
-int SageInterpreter::store_in_heap(SageValue value) {
-    int pointer = heap.size();
-    heap[pointer] = value;
-    return pointer;
-}
-
-void SageInterpreter::open(const map<int, int> &procedure_line_locations, int stack_size) {
+void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<table_index, vector<uint8_t>> &static_section_components) {
     if (frame_pointer == nullptr) frame_pointer = new StackFrame();
-    stack.reserve(stack_size);
+
+    const int megabyte = 1024 * 1024;
+    memory.resize(megabyte);
+
+    size_t static_working_pointer = static_start_pointer;
+    for (const auto &[static_symbol_index, symbol_memory_chunk]: static_section_components) {
+        auto *symbol_entry = symbol_table->lookup_by_index(static_symbol_index);
+        if (symbol_entry->type->identify() != ARRAY) {
+            ErrorLogger::get().log_internal_error_safe("interpreter.cpp", current_linenum, "Unsupported static member found.");
+            continue;
+        }
+
+        for (int i = 0; i < symbol_memory_chunk.size(); ++i) {
+            memory[static_working_pointer] = symbol_memory_chunk[i];
+            static_working_pointer++;
+        }
+    }
+    heap_pointer = static_working_pointer;
+    static_memory_end_pointer = static_working_pointer - 1;
+    registers[23] = memory.size()-1; // stack begins are memory max and "grows up"
+
     proc_line_locations = procedure_line_locations;
     vm_running = false;
 }
 
 void SageInterpreter::close() {
-    heap.clear();
-    stack.clear();
+    memory.clear();
     program.clear();
     // deinit stackframe when done with interpreter
     if (frame_pointer != nullptr) {

@@ -90,6 +90,7 @@ void SageCompiler::compile_file(string mainfile) {
         logger.report_errors();
         return;
     }
+    comptime_manager.static_program_memory = static_program_memory;
 
     perform_type_resolution();
     if (logger.has_errors()) {
@@ -99,6 +100,12 @@ void SageCompiler::compile_file(string mainfile) {
 
     // auto resolve symbol definition ordering
     forward_declaration_resolution(ast_root);
+    if (logger.has_errors()) {
+        logger.report_errors();
+        return;
+    }
+
+    register_allocation();
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -177,13 +184,6 @@ void SageCompiler::compile_file(string mainfile) {
     }
 
     /// 3. RUNTIME GENERATION
-
-    register_allocation();
-    if (logger.has_errors()) {
-        logger.report_errors();
-        return;
-    }
-
     codegen_mode = GEN_RUNTIME;
     visit(ast_root);
     map<int, int> procedure_to_instruction_index;
@@ -194,7 +194,7 @@ void SageCompiler::compile_file(string mainfile) {
     /// 4. RUNTIME EXECUTION
     /// temporary: for now only runtime target is sageVM
     auto interpreter = SageInterpreter(&symbol_table);
-    interpreter.open(procedure_to_instruction_index, 4000);
+    interpreter.open(procedure_to_instruction_index, static_program_memory);
     interpreter.load_program(runtime_code);
     interpreter.execute();
     interpreter.close();
@@ -330,7 +330,14 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 auto *char_type = TypeRegistery::get_byte_type(CHAR);
                 auto *array_type =  TypeRegistery::get_array_type(char_type, node_lexeme.length());
                 SageValue literal_value(const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
-                symbol_table.declare_literal(current_node, literal_value);
+                auto index = symbol_table.declare_literal(current_node, literal_value);
+
+                static_program_memory[index] = vector<uint8_t>();
+                static_program_memory[index].reserve(node_lexeme.size());
+                for (int i = 0; i < node_lexeme.size(); ++i) {
+                    static_program_memory[index].push_back(static_cast<uint8_t>(node_lexeme[i]));
+                }
+
                 continue;
             }
             case PN_FLOAT: {

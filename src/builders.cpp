@@ -387,7 +387,8 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
 
     int control_flow_path = ((int)right_value_state * 4) + (int)variable_symbol_state;
     switch (control_flow_path) {
-        case 4: { /* right_value=IMMEDIATE, var_symbol=SPILLED */
+        case 4: {
+            /* right_value=IMMEDIATE, var_symbol=SPILLED */
             builder.build_instruction(OP_STORE, right_value.immediate_value, var_symbol->spill_offset);
             break;
         }
