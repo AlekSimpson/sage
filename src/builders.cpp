@@ -107,7 +107,6 @@ void BytecodeBuilder::reset() {
 
 bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_line_locations) {
     int total_instruction_count = get_total_instruction_count();
-    int neutral_operand_encoding[4] = {0, 0, 0, 0};
     bytecode result;
     result.reserve(total_instruction_count);
 
@@ -125,7 +124,7 @@ bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_li
     auto global_instructions = comptime_procedures[global_id].procedure_instructions;
     procedure_line_locations[global_id] = result.size();
     result.insert(result.end(), global_instructions.begin(), global_instructions.end());
-    result.push_back(command(VOP_EXIT, -1, neutral_operand_encoding));
+    result.push_back(command(VOP_EXIT, 0, _00));
     return result;
 }
 
@@ -159,187 +158,41 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
     return result;
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue op) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int operand2, int operand3, AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
-
-    int encoding[4] = {0, 0, 0, 0};
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(opcode, op.as_operand(), encoding));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
         opcode,
-        imm1.as_operand(),
-        imm2.as_operand(),
-        deref_encoding
+        operand1,
+        operand2,
+        operand3,
+        mode
     ));
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue immediate, int reg_index) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int operand2, AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 1, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
         opcode,
-        immediate.as_operand(),
-        reg_index,
-        deref_encoding
+        operand1,
+        operand2,
+        mode
     ));
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg_index, SageValue immediate) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand, AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 0, 0, 0};
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(command(
         opcode,
-        reg_index,
-        immediate.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 1, 0, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        reg1,
-        reg2,
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg, SageValue imm1, SageValue imm2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 0, 0, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        reg,
-        imm1.as_operand(),
-        imm2.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2, int reg3) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 1, 1, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        reg1,
-        reg2,
-        reg3,
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, SageValue immediate, int reg2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 0, 1, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        reg1,
-        immediate.as_operand(),
-        reg2,
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int reg1, int reg2, SageValue immediate) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {1, 1, 0, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        reg1,
-        reg2,
-        immediate.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2, SageValue imm3) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 0, 0, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        imm1.as_operand(),
-        imm2.as_operand(),
-        imm3.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue immediate, int reg1, int reg2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 1, 1, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        immediate.as_operand(),
-        reg1,
-        reg2,
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, int reg, SageValue imm2) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 1, 0, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        imm1.as_operand(),
-        reg,
-        imm2.as_operand(),
-        deref_encoding
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_instruction(SageOpCode opcode, SageValue imm1, SageValue imm2, int reg) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-    int deref_encoding[4] = {0, 0, 1, 0};
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(command(
-        opcode,
-        imm1.as_operand(),
-        imm2.as_operand(),
-        reg,
-        deref_encoding
+        operand,
+        mode
     ));
     increment_total_instruction_count(1);
 }
@@ -351,14 +204,14 @@ void BytecodeBuilder::build_puti() {
     int id = get_procedure_frame_id("puti");
     procedures[id] = ProcedureFrame("puti");
     procedure_stack.push(id);
-    build_instruction(OP_LABEL, id);
-    build_instruction(OP_MOV, SageValue(SAGESYS_write_int), 22);
-    build_instruction(OP_MOV, 1, 10); // save digit count (r1) in temp register r10
-    build_instruction(OP_MOV, 0, 1); // save integer to print into r1
-    build_instruction(OP_MOV, 10, 2); // save digit count into r2
-    build_instruction(OP_MOV, STDOUT_FILENO, 0); // tell system that this is outputting to stdout
-    build_instruction(OP_SYSCALL, -1);
-    build_instruction(OP_RET, -1);
+    build_instruction(OP_LABEL, id, _00);
+    build_instruction(OP_MOV, 22, SAGESYS_write_int, _00);
+    build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
+    build_instruction(OP_MOV, 1, 0, _01); // save integer to print into r1
+    build_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
+    build_instruction(OP_MOV, 0, STDOUT_FILENO, _00); // tell system that this is outputting to stdout
+    build_instruction(OP_SYSCALL, -1, _00);
+    build_instruction(OP_RET, -1, _00);
     procedure_stack.pop();
 }
 
@@ -369,14 +222,14 @@ void BytecodeBuilder::build_puts() {
     int id = get_procedure_frame_id("puts");
     procedures[id] = ProcedureFrame("puts");
     procedure_stack.push(id);
-    build_instruction(OP_LABEL, id);
-    build_instruction(OP_MOV, SageValue(SYS_write), 22);
-    build_instruction(OP_MOV, 1, 10);  // save digit count (r1) in temp register r10
-    build_instruction(OP_MOV, 0, 1);  // save integer to print into r1
-    build_instruction(OP_MOV, 10, 2);  // save digit count into r2
-    build_instruction(OP_MOV, STDOUT_FILENO, 0);  // tell system that this is outputting to stdout
-    build_instruction(OP_SYSCALL, -1);
-    build_instruction(OP_RET, -1);
+    build_instruction(OP_LABEL, id, _00);
+    build_instruction(OP_MOV, 22, SYS_write, _00);
+    build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
+    build_instruction(OP_MOV, 1, 0, _01);  // save integer to print into r1
+    build_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
+    build_instruction(OP_MOV, 0, STDOUT_FILENO, _00);  // tell system that this is outputting to stdout
+    build_instruction(OP_SYSCALL, -1, _00);
+    build_instruction(OP_RET, -1, _00);
     procedure_stack.pop();
 }
 
@@ -389,7 +242,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
     switch (control_flow_path) {
         case 4: {
             /* right_value=IMMEDIATE, var_symbol=SPILLED */
-            builder.build_instruction(OP_STORE, right_value.immediate_value, var_symbol->spill_offset);
+            builder.build_instruction(OP_STORE, var_symbol->spill_offset, right_value.immediate_value, _00);
             break;
         }
         case 5: {

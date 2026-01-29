@@ -11,32 +11,25 @@ using namespace std;
 command::command() {
 }
 
-command::command(SageOpCode code, uint32_t ops, int _map[4]) : inst(instruction(code, ops)) {
-    for (int i = 0; i < 4; ++i) {
-        deref_map[i] = _map[i];
+command::command(SageOpCode code, uint32_t operand, AddressMode mode) : inst(instruction(code, operand)) {
+    for (int i = 0; i < 2; ++i) {
+        address_mode[i] = mode[i];
     }
 }
 
-command::command(SageOpCode code, int op1, int op2, int _map[4]) : inst(instruction(code, op1, op2)) {
-    for (int i = 0; i < 4; ++i) {
-        deref_map[i] = _map[i];
+command::command(SageOpCode code, int op1, int op2, AddressMode mode) : inst(instruction(code, op1, op2)) {
+    for (int i = 0; i < 2; ++i) {
+        address_mode[i] = mode[i];
     }
 }
 
-command::command(SageOpCode code, int op1, int op2, int op3, int _map[4]) : inst(instruction(code, op1, op2, op3)) {
-    for (int i = 0; i < 4; ++i) {
-        deref_map[i] = _map[i];
+command::command(SageOpCode code, int op1, int op2, int op3, AddressMode mode) : inst(instruction(code, op1, op2, op3)) {
+    for (int i = 0; i < 2; ++i) {
+        address_mode[i] = mode[i];
     }
 }
 
-command::command(SageOpCode code, int op1, int op2, int op3, int op4, int _map[4]) : inst(
-    instruction(code, op1, op2, op3, op4)) {
-    for (int i = 0; i < 4; ++i) {
-        deref_map[i] = _map[i];
-    }
-}
-
-string command::print(const map<int, string>* label_names) {
+string command::print(const map<int, string> *label_names) {
     map<SageOpCode, string> opcode_map = {
         {OP_ADD, "ADD"},
         {OP_SUB, "SUB"},
@@ -62,112 +55,79 @@ string command::print(const map<int, string>* label_names) {
         {VOP_EXIT, "EXIT"}
     };
 
-    union operand_packer {
-        _double d;
-        _triple t;
-        ui32 s;
-    };
+    if (inst.opcode == OP_RET || inst.opcode == OP_NOP || inst.opcode == OP_SYSCALL || inst.opcode == VOP_EXIT) {
+        return opcode_map[inst.opcode];
+    }
 
-    // no operands: RET, NOP, SYSCALL
-    operand_packer packer;
-    bool using_single = false;
-    bool using_double = false;
-    bool using_none = false;
     switch (inst.opcode) {
-        case OP_MOV:
-        case OP_LOAD:
-        case OP_STORE:
-        case OP_AND:
-        case OP_OR:
+        case OP_NOT: {
+            return sen(opcode_map[inst.opcode], str("r", to_string(inst.operands)));
+        }
+        case OP_LABEL:
+        case OP_JMP:
+        case OP_CALL: {
+            auto it = label_names->find(inst.operands);
+            string operand = str("@", to_string(inst.operands), " (", it->second, ")");
+            return sen(opcode_map[inst.opcode], operand);
+        }
+
+        case OP_MOV: {
+            _double operands = dunpack(inst.operands);
+            string operand_string_1 = str("r", to_string(operands.one));
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+        }
+
+        case OP_LOAD: {
+            _double operands = dunpack(inst.operands);
+            string operand_string_1 = str("r", to_string(operands.one));
+            string operand_string_2 = str("($fp + ", to_string(operands.two), ")");
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+        }
+
+        case OP_STORE: {
+            _double operands = dunpack(inst.operands);
+            string operand_string_1 = str("($fp + ", to_string(operands.one), ")");
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+        }
+
         case OP_EQ:
         case OP_LT:
         case OP_GT:
+        case OP_AND:
+        case OP_OR: {
+            // two operands
+            _double operands = dunpack(inst.operands);
+            string operand_string_1 = address_mode[0] == 1 ? str("r", to_string(operands.one)) : to_string(operands.one);
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+        }
+
         case OP_JZ:
-        case OP_JNZ:
-            using_double = true;
-            packer.d = dunpack(inst.operands);
-            break;
+        case OP_JNZ: {
+            _double operands = dunpack(inst.operands);
+            string operand_string_1 = str("r", to_string(operands.one));
+
+            auto it = label_names->find(operands.two);
+            string operand_string_2 = str("@", to_string(operands.two), " (", it->second, ")");
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+        }
 
         case OP_ADD:
         case OP_SUB:
         case OP_MUL:
-        case OP_DIV:
-            packer.t = tunpack(inst.operands);
-            break;
-
-        case OP_NOT:
-        case OP_JMP:
-        case OP_CALL:
-        case OP_LABEL:
-            using_single = true;
-            packer.s = inst.operands;
-            break;
+        case OP_DIV: {
+            _triple operands = tunpack(inst.operands);
+            string operand_string_1 = str("r", to_string(operands.one));
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands.three)) : to_string(operands.three);
+            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2, operand_string_3);
+        }
 
         default:
-            using_none = true;
-            break;
+            return "Unknown bytecode";
     }
-
-    if (using_none) {
-        return sen(opcode_map[inst.opcode]);
-    }
-    if (using_single) {
-        string op1 = to_string(packer.s);
-        if (deref_map[0] == 1) {
-            op1 = str("r", to_string(packer.s));
-        }
-        if (inst.opcode == OP_JMP || inst.opcode == OP_CALL || inst.opcode == OP_LABEL) {
-            op1 = str("@", to_string(packer.s));
-            if (label_names) {
-                auto it = label_names->find(packer.s);
-                if (it != label_names->end()) {
-                    op1 = str("@", to_string(packer.s), " (", it->second, ")");
-                }
-            }
-        }
-
-        return sen(opcode_map[inst.opcode], op1);
-    }
-    if (using_double) {
-        string op1 = to_string(packer.d.one);
-        if (deref_map[0] == 1 || inst.opcode == OP_LOAD) {
-            op1 = str("r", op1);
-            // op1 = "r" + op1;
-        }
-
-        string op2 = to_string(packer.d.two);
-        if (deref_map[1] == 1 || inst.opcode == OP_MOV) {
-            op2 = str("r", to_string(packer.d.two));
-        } else if (inst.opcode == OP_LOAD || inst.opcode == OP_STORE) {
-            op2 = str("+", to_string(packer.d.two));
-        } else if (inst.opcode == OP_JZ || inst.opcode == OP_JNZ) {
-            op2 = str("@", to_string(packer.d.two));
-        }
-
-        return sen(opcode_map[inst.opcode], op1, op2);
-    }
-
-    // "oh baby, its a triple!"
-
-    string op1 = to_string(packer.t.one);
-    if (deref_map[0] == 1 || inst.opcode == OP_ADD
-        || inst.opcode == OP_SUB
-        || inst.opcode == OP_MUL
-        || inst.opcode == OP_DIV) {
-        op1 = str("r", to_string(packer.t.one));
-    }
-
-    string op2 = to_string(packer.t.two);
-    if (deref_map[1] == 1) {
-        op2 = str("r", to_string(packer.t.two));
-    }
-
-    string op3 = to_string(packer.t.three);
-    if (deref_map[2] == 1) {
-        op3 = str("r", to_string(packer.t.three));
-    }
-
-    return sen(opcode_map[inst.opcode], op1, op2, op3);
 }
 
 instruction::instruction() {

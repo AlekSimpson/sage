@@ -5,6 +5,8 @@
 #include <vector>
 #include <map>
 
+#include "bytecode_builder.h"
+
 using namespace std;
 
 // References:
@@ -17,35 +19,51 @@ using namespace std;
 #define ui16 uint16_t
 #define ui32 uint32_t
 
+typedef int AddressMode[2];
+inline int _00[2] = {0, 0};
+inline int _10[2] = {1, 0};
+inline int _01[2] = {0, 1};
+inline int _11[2] = {1, 1};
+
 enum SageOpCode {
-    OP_ADD = 0,
-    OP_SUB,
-    OP_MUL,
-    OP_DIV,
+    // op = could be referencing immediate value or value at registers[op]
 
-    OP_LOAD,
-    OP_STORE,
-    OP_MOV,
+    OP_ADD = 0, // _xx | add reg, op, op
+    OP_SUB,     // _xx | sub reg, op, op
+    OP_MUL,     // _xx | mul reg, op, op
+    OP_DIV,     // _xx | div reg, op, op
 
-    OP_JMP,
-    OP_JZ, // jump if zero
-    OP_JNZ, // jump if not zero
-    OP_CALL, // call a routine
-    OP_RET, // return
+    OP_ALLOC,   // _00 | alloc size    | size in bytes
+    OP_LOAD,    // _00 | load reg, ($fp - offset)
+                // build_load(register, offset)
+    OP_STORE,   // _0x | store ($fp - offset), op
+                // build_store_immediate(offset, immediate)
+                // build_store_register(offset, register)
 
-    OP_EQ,
-    OP_LT,
-    OP_GT,
+    OP_MOV,     // _0x | mov reg, op
+                // build_move_immediate(register, immediate)
+                // build_move_register(register, register)
 
-    OP_AND,
-    OP_OR,
-    OP_NOT,
-    OP_NOP,
+    OP_JZ,      // _00 | jz reg immediate  | jump if zero
+    OP_JNZ,     // _00 | jnz reg immediate | jump if not zero
+    OP_JMP,     // _00 | jmp immediate
+    OP_CALL,    // _00 | call immediate
+    OP_RET,     // _00 | ret
 
-    OP_SYSCALL,
-    OP_LABEL,
+    OP_EQ,      // _xx | eq op, op
+    OP_LT,      // _xx | lt op, op
+    OP_GT,      // _xx | gt op, op
 
-    VOP_EXIT,
+    OP_AND,     // _xx | and op, op
+    OP_OR,      // _xx | or op, op
+    OP_NOT,     // _00 | not reg
+                // build_not(int register)
+    OP_NOP,     // _00 | nop
+
+    OP_SYSCALL, // _00 | syscall
+    OP_LABEL,   // _00 | label immediate
+
+    VOP_EXIT,   // _00 | exit
 };
 
 struct _double {
@@ -57,10 +75,6 @@ struct _triple {
     ui8 one;
     ui8 two;
     ui8 three;
-};
-
-struct operand {
-    SageValue value;
 };
 
 struct instruction {
@@ -78,15 +92,14 @@ struct instruction {
 
 struct command {
     instruction inst;
-    int deref_map[4] = {0, 0, 0, 0};
+    int address_mode[2] = {0, 0};
     // 0 - neutral, use raw immediate
     // 1 - deref register
 
     command();
-    command(SageOpCode, uint32_t, int [4]);
-    command(SageOpCode, int, int, int [4]);
-    command(SageOpCode, int, int, int, int [4]);
-    command(SageOpCode, int, int, int, int, int [4]);
+    command(SageOpCode, uint32_t, AddressMode);
+    command(SageOpCode, int, int, AddressMode);
+    command(SageOpCode, int, int, int, AddressMode);
 
     string print(const map<int, string>* label_names = nullptr);
 };
