@@ -113,6 +113,7 @@ inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mod
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
     registers[operands[0]] = operand1 + operand2;
+    set_register(operands[0], operand1 + operand2);
 }
 
 inline void SageInterpreter::execute_float_add(vector<int> &operands, AddressMode &mode) {
@@ -126,7 +127,7 @@ inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mod
     // _xx | OP_SUB reg, op, op
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
-    registers[operands[0]] = operand1 - operand2;
+    set_register(operands[0], operand1 - operand2);
 }
 
 inline void SageInterpreter::execute_float_sub(vector<int> &operands, AddressMode &mode) {
@@ -142,7 +143,7 @@ inline void SageInterpreter::execute_mul(vector<int> &operands, AddressMode &mod
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
-    registers[operands[0]] = operand1 * operand2;
+    set_register(operands[0], operand1 * operand2);
 }
 
 inline void SageInterpreter::execute_float_mul(vector<int> &operands, AddressMode &mode) {
@@ -166,7 +167,7 @@ inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mod
 
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
-    registers[operands[0]] = operand1 / operand2;
+    set_register(operands[0], operand1 / operand2);
 }
 
 inline void SageInterpreter::execute_float_div(vector<int> &operands, AddressMode &mode) {
