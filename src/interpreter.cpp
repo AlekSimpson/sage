@@ -87,176 +87,74 @@ SageValue SageInterpreter::get_return_value() const {
     return register_to_value(registers[6]);
 }
 
-void SageInterpreter::load_program(bytecode _program) {
+inline void SageInterpreter::load_program(bytecode _program) {
     program = _program;
 }
 
-vector<SageValue> SageInterpreter::dereference_map(instruction *inst, int map[4]) {
-    vector<int> raw_operands = inst->read();
-    vector<SageValue> return_values;
-    return_values.reserve(4);
-
-    if (inst->opcode == OP_LABEL || inst->opcode == OP_NOP || inst->opcode == VOP_EXIT) {
-        return return_values;
-    }
-
-    for (int i = 0; i < (int) raw_operands.size(); ++i) {
-        switch (map[i]) {
-            case 0:
-                // Raw immediate value
-                return_values.push_back(SageValue(raw_operands[i], TypeRegistery::get_integer_type(4)));
-                break;
-            case 1:
-                // Dereference register
-                return_values.push_back(SageValue(registers[raw_operands[i]]));
-                break;
-            default:
-                break;
-        }
-    }
-
-    return return_values;
+inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_ADD reg, op, op
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 + operand2;
 }
 
-void SageInterpreter::execute_add(vector<int> operands) {
-    if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 3 operands but less were found!");
-        return;
-    }
-
-    int target_register = operands[0].as_operand();
-
-    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() + operands[2].as_float());
-        return;
-    }
-
-    registers[target_register] = SageValue(operands[1].as_i32() + operands[2].as_i32());
+inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_SUB reg, op, op
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 - operand2;
 }
 
-void SageInterpreter::execute_sub(vector<int> operands) {
-    if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 3 operands but less were found!");
-        return;
-    }
+inline void SageInterpreter::execute_mul(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_MUL reg, op, op
 
-    int target_register = operands[0].as_operand();
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : registers[operands[1]];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : registers[operands[2]];
 
-    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() - operands[2].as_float());
-        return;
-    }
-
-    registers[target_register] = SageValue(operands[1].as_i32() - operands[2].as_i32());
+    registers[operands[0]] = operand1 * operand2;
 }
 
-void SageInterpreter::execute_mul(vector<int> operands) {
-    if (operands.size() < 3) {
+inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_DIV reg, op, op
+    if (operands[2] == 0) {
         ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
             current_linenum,
-            "execution requires 3 operands but less were found!");
+            "Division by zero.");
         return;
     }
 
-    int target_register = operands[0].as_operand();
-
-    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() * operands[2].as_float());
-        return;
-    }
-
-    registers[target_register] = SageValue(operands[1].as_i32() * operands[2].as_i32());
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : registers[operands[1]];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : registers[operands[2]];
+    registers[operands[0]] = operand1 / operand2;
 }
 
-void SageInterpreter::execute_div(vector<int> operands) {
-    if (operands.size() < 3) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 3 operands but less were found!");
-        return;
-    }
-
-    if (operands[2].value.int_value == 0) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 3 operands but less were found!");
-        return;
-    }
-
-    int target_register = operands[0].as_operand();
-
-    bool first_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[2].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[target_register] = SageValue(operands[1].as_float() / operands[2].as_float());
-        return;
-    }
-
-    registers[target_register] = SageValue(operands[1].as_i32() / operands[2].as_i32());
+inline void SageInterpreter::execute_load(vector<int> &operands) {
+    // _00 | load reg, ($fp - offset)
+    int load_address = frame_pointer->stack_pointer - operands[1];
+    registers[operands[0]] = memory[load_address];
 }
 
-void SageInterpreter::execute_load(vector<int> operands) {
-    if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 2 operands but less were found!");
-        return;
-    }
-
-    int load_address = unpack_int(registers[STACK_POINTER]) - operands[1].as_i32();
-    registers[unpack_int(operands[0])] = memory[load_address];
-}
-
-void SageInterpreter::execute_store(vector<int> operands) {
-    if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 2 operands but less were found!");
-        return;
-    }
-
-    int offset = operands[1].as_i32();
-    int store_address = unpack_int(registers[STACK_POINTER]) - offset;
+inline void SageInterpreter::execute_store(vector<int> &operands, AddressMode &mode) {
+    // _0x | store ($fp - offset), op
+    int offset = operands[0];
+    int store_address = frame_pointer->stack_pointer - offset;
     memory[store_address] = operands[0];
 }
 
-void SageInterpreter::execute_mov(vector<int> operands) {
-    if (operands.size() < 2) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "execution requires 2 operands but less were found!");
-        return;
-    }
-
-    int dest = operands[1].as_i32();
-    registers[dest] = operands[0];
+inline void SageInterpreter::execute_mov(vector<int> &operands, AddressMode &mode) {
+    // _0x | mov reg, op
+    registers[operands[0]] = operands[1];
 }
 
-void SageInterpreter::execute_call(vector<int> operands) {
-    int caller_dest_location = operands[0].as_i32();
+inline void SageInterpreter::execute_call(vector<int> &operands) {
+    // _00 | call immediate
+    int caller_dest_location = operands[0];
     push_stack_scope(caller_dest_location);
     program_pointer = frame_pointer->prog_start_address;
 }
 
-void SageInterpreter::execute_return() {
+inline void SageInterpreter::execute_return() {
     int callback_addr = frame_pointer->prog_return_address;
     if (callback_addr == -1) {
         vm_running = false;
@@ -265,50 +163,37 @@ void SageInterpreter::execute_return() {
     pop_stack_scope();
 }
 
-void SageInterpreter::execute_eqcomp(vector<int> operands) {
-    registers[21] = SageValue(operands[0].equals(operands[1]), TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_equality_comparison(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_EQ op, op
+    registers[21] = operands[0] == operands[1];
 }
 
-void SageInterpreter::execute_ltcomp(vector<int> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(operands[0].as_float() < operands[1].as_float(),
-                                  TypeRegistery::get_byte_type(BOOL));
-    }
-
-    registers[21] = SageValue(operands[0].as_i32() < operands[1].as_i32(), TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_less_than_comparison(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_LT op, op
+    registers[21] = operands[0] < operands[1];
 }
 
-void SageInterpreter::execute_gtcomp(vector<int> operands) {
-    bool first_operator_is_float = (operands[0].valuetype->identify() == FLOAT);
-    bool second_operator_is_float = (operands[1].valuetype->identify() == FLOAT);
-    if (first_operator_is_float || second_operator_is_float) {
-        registers[21] = SageValue(operands[0].as_float() > operands[1].as_float(),
-                                  TypeRegistery::get_byte_type(BOOL));
-    }
-
-    registers[21] = SageValue(operands[0].as_i32() > operands[1].as_i32(), TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_greater_than_comparison(vector<int> &operands, AddressMode &mode) {
+    // _xx | gt op, op
+    registers[21] = operands[0] > operands[1];
 }
 
-void SageInterpreter::execute_and(vector<int> operands) {
-    registers[21] = SageValue((operands[0].as_i32() && operands[1].as_i32()) == 1,
-                              TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_and(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_AND op, op
+    registers[21] = operands[0] == 1 && operands[1] == 1;
 }
 
-void SageInterpreter::execute_or(vector<int> operands) {
-    registers[21] = SageValue((operands[0].as_i32() && operands[1].as_i32()) == 1,
-                              TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_or(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_OR op, op
+    registers[21] = operands[0] == 1 || operands[1] == 1;
 }
 
-void SageInterpreter::execute_not(vector<int> operands) {
-    int value = unpack_int(operands[0]);
-    registers[21] = pack_int(!value);
-    registers[21] = SageValue((!operands[0].as_i32()),
-                              TypeRegistery::get_byte_type(BOOL));
+inline void SageInterpreter::execute_not(vector<int> &operands) {
+    // _00 | OP_NOT reg
+    registers[21] = !registers[operands[0]];
 }
 
-void SageInterpreter::execute_syscall() {
+inline void SageInterpreter::execute_system_call() {
     int callcode = unpack_int(registers[22]);
 
     switch (callcode) {
@@ -343,8 +228,8 @@ void SageInterpreter::execute() {
     program_pointer = proc_line_locations[get_procedure_frame_id("GLOBAL")];
     registers[STACK_POINTER] = 0;
 
-    command current_command;
-    vector<SageValue> operands;
+    vector<int> operands;
+    Command current_command;
     vm_running = true;
     bool prog_pointer_jump = false;
 
@@ -356,28 +241,28 @@ void SageInterpreter::execute() {
         current_command = program[program_pointer];
         auto debug_string = current_command.print();
 
-        operands = dereference_map(&current_command.inst, current_command.deref_map);
-        switch (current_command.inst.opcode) {
+         operands = current_command.instruction.unpack_instruction();
+        switch (current_command.instruction.opcode) {
             case OP_ADD:
-                execute_add(operands);
+                execute_add(operands, current_command.address_mode);
                 break;
             case OP_SUB:
-                execute_sub(operands);
+                execute_sub(operands, current_command.address_mode);
                 break;
             case OP_MUL:
-                execute_mul(operands);
+                execute_mul(operands, current_command.address_mode);
                 break;
             case OP_DIV:
-                execute_div(operands);
+                execute_div(operands, current_command.address_mode);
                 break;
             case OP_LOAD:
                 execute_load(operands);
                 break;
             case OP_STORE:
-                execute_store(operands);
+                execute_store(operands, current_command.address_mode);
                 break;
             case OP_MOV:
-                execute_mov(operands);
+                execute_mov(operands, current_command.address_mode);
                 break;
             case OP_JMP:
                 break; // TODO:
@@ -394,25 +279,25 @@ void SageInterpreter::execute() {
                 prog_pointer_jump = true;
                 break;
             case OP_EQ:
-                execute_eqcomp(operands);
+                execute_equality_comparison(operands, current_command.address_mode);
                 break;
             case OP_LT:
-                execute_ltcomp(operands);
+                execute_less_than_comparison(operands, current_command.address_mode);
                 break;
             case OP_GT:
-                execute_gtcomp(operands);
+                execute_greater_than_comparison(operands, current_command.address_mode);
                 break;
             case OP_AND:
-                execute_and(operands);
+                execute_and(operands, current_command.address_mode);
                 break;
             case OP_OR:
-                execute_or(operands);
+                execute_or(operands, current_command.address_mode);
                 break;
             case OP_NOT:
                 execute_not(operands);
                 break;
             case OP_SYSCALL:
-                execute_syscall();
+                execute_system_call();
                 break;
             case OP_LABEL:
             case OP_NOP:

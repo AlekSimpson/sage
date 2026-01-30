@@ -43,16 +43,18 @@ public:
     // sr22 = syscall register
     // sr23 = stack pointer
     //
+    // fsr0-49 = volatile float registers
+    // fsr50-99 = float registers
+    //
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
 
-    SageSymbolTable *symbol_table;
-
     ui64 registers[125];
-    int program_pointer;
+    double floating_point_registers[100];
 
     bytecode program;
     map<int, int> proc_line_locations;
+    SageSymbolTable *symbol_table;
     StackFrame *frame_pointer; // keeps track of current frame
 
     // memory layout:
@@ -69,6 +71,8 @@ public:
     const size_t static_start_pointer = 0;
     size_t static_memory_end_pointer;
     size_t heap_pointer; // HEAP begins where static ends
+
+    int program_pointer;
 
     bool vm_running = false;
 
@@ -88,23 +92,22 @@ public:
     void load_program(bytecode program);
     void execute();
 
-    vector<SageValue> dereference_map(instruction*, int [4]);
     SageValue get_return_value() const;
 
-    void execute_add(vector<int>);
-    void execute_sub(vector<int>);
-    void execute_mul(vector<int>);
-    void execute_div(vector<int>);
-    void execute_load(vector<int>);
-    void execute_store(vector<int>);
-    void execute_mov(vector<int>);
-    void execute_call(vector<int>);
-    void execute_return();
-    void execute_eqcomp(vector<int>);
-    void execute_ltcomp(vector<int>);
-    void execute_gtcomp(vector<int>);
-    void execute_and(vector<int>);
-    void execute_or(vector<int>);
-    void execute_not(vector<int>);
-    void execute_syscall();
+    inline void execute_add(vector<int> &, AddressMode &);
+    inline void execute_sub(vector<int> &, AddressMode &);
+    inline void execute_mul(vector<int> &, AddressMode &);
+    inline void execute_div(vector<int> &, AddressMode &);
+    inline void execute_load(vector<int> &);
+    inline void execute_store(vector<int> &, AddressMode &mode);
+    inline void execute_mov(vector<int> &, AddressMode &mode);
+    inline void execute_call(vector<int> &);
+    inline void execute_return();
+    inline void execute_equality_comparison(vector<int> &, AddressMode &mode);
+    inline void execute_less_than_comparison(vector<int> &, AddressMode &mode);
+    inline void execute_greater_than_comparison(vector<int> &, AddressMode &mode);
+    inline void execute_and(vector<int> &, AddressMode &);
+    inline void execute_or(vector<int> &, AddressMode &);
+    inline void execute_not(vector<int> &);
+    inline void execute_system_call();
 };

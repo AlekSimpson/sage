@@ -40,6 +40,19 @@ struct BytecodeBuilder {
     void build_instruction(SageOpCode, int, int, AddressMode);
     void build_instruction(SageOpCode, int, AddressMode);
 
+    void build_fload(int sage_float_register, int offset);
+    void build_load(int sage_register, int offset);
+    void build_store_immediate(int offset, int immediate);
+    void build_store_register(int offset, int sage_register);
+    void build_fstore_register(int offset, int float_register);
+
+    void build_fmove_register(int destination_register, int source_register);
+
+    void build_move_immediate(int sage_register, int immediate);
+    void build_move_register(int destination_register, int source_register);
+
+    void build_not(int sage_register);
+
     void build_puti();
     void build_puts();
 

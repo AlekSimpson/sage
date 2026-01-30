@@ -24,19 +24,19 @@ SageCompiler::SageCompiler()
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 
-    volatile_register_state = {
-        {10, SageValue()},
-        {11, SageValue()},
-        {12, SageValue()},
-        {13, SageValue()},
-        {14, SageValue()},
-        {15, SageValue()},
-        {16, SageValue()},
-        {17, SageValue()},
-        {18, SageValue()},
-        {19, SageValue()},
-        {20, SageValue()},
-    };
+    // volatile_register_state = {
+    //     {10, SageValue()},
+    //     {11, SageValue()},
+    //     {12, SageValue()},
+    //     {13, SageValue()},
+    //     {14, SageValue()},
+    //     {15, SageValue()},
+    //     {16, SageValue()},
+    //     {17, SageValue()},
+    //     {18, SageValue()},
+    //     {19, SageValue()},
+    //     {20, SageValue()},
+    // };
 }
 
 SageCompiler::~SageCompiler() {
@@ -153,6 +153,10 @@ void SageCompiler::compile_file(string mainfile) {
                 task->procedure_to_instruction_index = procedure_line_locations;
                 comptime_manager.staged_for_execution.push(task);
             }
+            if (logger.has_errors()) {
+                logger.report_errors();
+                return;
+            }
 
             // execute each task in parallel
             int thread_count = std::min((int)comptime_manager.tasks.size(), (int)std::thread::hardware_concurrency());
@@ -186,6 +190,11 @@ void SageCompiler::compile_file(string mainfile) {
     /// 3. RUNTIME GENERATION
     codegen_mode = GEN_RUNTIME;
     visit(ast_root);
+    if (logger.has_errors()) {
+        logger.report_errors();
+        return;
+    }
+
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
 
@@ -466,16 +475,21 @@ void SageCompiler::register_allocation() {
     }
 }
 
-int SageCompiler::get_volatile() {
-    int retval = 10 + (volatile_index % volatile_register_state.size());
+int SageCompiler::get_volatile_register() {
+    int _register = 10 + (volatile_index % VOLATILE_REGISTER_SIZE);
     volatile_index++;
-    return retval;
+    return _register;
 }
 
-bool SageCompiler::volatile_is_stale(SageValue &live, int volatile_idx) {
-    return !volatile_register_state[volatile_idx].equals(live);
+int SageCompiler::get_volatile_float_register() {
+    int _register = (volatile_float_index % VOLATILE_FLOAT_REGISTER_SIZE);
+    volatile_float_index++;
+    return _register;
 }
 
+//bool SageCompiler::volatile_is_stale(SageValue &live, int volatile_idx) {
+//    return !volatile_register_state[volatile_idx].equals(live);
+//}
 
 void SageCompiler::get_in_degree_of(
     const string &root_definition_identifier,

@@ -162,7 +162,7 @@ public:
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
     void *as_ptr() const { return value.complex_value; }
-    const char *as_charbuff() const { return static_cast<const char *>(value.complex_value); }
+    // DEPRECATED: TODO: FIX: const char *as_charbuff() const { return static_cast<const char *>(value.complex_value); }
 };
 
 namespace std {

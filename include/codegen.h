@@ -62,8 +62,11 @@ public:
   ComptimeManager comptime_manager;
 
   CodegenMode codegen_mode;
-  map<int, SageValue> volatile_register_state;
+  //map<int, SageValue> volatile_register_state;
+  const int VOLATILE_REGISTER_SIZE = 10;
+  const int VOLATILE_FLOAT_REGISTER_SIZE = 50;
   int volatile_index = 0;
+  int volatile_float_index = 0;
 
   set<string> previously_processed; // for forward decl auto resolution
   map<string, set<string>> definition_dependencies;
@@ -78,8 +81,9 @@ public:
 
   bool generating_compile_time_bytecode();
   void register_allocation();
-  int get_volatile();
-  bool volatile_is_stale(SageValue&, int);
+  int get_volatile_register();
+  int get_volatile_float_register();
+  // bool volatile_is_stale(SageValue&, int);
   void print_bytecode(bytecode&);
   void scan_all_program_symbols(NodeIndex root);
   void perform_type_resolution();
@@ -87,6 +91,7 @@ public:
   void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
   void resolve_definition_order(int target_scope);
   void process_escape_sequences(string &str);
+  bool is_float_operation(VisitorResult &one, VisitorResult &two);
 
   /* builders -- TODO: these can just be inlined into the visitors, most of these don't need to be their own functions */
   VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
@@ -100,7 +105,8 @@ public:
   VisitorResult build_and(VisitorResult, VisitorResult);
   VisitorResult build_or(VisitorResult, VisitorResult);
   VisitorResult build_load(NodeIndex);
-  VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode);
+  VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode, bool is_float_operation);
+  int materialize_to_float_register(VisitorResult &);
 
   /* visitors */
   VisitorResult visit(NodeIndex);

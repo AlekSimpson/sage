@@ -8,28 +8,28 @@
 
 using namespace std;
 
-command::command() {
+Command::Command() {
 }
 
-command::command(SageOpCode code, uint32_t operand, AddressMode mode) : inst(instruction(code, operand)) {
+Command::Command(SageOpCode code, uint32_t operand, AddressMode mode) : instruction(Instruction(code, operand)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
 }
 
-command::command(SageOpCode code, int op1, int op2, AddressMode mode) : inst(instruction(code, op1, op2)) {
+Command::Command(SageOpCode code, int op1, int op2, AddressMode mode) : instruction(Instruction(code, op1, op2)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
 }
 
-command::command(SageOpCode code, int op1, int op2, int op3, AddressMode mode) : inst(instruction(code, op1, op2, op3)) {
+Command::Command(SageOpCode code, int op1, int op2, int op3, AddressMode mode) : instruction(Instruction(code, op1, op2, op3)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
 }
 
-string command::print(const map<int, string> *label_names) {
+string Command::print(const map<int, string> *label_names) {
     map<SageOpCode, string> opcode_map = {
         {OP_ADD, "ADD"},
         {OP_SUB, "SUB"},
@@ -55,41 +55,44 @@ string command::print(const map<int, string> *label_names) {
         {VOP_EXIT, "EXIT"}
     };
 
-    if (inst.opcode == OP_RET || inst.opcode == OP_NOP || inst.opcode == OP_SYSCALL || inst.opcode == VOP_EXIT) {
-        return opcode_map[inst.opcode];
+    if (instruction.opcode == OP_RET ||
+        instruction.opcode == OP_NOP ||
+        instruction.opcode == OP_SYSCALL ||
+        instruction.opcode == VOP_EXIT) {
+        return opcode_map[instruction.opcode];
     }
 
-    switch (inst.opcode) {
+    switch (instruction.opcode) {
         case OP_NOT: {
-            return sen(opcode_map[inst.opcode], str("r", to_string(inst.operands)));
+            return sen(opcode_map[instruction.opcode], str("r", to_string(instruction.operands)));
         }
         case OP_LABEL:
         case OP_JMP:
         case OP_CALL: {
-            auto it = label_names->find(inst.operands);
-            string operand = str("@", to_string(inst.operands), " (", it->second, ")");
-            return sen(opcode_map[inst.opcode], operand);
+            auto it = label_names->find(instruction.operands);
+            string operand = str("@", to_string(instruction.operands), " (", it->second, ")");
+            return sen(opcode_map[instruction.opcode], operand);
         }
 
         case OP_MOV: {
-            _double operands = dunpack(inst.operands);
+            _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_LOAD: {
-            _double operands = dunpack(inst.operands);
+            _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
             string operand_string_2 = str("($fp + ", to_string(operands.two), ")");
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_STORE: {
-            _double operands = dunpack(inst.operands);
+            _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("($fp + ", to_string(operands.one), ")");
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_EQ:
@@ -98,31 +101,31 @@ string command::print(const map<int, string> *label_names) {
         case OP_AND:
         case OP_OR: {
             // two operands
-            _double operands = dunpack(inst.operands);
+            _double operands = dunpack(instruction.operands);
             string operand_string_1 = address_mode[0] == 1 ? str("r", to_string(operands.one)) : to_string(operands.one);
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_JZ:
         case OP_JNZ: {
-            _double operands = dunpack(inst.operands);
+            _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
 
             auto it = label_names->find(operands.two);
             string operand_string_2 = str("@", to_string(operands.two), " (", it->second, ")");
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_ADD:
         case OP_SUB:
         case OP_MUL:
         case OP_DIV: {
-            _triple operands = tunpack(inst.operands);
+            _triple operands = tunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
             string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
             string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands.three)) : to_string(operands.three);
-            return sen(opcode_map[inst.opcode], operand_string_1, operand_string_2, operand_string_3);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
 
         default:
@@ -130,24 +133,24 @@ string command::print(const map<int, string> *label_names) {
     }
 }
 
-instruction::instruction() {
+Instruction::Instruction() {
 }
 
-instruction::instruction(SageOpCode code, uint32_t ops) : opcode(code), operands(ops) {
+Instruction::Instruction(SageOpCode code, uint32_t ops) : opcode(code), operands(ops) {
 }
 
-instruction::instruction(SageOpCode code, int op1, int op2) {
+Instruction::Instruction(SageOpCode code, int op1, int op2) {
     opcode = code;
     operands = dpack(static_cast<ui16>(op1), static_cast<ui16>(op2));
 }
 
-instruction::instruction(SageOpCode code, int op1, int op2, int op3) {
+Instruction::Instruction(SageOpCode code, int op1, int op2, int op3) {
     opcode = code;
     //operands = tpack(op1, op2, op3);
     operands = tpack(static_cast<ui16>(op1), static_cast<ui16>(op2), static_cast<ui16>(op3));
 }
 
-instruction::instruction(SageOpCode code, int op1, int op2, int op3, int op4) {
+Instruction::Instruction(SageOpCode code, int op1, int op2, int op3, int op4) {
     opcode = code;
     operands = tpack(op1, op2, op3, op4);
 }
@@ -172,7 +175,7 @@ inline _triple tunpack(ui32 packed) {
     };
 }
 
-vector<int> instruction::read() {
+vector<int> Instruction::unpack_instruction() {
     vector<int> result;
 
     switch (opcode) {

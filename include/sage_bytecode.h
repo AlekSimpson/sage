@@ -5,8 +5,6 @@
 #include <vector>
 #include <map>
 
-#include "bytecode_builder.h"
-
 using namespace std;
 
 // References:
@@ -26,20 +24,31 @@ inline int _01[2] = {0, 1};
 inline int _11[2] = {1, 1};
 
 enum SageOpCode {
-    // op = could be referencing immediate value or value at registers[op]
+    // op (operand) = could be referencing immediate value or value at registers[op]
 
     OP_ADD = 0, // _xx | add reg, op, op
     OP_SUB,     // _xx | sub reg, op, op
     OP_MUL,     // _xx | mul reg, op, op
     OP_DIV,     // _xx | div reg, op, op
 
+    OP_FADD,    // _xx | fadd freg, op, op
+    OP_FSUB,    // _xx | fsub freg, op, op
+    OP_FMUL,    // _xx | fmul freg, op, op
+    OP_FDIV,    // _xx | fdiv freg, op, op
+
     OP_ALLOC,   // _00 | alloc size    | size in bytes
+    OP_FLOAD,   // _00 | load freg, ($fp - offset)
+                // build_fload(register, offset)
     OP_LOAD,    // _00 | load reg, ($fp - offset)
                 // build_load(register, offset)
     OP_STORE,   // _0x | store ($fp - offset), op
                 // build_store_immediate(offset, immediate)
                 // build_store_register(offset, register)
+    OP_FSTORE,  // _0x | fstore ($fp - offset), op
+                // build_fstore_register(offset, register)
 
+    OP_FMOV,    // _0x | mov freg, op
+                // build_fmove_register(register, register)
     OP_MOV,     // _0x | mov reg, op
                 // build_move_immediate(register, immediate)
                 // build_move_register(register, register)
@@ -54,10 +63,18 @@ enum SageOpCode {
     OP_LT,      // _xx | lt op, op
     OP_GT,      // _xx | gt op, op
 
+    OP_FEQ,     // _xx | feq op, op
+    OP_FLT,     // _xx | flt op, op
+    OP_FGT,     // _xx | fgt op, op
+
     OP_AND,     // _xx | and op, op
     OP_OR,      // _xx | or op, op
     OP_NOT,     // _00 | not reg
                 // build_not(int register)
+
+    OP_FAND,    // _xx | fand op, op
+    OP_FOR,     // _xx | for op, op
+
     OP_NOP,     // _00 | nop
 
     OP_SYSCALL, // _00 | syscall
@@ -77,34 +94,34 @@ struct _triple {
     ui8 three;
 };
 
-struct instruction {
+struct Instruction {
     SageOpCode opcode = SageOpCode::OP_NOP;
     uint32_t operands = 0;
 
-    instruction();
-    instruction(SageOpCode, uint32_t);
-    instruction(SageOpCode, int, int);
-    instruction(SageOpCode, int, int, int);
-    instruction(SageOpCode, int, int, int, int);
+    Instruction();
+    Instruction(SageOpCode, uint32_t);
+    Instruction(SageOpCode, int, int);
+    Instruction(SageOpCode, int, int, int);
+    Instruction(SageOpCode, int, int, int, int);
 
-    vector<int> read();
+    vector<int> unpack_instruction();
 };
 
-struct command {
-    instruction inst;
+struct Command {
+    Instruction instruction;
     int address_mode[2] = {0, 0};
     // 0 - neutral, use raw immediate
     // 1 - deref register
 
-    command();
-    command(SageOpCode, uint32_t, AddressMode);
-    command(SageOpCode, int, int, AddressMode);
-    command(SageOpCode, int, int, int, AddressMode);
+    Command();
+    Command(SageOpCode, uint32_t, AddressMode);
+    Command(SageOpCode, int, int, AddressMode);
+    Command(SageOpCode, int, int, int, AddressMode);
 
     string print(const map<int, string>* label_names = nullptr);
 };
 
-typedef vector<command> bytecode;
+typedef vector<Command> bytecode;
 
 /* packers */
 inline ui32 dpack(ui16 operand1, ui16 operand2);

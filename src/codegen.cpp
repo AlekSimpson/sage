@@ -5,6 +5,8 @@
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 
+#include <complex>
+
 using namespace std;
 
 VisitorResultState VisitorResult::get_result_state(SageSymbolTable *table) {
@@ -269,45 +271,40 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         return VisitorResult();
     }
 
-    int i = 0;
+    int argument_register_address = 0;
     for (VisitorResult arg_result: args) {
         auto arg_result_state = arg_result.get_result_state(&symbol_table);
         switch (arg_result_state) {
             case VisitorResultState::IMMEDIATE:
-                printf("GENERATING ARG BYTECODE WITH IMMEDIATE\n");
-                builder.build_instruction(OP_MOV, arg_result.immediate_value, i);
+                builder.build_move_immediate(argument_register_address, arg_result.immediate_value);
                 break;
             case VisitorResultState::SPILLED: {
-                printf("GENERATING ARG BYTECODE WITH SPILLED\n");
-                int temporary_register = get_volatile();
+                int temporary_register = get_volatile_register();
                 symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_instruction(OP_LOAD, temporary_register, arg_entry->spill_offset);
-                builder.build_instruction(OP_MOV, temporary_register, i);
+                builder.build_load(temporary_register, arg_entry->spill_offset);
+                builder.build_move_register(argument_register_address, temporary_register);
                 break;
             }
             case VisitorResultState::REGISTER: {
-                printf("GENERATING ARG BYTECODE WITH REGISTER\n");
                 symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_instruction(OP_MOV, arg_entry->assigned_register, i);
+                builder.build_move_register(argument_register_address, arg_entry->assigned_register);
                 break;
             }
             case VisitorResultState::VALUE: {
-                printf("GENERATING ARG BYTECODE WITH VALUE\n");
                 symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_instruction(OP_MOV, arg_entry->value, i);
+                builder.build_move_immediate(argument_register_address, arg_entry->value);
                 break;
             }
             default:
                 break;
         }
-        i++;
+        argument_register_address++;
     }
 
-    builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name));
+    builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
 
     symbol->assigned_register = 6;
     // TODO: (temporary) when we support more than one return value we will need to beef up the logic around this
-    //return symbol->symbol_id;
     return VisitorResult((table_index)symbol_table.declare_temporary(6));
 }
 
