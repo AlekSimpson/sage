@@ -127,6 +127,14 @@ public:
     static SageType *get_array_type(SageType *element_type, int size);
     static SageType *get_function_type(std::vector<SageType *> return_types, std::vector<SageType *> parameter_types);
     static SageType *get_struct_type(string name, std::vector<SageType *> return_types);
+
+    static bool is_float64_type(SageType *type);
+    static bool is_float32_type(SageType *type);
+    static bool is_int64_type(SageType *type);
+    static bool is_int32_type(SageType *type);
+    static bool is_bool_type(SageType *type);
+    static bool is_char_type(SageType *type);
+    static bool is_null_type(SageType *type);
 };
 
 class SageValue {

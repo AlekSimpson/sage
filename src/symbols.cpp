@@ -76,7 +76,7 @@ void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager,
 
 void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
     symbol_entry entry;
-    entry.type = type;
+    entry.type = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
     entry.identifier = name;
     entry.definition_ast_index = -1;
     entry.scope_id = 0;
@@ -93,7 +93,7 @@ void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *
 
 void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type) {
     symbol_entry entry;
-    entry.type = type;
+    entry.type = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
     entry.assigned_register = -1;
     entry.identifier = name;
     entry.scope_id = 0;
@@ -177,7 +177,7 @@ table_index SageSymbolTable::declare_temporary(int register_alloc) {
     temporary_counter_gen++;
 
     symbol_entry entry;
-    entry.type = nullptr;
+    entry.type = TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0));
     entry.assigned_register = register_alloc;
     entry.identifier = name;
     entry.scope_id = -1;

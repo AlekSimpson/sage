@@ -41,6 +41,7 @@ void SageCompiler::print_bytecode(bytecode &code) {
         printf("%d: %s\n", count, instruction.print(&label_names).c_str());
         count++;
     }
+    printf("------------\n");
 }
 
 bool SageCompiler::generating_compile_time_bytecode() {

@@ -69,8 +69,12 @@ string Command::print(const map<int, string> *label_names) {
         case OP_LABEL:
         case OP_JMP:
         case OP_CALL: {
-            auto it = label_names->find(instruction.operands);
-            string operand = str("@", to_string(instruction.operands), " (", it->second, ")");
+            if (label_names != nullptr) {
+                auto it = label_names->find(instruction.operands);
+                string operand = str("@", to_string(instruction.operands), " (", it->second, ")");
+                return sen(opcode_map[instruction.opcode], operand);
+            }
+            string operand = str("@", to_string(instruction.operands));
             return sen(opcode_map[instruction.opcode], operand);
         }
 
@@ -112,8 +116,13 @@ string Command::print(const map<int, string> *label_names) {
             _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
 
-            auto it = label_names->find(operands.two);
-            string operand_string_2 = str("@", to_string(operands.two), " (", it->second, ")");
+            if (label_names != nullptr) {
+                auto it = label_names->find(operands.two);
+                string operand_string_2 = str("@", to_string(operands.two), " (", it->second, ")");
+                return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+            }
+
+            string operand_string_2 = str("@", to_string(operands.two));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 

@@ -1,6 +1,4 @@
-#include <sys/syscall.h>  // for SYS_* constants
-#include <unistd.h>
-
+#include "../include/platform.h"
 #include "../include/interpreter.h"
 
 #include <bytecode_builder.h>
@@ -55,23 +53,21 @@ size_t SageInterpreter::allocate_on_heap(size_t bytes) {
     return start_address;
 }
 
-void SageInterpreter::push_stack_scope(int func_id) {
-    size_t return_address = stack_pointer() - 1;
-    if (return_address >= heap_pointer) {
-        ErrorLogger::get().log_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "stackoverflow", GENERAL);
-        return;
-    }
+size_t SageInterpreter::allocate_on_stack(size_t bytes) {
+    size_t start_address = stack_pointer();
+    set_register(STACK_POINTER, start_address - bytes);
+    return start_address;
+}
 
+void SageInterpreter::push_stack_scope(int func_id) {
     // make new current stack frame
+    int program_return_address = program_pointer + 1;
     set_register(STACK_POINTER, stack_pointer() - 1);
     int start_stack_address = stack_pointer();
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer,
                                    cached_registers,
-                                   return_address,
+                                   program_return_address,
                                    start_stack_address,
                                    proc_line_locations[func_id]);
 }
@@ -110,9 +106,8 @@ void SageInterpreter::set_float_register(int _register, double value) {
 
 inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_ADD reg, op, op
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
-    registers[operands[0]] = operand1 + operand2;
+    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
+    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
     set_register(operands[0], operand1 + operand2);
 }
 
@@ -125,8 +120,8 @@ inline void SageInterpreter::execute_float_add(vector<int> &operands, AddressMod
 
 inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_SUB reg, op, op
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
+    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
     set_register(operands[0], operand1 - operand2);
 }
 
@@ -140,8 +135,8 @@ inline void SageInterpreter::execute_float_sub(vector<int> &operands, AddressMod
 inline void SageInterpreter::execute_mul(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_MUL reg, op, op
 
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
+    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
 
     set_register(operands[0], operand1 * operand2);
 }
@@ -165,8 +160,8 @@ inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mod
         return;
     }
 
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
+    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
     set_register(operands[0], operand1 / operand2);
 }
 
@@ -303,10 +298,10 @@ inline void SageInterpreter::execute_float_greater_than_comparison(vector<int> &
 }
 
 inline void SageInterpreter::execute_system_call() {
-    int callcode = unpack_int(registers[22]);
+    SVM_SYSCALL callcode = (SVM_SYSCALL)read_register(22);
 
     switch (callcode) {
-        case SYS_write: {
+        case SYS_WRITE: {
             int static_pointer = read_register(1);
             int character_count = read_register(2);
             string characters;
@@ -315,17 +310,15 @@ inline void SageInterpreter::execute_system_call() {
                 static_pointer++;
             }
             const char *buffer = characters.c_str();
-            syscall(
-                callcode,
+            sage_write(
                 read_register(0),
                 buffer,
                 character_count);
             break;
         }
-        case SAGESYS_write_int: {
+        case SYS_WRITE_INT: {
             string text = to_string(read_register(1));
-            syscall(
-                SYS_write,
+            sage_write(
                 read_register(0),
                 text.c_str(),
                 read_register(2));

@@ -10,6 +10,8 @@
 #include "comptime_manager.h"
 #include "sage_bytecode.h"
 
+#define assertm(condition, message) assert((condition) && (message))
+
 #define ui32 uint32_t
 #define ui64 uint64_t
 
@@ -17,8 +19,6 @@
 #define GENERAL_REG_RANGE_BEGIN 24
 #define GENERAL_REG_RANGE_END 124
 #define BUILTIN_COUNT 13
-
-#define SAGESYS_write_int 600
 
 enum debug_level {
   NONE,

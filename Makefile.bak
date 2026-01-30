@@ -8,13 +8,11 @@ ifeq ($(UNAME_S), Darwin)  # macOS
     CXX      := clang++
     LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVM-19
     INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(LLVM_INCLUDE)
-    DEBUG_FLAGS := -gdwarf-4 -fno-omit-frame-pointer -fstandalone-debug
 else  # Assume Linux
     LLVM_PATH := /usr/lib/llvm-14/lib
     CXX      := g++
     LDFLAGS  := -L/usr/lib -L/usr/local/lib -L$(LLVM_PATH) $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVM-14 -ltinfo
     INCLUDE  := -Iinclude/ -I/usr/local/include -I/usr/lib/llvm-14/include
-    DEBUG_FLAGS := -gdwarf-4 -fno-omit-frame-pointer
 endif
 
 # Common flags
@@ -52,12 +50,12 @@ build:
 	@mkdir -p $(OBJ_DIR)
 
 # Memory debugging target with Address and Leak sanitizers
-memdebug: CXXFLAGS += $(DEBUG_FLAGS) -fsanitize=address,leak
+memdebug: CXXFLAGS += -fsanitize=address,leak -fno-omit-frame-pointer -gdwarf-4
 memdebug: LDFLAGS += -fsanitize=address,leak
 memdebug: DEBUG_BUILD=1
 memdebug: all
 
-debug: CXXFLAGS += $(DEBUG_FLAGS)
+debug: CXXFLAGS += -gdwarf-4 -fno-omit-frame-pointer -fstandalone-debug
 debug: DEBUG_BUILD=1
 debug: all
 

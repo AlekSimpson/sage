@@ -383,3 +383,47 @@ SageType *TypeRegistery::get_function_type(std::vector<SageType *> return_types,
     function_types[key] = std::move(type);
     return function_types[key].get();
 }
+
+
+bool TypeRegistery::is_float64_type(SageType *type) {
+    auto *float_type = get_builtin_type(FLOAT, 8);
+    return type->match(float_type);
+}
+
+bool TypeRegistery::is_float32_type(SageType *type) {
+    auto *float_type = get_builtin_type(FLOAT, 4);
+    return type->match(float_type);
+}
+
+bool TypeRegistery::is_int64_type(SageType *type) {
+    auto *int64_type = get_builtin_type(INT, 8);
+    return type->match(int64_type);
+}
+
+bool TypeRegistery::is_int32_type(SageType *type) {
+    auto *int32_type = get_builtin_type(INT, 4);
+    return type->match(int32_type);
+}
+
+bool TypeRegistery::is_bool_type(SageType *type) {
+    auto *bool_type = get_builtin_type(BOOL, 1);
+    return type->match(bool_type);
+}
+
+bool TypeRegistery::is_char_type(SageType *type) {
+    auto *char_type = get_builtin_type(CHAR, 1);
+    return type->match(char_type);
+}
+
+bool TypeRegistery::is_null_type(SageType *type) {
+    auto *null_type = get_builtin_type(VOID, 0);
+    return type->match(null_type);
+}
+
+
+
+
+
+
+
+

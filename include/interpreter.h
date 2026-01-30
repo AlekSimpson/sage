@@ -12,9 +12,14 @@
 
 #define ui64 uint64_t
 
+enum SVM_SYSCALL {
+    SYS_WRITE = 0,
+    SYS_WRITE_INT,
+};
+
 class StackFrame {
 public:
-    int prog_return_address; // where the program resumes after the function finishes executing
+    int prog_return_address; // where the program resumes in bytecode after the function finishes executing
     int prog_start_address; // where the function begins in bytecode
     size_t stack_pointer; // keep track of where this frame starts in the stack, so we can pop the frame correctly
     StackFrame *previous_frame;
@@ -84,6 +89,7 @@ public:
     void stack_write_i32(size_t addr, int32_t val);
     int32_t stack_read_i32(size_t addr);
     size_t allocate_on_heap(size_t bytes);
+    size_t allocate_on_stack(size_t bytes);
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
     inline int stack_pointer();

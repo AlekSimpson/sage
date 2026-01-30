@@ -1,7 +1,7 @@
 #include <atomic>
-#include <unistd.h>
-#include <sys/syscall.h>
 #include <cassert>
+
+#include "../include/platform.h"
 #include <cstring>
 
 #include "../include/bytecode_builder.h"
@@ -325,7 +325,7 @@ void BytecodeBuilder::build_puti() {
     procedures[id] = ProcedureFrame("puti");
     procedure_stack.push(id);
     build_instruction(OP_LABEL, id, _00);
-    build_instruction(OP_MOV, 22, SAGESYS_write_int, _00);
+    build_instruction(OP_MOV, 22, SYS_WRITE_INT, _00);
     build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
     build_instruction(OP_MOV, 1, 0, _01); // save integer to print into r1
     build_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
@@ -345,7 +345,7 @@ void BytecodeBuilder::build_puts() {
     procedures[id] = ProcedureFrame("puts");
     procedure_stack.push(id);
     build_instruction(OP_LABEL, id, _00);
-    build_instruction(OP_MOV, 22, SYS_write, _00);
+    build_instruction(OP_MOV, 22, SYS_WRITE, _00);
     build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
     build_instruction(OP_MOV, 1, 0, _01);  // save character buff pointer to print into r1
     build_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
@@ -371,7 +371,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
     switch (control_flow_path) {
         case 4: {
             /* right_value=IMMEDIATE, var_symbol=SPILLED */
-            assert(var_symbol->type->identify() != FLOAT);
+            assertm(!TypeRegistery::is_float64_type(var_symbol->type), "Float literals are not yet implemented yet.");
 
             builder.build_store_immediate(var_symbol->spill_offset, right_value.immediate_value);
 
@@ -422,7 +422,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
         }
         case 8: {
             /* right_value=IMMEDIATE, var_symbol=REGISTER */
-            assert(right_value.immediate_value.valuetype->identify() != FLOAT);
+            assertm(!TypeRegistery::is_float64_type(right_value.immediate_value.valuetype), "Float literals are not yet implemented yet.");
 
             if (var_symbol->type->identify() == FLOAT) {
                 int float_register = get_volatile_float_register();
@@ -486,14 +486,14 @@ VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_pro
 
     constexpr int RETURN_REGISTER = 6;
     if (return_value.is_immediate()) {
-        assert(return_value.immediate_value.valuetype->identify() != FLOAT);
+        assertm(!TypeRegistery::is_float64_type(return_value.immediate_value.valuetype), "Float return types are not supported yet.");
         builder.build_instruction(OP_MOV, RETURN_REGISTER, return_value.immediate_value, _00);
         builder.build_instruction(opcode, 0, _00);
         builder.exit_frame();
         return VisitorResult();
     }
     auto *return_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-    assert(return_symbol->type->identify() != FLOAT);
+    assertm(!TypeRegistery::is_float64_type(return_symbol->type), "Float return types are not supported yet.");
 
     switch (return_value.get_result_state(&symbol_table)) {
         case VisitorResultState::IMMEDIATE: {
