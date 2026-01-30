@@ -20,7 +20,7 @@ SageCompiler::SageCompiler()
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager)),
       builder(BytecodeBuilder()),
-      comptime_manager(ComptimeManager()){
+      comptime_manager(ComptimeManager(node_manager)){
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 }
@@ -100,6 +100,7 @@ void SageCompiler::compile_file(string mainfile) {
 
     // 2. COMPTIME EXECUTION AND PROCESSING
     if (!comptime_manager.tasks.empty()) {
+        comptime_manager.set_symbol_table(&symbol_table);
         codegen_mode = GEN_COMPTIME;
         bool on_last_batch = false;
 

@@ -199,6 +199,60 @@ void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand, AddressM
     increment_total_instruction_count(1);
 }
 
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, int operand3, AddressMode mode) {
+    runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand1,
+        operand2,
+        operand3,
+        mode
+    ));
+    runtime_total_instructions++;
+
+    comptime_procedures[comptime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand1,
+        operand2,
+        operand3,
+        mode
+    ));
+    comptime_total_instructions++;
+}
+
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, AddressMode mode) {
+    runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand1,
+        operand2,
+        mode
+    ));
+    runtime_total_instructions++;
+
+    comptime_procedures[comptime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand1,
+        operand2,
+        mode
+    ));
+    comptime_total_instructions++;
+}
+
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand, AddressMode mode) {
+    runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand,
+        mode
+    ));
+    runtime_total_instructions++;
+
+    comptime_procedures[comptime_procedure_stack.top()].procedure_instructions.push_back(Command(
+        opcode,
+        operand,
+        mode
+    ));
+    comptime_total_instructions++;
+}
+
 void BytecodeBuilder::build_fload(int float_register, int offset) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
@@ -316,43 +370,43 @@ void BytecodeBuilder::build_not(int sage_register) {
 }
 
 void BytecodeBuilder::build_puti() {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
     // puts(r0=integer, r1=digit_count)
 
     int id = get_procedure_frame_id("puti");
-    procedures[id] = ProcedureFrame("puti");
-    procedure_stack.push(id);
-    build_instruction(OP_LABEL, id, _00);
-    build_instruction(OP_MOV, 22, SYS_WRITE_INT, _00);
-    build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
-    build_instruction(OP_MOV, 1, 0, _01); // save integer to print into r1
-    build_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
-    build_instruction(OP_MOV, 0, STDOUT_FILENO, _00); // tell system that this is outputting to stdout
-    build_instruction(OP_SYSCALL, -1, _00);
-    build_instruction(OP_RET, -1, _00);
-    procedure_stack.pop();
+    runtime_procedures[id] = ProcedureFrame("puti");
+    comptime_procedures[id] = ProcedureFrame("puti");
+    runtime_procedure_stack.push(id);
+    comptime_procedure_stack.push(id);
+    build_builtin_instruction(OP_LABEL, id, _00);
+    build_builtin_instruction(OP_MOV, 22, SYS_WRITE_INT, _00);
+    build_builtin_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
+    build_builtin_instruction(OP_MOV, 1, 0, _01); // save integer to print into r1
+    build_builtin_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
+    build_builtin_instruction(OP_MOV, 0, STDOUT_FILENO, _00); // tell system that this is outputting to stdout
+    build_builtin_instruction(OP_SYSCALL, -1, _00);
+    build_builtin_instruction(OP_RET, -1, _00);
+    runtime_procedure_stack.pop();
+    comptime_procedure_stack.pop();
 }
 
 void BytecodeBuilder::build_puts() {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
     // puts(r0=characters, r1=char_count)
 
     int id = get_procedure_frame_id("puts");
-    procedures[id] = ProcedureFrame("puts");
-    procedure_stack.push(id);
-    build_instruction(OP_LABEL, id, _00);
-    build_instruction(OP_MOV, 22, SYS_WRITE, _00);
-    build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
-    build_instruction(OP_MOV, 1, 0, _01);  // save character buff pointer to print into r1
-    build_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
-    build_instruction(OP_MOV, 0, STDOUT_FILENO, _00);  // tell system that this is outputting to stdout
-    build_instruction(OP_SYSCALL, -1, _00);
-    build_instruction(OP_RET, -1, _00);
-    procedure_stack.pop();
+    runtime_procedures[id] = ProcedureFrame("puts");
+    comptime_procedures[id] = ProcedureFrame("puts");
+    runtime_procedure_stack.push(id);
+    comptime_procedure_stack.push(id);
+    build_builtin_instruction(OP_LABEL, id, _00);
+    build_builtin_instruction(OP_MOV, 22, SYS_WRITE, _00);
+    build_builtin_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
+    build_builtin_instruction(OP_MOV, 1, 0, _01);  // save character buff pointer to print into r1
+    build_builtin_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
+    build_builtin_instruction(OP_MOV, 0, STDOUT_FILENO, _00);  // tell system that this is outputting to stdout
+    build_builtin_instruction(OP_SYSCALL, -1, _00);
+    build_builtin_instruction(OP_RET, -1, _00);
+    runtime_procedure_stack.pop();
+    comptime_procedure_stack.pop();
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {

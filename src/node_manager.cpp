@@ -3,6 +3,9 @@
 #include <iostream>
 #include <typeinfo>
 #include "../include/node_manager.h"
+
+#include <error_logger.h>
+
 #include "../include/scope_manager.h"
 
 NodeManager::NodeManager() {
@@ -59,7 +62,10 @@ BlockParseNode *NodeManager::unbox(NodeIndex index) {
 
 nodebox NodeManager::get_node(NodeIndex node) {
     if (node < 0 || node > capacity) {
-        printf("WARNING: accessing invalid node index %d\n", node);
+        ErrorLogger::get().log_internal_error_safe(
+            "node_manager.cpp",
+            current_linenum,
+            sen("get_node: attempted to access invalid node index", node));
         return nodebox{};
     }
 
@@ -163,7 +169,10 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
 NodeIndex NodeManager::get_left(NodeIndex index) {
     auto box = get_node(index);
     if (box.node == nullptr) {
-        printf("WARNING | get_left: OUT OF RANGE NODE INDEX GIVE %d\n", index);
+        ErrorLogger::get().log_internal_error_safe(
+            "node_manager.cpp",
+            current_linenum,
+            sen("get_left: out of range node index. Given", index,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -184,7 +193,10 @@ NodeIndex NodeManager::get_left(NodeIndex index) {
 NodeIndex NodeManager::get_right(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_right: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        ErrorLogger::get().log_internal_error_safe(
+            "node_manager.cpp",
+            current_linenum,
+            sen("get_right: out of range node index. Given", index,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -205,7 +217,10 @@ NodeIndex NodeManager::get_right(NodeIndex node) {
 NodeIndex NodeManager::get_middle(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_middle: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        ErrorLogger::get().log_internal_error_safe(
+           "node_manager.cpp",
+           current_linenum,
+           sen("get_middle: out of range node index. Given", index,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -223,7 +238,10 @@ NodeIndex NodeManager::get_middle(NodeIndex node) {
 NodeIndex NodeManager::get_branch(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_branch: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        ErrorLogger::get().log_internal_error_safe(
+           "node_manager.cpp",
+           current_linenum,
+           sen("get_branch: out of range node index. Given", index,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -259,7 +277,10 @@ NodeIndex NodeManager::reach_right(NodeIndex node, int reach_depth) {
 vector<NodeIndex> NodeManager::get_children(NodeIndex node) {
     auto box = get_node(node);
     if (box.node == nullptr) {
-        printf("WARNING | get_children: OUT OF RANGE NODE INDEX GIVE %d\n", node);
+        ErrorLogger::get().log_internal_error_safe(
+           "node_manager.cpp",
+           current_linenum,
+           sen("get_children: out of range node index. Given", index,"which is invalid."));
         return vector<NodeIndex>();
     }
 

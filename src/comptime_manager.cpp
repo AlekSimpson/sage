@@ -80,7 +80,7 @@ void ComptimeManager::register_task_dependencies(SageSymbolTable &symbol_table) 
 }
 
 void ComptimeManager::execute_task(ComptimeTask *task) {
-    SageInterpreter interpreter = SageInterpreter();
+    SageInterpreter interpreter = SageInterpreter(symbol_table);
     interpreter.open(task->procedure_to_instruction_index, static_program_memory);
     interpreter.load_program(task->task_instructions);
     interpreter.execute();
@@ -162,6 +162,9 @@ bool ComptimeManager::verify_comptime_dependencies() {
     return !logger.has_errors();
 }
 
+void ComptimeManager::set_symbol_table(SageSymbolTable *table) {
+    symbol_table = table;
+}
 
 
 

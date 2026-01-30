@@ -5,6 +5,10 @@ add :: (x: int, y: int) -> int {
 
 main :: () {
 
+    #run {
+        puts("at comptime\n", 12)
+    }
+
 
     result: int = add(5, 10)
     puts("tests\n", 6)

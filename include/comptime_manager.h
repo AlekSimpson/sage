@@ -51,6 +51,7 @@ struct TaskComparator {
 typedef priority_queue<ComptimeTask *, vector<ComptimeTask *>, TaskComparator> TaskMinHeap;
 struct ComptimeManager {
     NodeManager *node_man;
+    SageSymbolTable *symbol_table;
 
     vector<ComptimeTask> tasks;
     TaskMinHeap task_min_heap;
@@ -66,8 +67,9 @@ struct ComptimeManager {
     static constexpr int MAX_ITERATIONS = 10;
     bool modifies_runtime_ast_lock = false;
 
-    ComptimeManager() {};
+    ComptimeManager(NodeManager *nm) : node_man(nm) {};
 
+    void set_symbol_table(SageSymbolTable *table);
     int get_next_task_prerequisite_count();
     void register_task_dependencies(SageSymbolTable &symbol_table);
     int add_task(NodeIndex);
