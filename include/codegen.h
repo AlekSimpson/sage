@@ -61,17 +61,17 @@ public:
   BytecodeBuilder builder;
   ComptimeManager comptime_manager;
 
-  CodegenMode codegen_mode;
-  //map<int, SageValue> volatile_register_state;
-  const int VOLATILE_REGISTER_SIZE = 10;
-  const int VOLATILE_FLOAT_REGISTER_SIZE = 50;
-  int volatile_index = 0;
-  int volatile_float_index = 0;
-
   set<string> previously_processed; // for forward decl auto resolution
   map<string, set<string>> definition_dependencies;
   map<string, int> in_degree_map; // TODO: rename, this is not a very good name
   map<table_index, vector<uint8_t>> static_program_memory;
+  vector<table_index> static_program_memory_insertion_order;
+
+  CodegenMode codegen_mode;
+  const int VOLATILE_REGISTER_SIZE = 10;
+  const int VOLATILE_FLOAT_REGISTER_SIZE = 50;
+  int volatile_index = 0;
+  int volatile_float_index = 0;
 
   SageCompiler();
   ~SageCompiler();

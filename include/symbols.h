@@ -27,6 +27,7 @@ struct symbol_entry {
     string identifier;
     int assigned_register;
     int spill_offset;
+    int static_stack_pointer;
     NodeIndex definition_ast_index = -1;
     int scope_id;
     table_index symbol_id;

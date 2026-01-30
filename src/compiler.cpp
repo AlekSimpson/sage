@@ -23,20 +23,6 @@ SageCompiler::SageCompiler()
       comptime_manager(ComptimeManager()){
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
-
-    // volatile_register_state = {
-    //     {10, SageValue()},
-    //     {11, SageValue()},
-    //     {12, SageValue()},
-    //     {13, SageValue()},
-    //     {14, SageValue()},
-    //     {15, SageValue()},
-    //     {16, SageValue()},
-    //     {17, SageValue()},
-    //     {18, SageValue()},
-    //     {19, SageValue()},
-    //     {20, SageValue()},
-    // };
 }
 
 SageCompiler::~SageCompiler() {
@@ -338,21 +324,27 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 process_escape_sequences(node_lexeme);
                 auto *char_type = TypeRegistery::get_byte_type(CHAR);
                 auto *array_type =  TypeRegistery::get_array_type(char_type, node_lexeme.length());
-                SageValue literal_value(const_cast<void *>(static_cast<const void *>(node_lexeme.c_str())), array_type);
-                auto index = symbol_table.declare_literal(current_node, literal_value);
+                auto index = symbol_table.declare_literal(current_node, SageValue());
+                symbol_table.entries[index].type = array_type;
 
+                static_program_memory_insertion_order.push_back(index);
                 static_program_memory[index] = vector<uint8_t>();
                 static_program_memory[index].reserve(node_lexeme.size());
-                for (int i = 0; i < node_lexeme.size(); ++i) {
+                for (int i = 0; i < (int)node_lexeme.size(); ++i) {
                     static_program_memory[index].push_back(static_cast<uint8_t>(node_lexeme[i]));
                 }
 
                 continue;
             }
             case PN_FLOAT: {
-                auto node_lexeme = node_manager->get_lexeme(current_node);
-                SageValue float_literal = SageValue(stof(node_lexeme));
-                symbol_table.declare_immediate(float_literal, node_lexeme);
+                logger.log_internal_error_unsafe(
+                    "compiler.cpp",
+                    current_linenum,
+                    "UNIMPLEMENTED: Float literals are not implemented yet.");
+                // TODO: float literals need to be stored in static memory like strings are
+                //auto node_lexeme = node_manager->get_lexeme(current_node);
+                //SageValue float_literal = SageValue(stof(node_lexeme));
+                //symbol_table.declare_immediate(float_literal, node_lexeme);
                 continue;
             }
             case PN_NUMBER: {

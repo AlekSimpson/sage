@@ -56,7 +56,7 @@ size_t SageInterpreter::allocate_on_heap(size_t bytes) {
 }
 
 void SageInterpreter::push_stack_scope(int func_id) {
-    size_t return_address = unpack_int(registers[STACK_POINTER]) - 1;
+    size_t return_address = stack_pointer() - 1;
     if (return_address >= heap_pointer) {
         ErrorLogger::get().log_error_safe(
             "interpreter.cpp",
@@ -66,8 +66,8 @@ void SageInterpreter::push_stack_scope(int func_id) {
     }
 
     // make new current stack frame
-    registers[STACK_POINTER] = int_reg_inc(registers[STACK_POINTER], -1);
-    int start_stack_address = unpack_int(registers[STACK_POINTER]);
+    set_register(STACK_POINTER, stack_pointer() - 1);
+    int start_stack_address = stack_pointer();
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer,
                                    cached_registers,
@@ -77,18 +77,35 @@ void SageInterpreter::push_stack_scope(int func_id) {
 }
 
 void SageInterpreter::pop_stack_scope() {
-    registers[STACK_POINTER] = pack_int(frame_pointer->stack_pointer + 1);
+    set_register(STACK_POINTER, frame_pointer->stack_pointer + 1);
     StackFrame *previous = frame_pointer->previous_frame;
     delete frame_pointer;
     frame_pointer = previous;
 }
 
-SageValue SageInterpreter::get_return_value() const {
-    return register_to_value(registers[6]);
+inline int SageInterpreter::stack_pointer() {
+    return unpack_int(registers[STACK_POINTER]);
 }
 
-inline void SageInterpreter::load_program(bytecode _program) {
+int SageInterpreter::read_register(int _register) {
+    return unpack_int(registers[_register]);
+}
+
+SageValue SageInterpreter::get_return_value() const {
+    // TODO: float return? other return types? function / type returns?
+    return unpack_int(registers[6]);
+}
+
+void SageInterpreter::load_program(bytecode _program) {
     program = _program;
+}
+
+void SageInterpreter::set_register(int _register, int value) {
+    registers[_register] = pack_int(value);
+}
+
+void SageInterpreter::set_float_register(int _register, double value) {
+    floating_point_registers[_register] = value;
 }
 
 inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mode) {
@@ -98,6 +115,13 @@ inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mod
     registers[operands[0]] = operand1 + operand2;
 }
 
+inline void SageInterpreter::execute_float_add(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_ADD reg, op, op
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
+    floating_point_registers[operands[0]] = operand1 + operand2;
+}
+
 inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_SUB reg, op, op
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
@@ -105,13 +129,29 @@ inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mod
     registers[operands[0]] = operand1 - operand2;
 }
 
+inline void SageInterpreter::execute_float_sub(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_SUB reg, op, op
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
+    floating_point_registers[operands[0]] = operand1 - operand2;
+}
+
 inline void SageInterpreter::execute_mul(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_MUL reg, op, op
 
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : registers[operands[1]];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : registers[operands[2]];
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     registers[operands[0]] = operand1 * operand2;
+}
+
+inline void SageInterpreter::execute_float_mul(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_MUL reg, op, op
+
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
+
+    floating_point_registers[operands[0]] = operand1 * operand2;
 }
 
 inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mode) {
@@ -124,27 +164,67 @@ inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mod
         return;
     }
 
-    int operand1 = mode[0] == 1 ? registers[operands[1]] : registers[operands[1]];
-    int operand2 = mode[1] == 1 ? registers[operands[2]] : registers[operands[2]];
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
     registers[operands[0]] = operand1 / operand2;
+}
+
+inline void SageInterpreter::execute_float_div(vector<int> &operands, AddressMode &mode) {
+    // _xx | OP_DIV reg, op, op
+    if (operands[2] == 0) {
+        ErrorLogger::get().log_internal_error_safe(
+            "interpreter.cpp",
+            current_linenum,
+            "Division by zero.");
+        return;
+    }
+
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
+    floating_point_registers[operands[0]] = operand1 / operand2;
 }
 
 inline void SageInterpreter::execute_load(vector<int> &operands) {
     // _00 | load reg, ($fp - offset)
     int load_address = frame_pointer->stack_pointer - operands[1];
-    registers[operands[0]] = memory[load_address];
+    set_register(operands[0], memory[load_address]);
+}
+
+inline void SageInterpreter::execute_float_load(vector<int> &operands) {
+    // _00 | load reg, ($fp - offset)
+    int load_address = frame_pointer->stack_pointer - operands[1];
+    floating_point_registers[operands[0]] = memory[load_address];
 }
 
 inline void SageInterpreter::execute_store(vector<int> &operands, AddressMode &mode) {
     // _0x | store ($fp - offset), op
     int offset = operands[0];
     int store_address = frame_pointer->stack_pointer - offset;
-    memory[store_address] = operands[0];
+    int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    memory[store_address] = operand1;
 }
 
-inline void SageInterpreter::execute_mov(vector<int> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_store(vector<int> &operands, AddressMode &mode) {
+    // _0x | store ($fp - offset), op
+    int offset = operands[0];
+    int store_address = frame_pointer->stack_pointer - offset;
+    int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    memory[store_address] = operand1;
+}
+
+void SageInterpreter::execute_stack_allocate(int bytes) {
+    // _00 | alloc size    | size in bytes
+    set_register(STACK_POINTER, stack_pointer() - bytes);
+}
+
+inline void SageInterpreter::execute_move(vector<int> &operands, AddressMode &mode) {
     // _0x | mov reg, op
-    registers[operands[0]] = operands[1];
+    set_register(operands[0], mode[1] == 1 ? read_register(operands[1]) : operands[1]);
+}
+
+inline void SageInterpreter::execute_float_move(vector<int> &operands, AddressMode &mode) {
+    // _0x | mov reg, op
+    set_float_register(operands[0], mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1]);
 }
 
 inline void SageInterpreter::execute_call(vector<int> &operands) {
@@ -165,32 +245,60 @@ inline void SageInterpreter::execute_return() {
 
 inline void SageInterpreter::execute_equality_comparison(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_EQ op, op
-    registers[21] = operands[0] == operands[1];
+    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
+    set_register(21, operand0 == operand1);
 }
 
 inline void SageInterpreter::execute_less_than_comparison(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_LT op, op
-    registers[21] = operands[0] < operands[1];
+    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
+    set_register(21, operand0 < operand1);
 }
 
 inline void SageInterpreter::execute_greater_than_comparison(vector<int> &operands, AddressMode &mode) {
     // _xx | gt op, op
-    registers[21] = operands[0] > operands[1];
+    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
+    set_register(21, operand0 > operand1);
 }
 
 inline void SageInterpreter::execute_and(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_AND op, op
-    registers[21] = operands[0] == 1 && operands[1] == 1;
+    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
+    set_register(21, operand0 == 1 && operand1 == 0);
 }
 
 inline void SageInterpreter::execute_or(vector<int> &operands, AddressMode &mode) {
     // _xx | OP_OR op, op
-    registers[21] = operands[0] == 1 || operands[1] == 1;
+    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
+    set_register(21, operand0 == 1 || operand1 == 1);
 }
 
 inline void SageInterpreter::execute_not(vector<int> &operands) {
     // _00 | OP_NOT reg
-    registers[21] = !registers[operands[0]];
+    set_register(21, !read_register(operands[0]));
+}
+
+inline void SageInterpreter::execute_float_equality_comparison(vector<int> &operands, AddressMode &mode) {
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    set_register(21, operand1 == operand2);
+}
+
+inline void SageInterpreter::execute_float_less_than_comparison(vector<int> &operands, AddressMode &mode) {
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    set_register(21, operand1 < operand2);
+}
+
+inline void SageInterpreter::execute_float_greater_than_comparison(vector<int> &operands, AddressMode &mode) {
+    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
+    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
+    set_register(21, operand1 > operand2);
 }
 
 inline void SageInterpreter::execute_system_call() {
@@ -198,23 +306,28 @@ inline void SageInterpreter::execute_system_call() {
 
     switch (callcode) {
         case SYS_write: {
-            // todo: so this memory right now is leaking without the string pool, we'll need a VM cleanup function eventually
-            void *complex_value = unpack_pointer(registers[1]); // Clear type tag bits
-            const char *text = static_cast<const char *>(complex_value);
+            int static_pointer = read_register(1);
+            int character_count = read_register(2);
+            string characters;
+            for (int i = 0; i < character_count; i++) {
+                characters += (char)memory[static_pointer];
+                static_pointer++;
+            }
+            const char *buffer = characters.c_str();
             syscall(
                 callcode,
-                unpack_int(registers[0]),
-                text,
-                unpack_int(registers[2]));
+                read_register(0),
+                buffer,
+                character_count);
             break;
         }
         case SAGESYS_write_int: {
-            string text = to_string(unpack_int(registers[1]));
+            string text = to_string(read_register(1));
             syscall(
                 SYS_write,
-                unpack_int(registers[0]),
+                read_register(0),
                 text.c_str(),
-                unpack_int(registers[2]));
+                read_register(2));
             break;
         }
         default:
@@ -243,6 +356,18 @@ void SageInterpreter::execute() {
 
          operands = current_command.instruction.unpack_instruction();
         switch (current_command.instruction.opcode) {
+            case OP_FADD:
+                execute_float_add(operands, current_command.address_mode);
+                break;
+            case OP_FSUB:
+                execute_float_sub(operands, current_command.address_mode);
+                break;
+            case OP_FMUL:
+                execute_float_mul(operands, current_command.address_mode);
+                break;
+            case OP_FDIV:
+                execute_float_div(operands, current_command.address_mode);
+                break;
             case OP_ADD:
                 execute_add(operands, current_command.address_mode);
                 break;
@@ -255,14 +380,26 @@ void SageInterpreter::execute() {
             case OP_DIV:
                 execute_div(operands, current_command.address_mode);
                 break;
+            case OP_ALLOC:
+                execute_stack_allocate(operands[0]);
+                break;
             case OP_LOAD:
                 execute_load(operands);
+                break;
+            case OP_FLOAD:
+                execute_float_load(operands);
                 break;
             case OP_STORE:
                 execute_store(operands, current_command.address_mode);
                 break;
+            case OP_FSTORE:
+                execute_float_store(operands, current_command.address_mode);
+                break;
             case OP_MOV:
-                execute_mov(operands, current_command.address_mode);
+                execute_move(operands, current_command.address_mode);
+                break;
+            case OP_FMOV:
+                execute_float_move(operands, current_command.address_mode);
                 break;
             case OP_JMP:
                 break; // TODO:
@@ -295,6 +432,15 @@ void SageInterpreter::execute() {
                 break;
             case OP_NOT:
                 execute_not(operands);
+                break;
+            case OP_FEQ:
+                execute_float_equality_comparison(operands, current_command.address_mode);
+                break;
+            case OP_FLT:
+                execute_float_less_than_comparison(operands, current_command.address_mode);
+                break;
+            case OP_FGT:
+                execute_float_greater_than_comparison(operands, current_command.address_mode);
                 break;
             case OP_SYSCALL:
                 execute_system_call();
@@ -335,7 +481,8 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<ta
             continue;
         }
 
-        for (int i = 0; i < symbol_memory_chunk.size(); ++i) {
+        symbol_entry->static_stack_pointer = static_working_pointer;
+        for (int i = 0; i < (int)symbol_memory_chunk.size(); ++i) {
             memory[static_working_pointer] = symbol_memory_chunk[i];
             static_working_pointer++;
         }

@@ -72,9 +72,6 @@ enum SageOpCode {
     OP_NOT,     // _00 | not reg
                 // build_not(int register)
 
-    OP_FAND,    // _xx | fand op, op
-    OP_FOR,     // _xx | for op, op
-
     OP_NOP,     // _00 | nop
 
     OP_SYSCALL, // _00 | syscall

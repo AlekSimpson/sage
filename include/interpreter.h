@@ -86,6 +86,10 @@ public:
     size_t allocate_on_heap(size_t bytes);
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
+    inline int stack_pointer();
+    void set_register(int _register, int value);
+    void set_float_register(int _register, double value);
+    int read_register(int _register);
 
     void open(const map<int, int> &, map<table_index, vector<uint8_t>> &static_section_components);
     void close();
@@ -98,9 +102,17 @@ public:
     inline void execute_sub(vector<int> &, AddressMode &);
     inline void execute_mul(vector<int> &, AddressMode &);
     inline void execute_div(vector<int> &, AddressMode &);
+    inline void execute_float_add(vector<int> &, AddressMode &);
+    inline void execute_float_sub(vector<int> &, AddressMode &);
+    inline void execute_float_mul(vector<int> &, AddressMode &);
+    inline void execute_float_div(vector<int> &, AddressMode &);
+    inline void execute_stack_allocate(int operand);
     inline void execute_load(vector<int> &);
+    inline void execute_float_load(vector<int> &);
     inline void execute_store(vector<int> &, AddressMode &mode);
-    inline void execute_mov(vector<int> &, AddressMode &mode);
+    inline void execute_float_store(vector<int> &, AddressMode &mode);
+    inline void execute_move(vector<int> &, AddressMode &mode);
+    inline void execute_float_move(vector<int> &, AddressMode &mode);
     inline void execute_call(vector<int> &);
     inline void execute_return();
     inline void execute_equality_comparison(vector<int> &, AddressMode &mode);
@@ -108,6 +120,9 @@ public:
     inline void execute_greater_than_comparison(vector<int> &, AddressMode &mode);
     inline void execute_and(vector<int> &, AddressMode &);
     inline void execute_or(vector<int> &, AddressMode &);
+    inline void execute_float_equality_comparison(vector<int> &, AddressMode &mode);
+    inline void execute_float_less_than_comparison(vector<int> &, AddressMode &mode);
+    inline void execute_float_greater_than_comparison(vector<int> &, AddressMode &mode);
     inline void execute_not(vector<int> &);
     inline void execute_system_call();
 };

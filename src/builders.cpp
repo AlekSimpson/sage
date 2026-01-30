@@ -319,6 +319,8 @@ void BytecodeBuilder::build_puti() {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
+    // puts(r0=integer, r1=digit_count)
+
     int id = get_procedure_frame_id("puti");
     procedures[id] = ProcedureFrame("puti");
     procedure_stack.push(id);
@@ -337,13 +339,15 @@ void BytecodeBuilder::build_puts() {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
+    // puts(r0=characters, r1=char_count)
+
     int id = get_procedure_frame_id("puts");
     procedures[id] = ProcedureFrame("puts");
     procedure_stack.push(id);
     build_instruction(OP_LABEL, id, _00);
     build_instruction(OP_MOV, 22, SYS_write, _00);
     build_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
-    build_instruction(OP_MOV, 1, 0, _01);  // save integer to print into r1
+    build_instruction(OP_MOV, 1, 0, _01);  // save character buff pointer to print into r1
     build_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
     build_instruction(OP_MOV, 0, STDOUT_FILENO, _00);  // tell system that this is outputting to stdout
     build_instruction(OP_SYSCALL, -1, _00);
@@ -807,13 +811,11 @@ VisitorResult SageCompiler::build_div(VisitorResult value1, VisitorResult value2
 }
 
 VisitorResult SageCompiler::build_and(VisitorResult value1, VisitorResult value2) {
-    bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FAND : OP_AND, is_float);
+    return build_operator(value1, value2, OP_AND, false);
 }
 
 VisitorResult SageCompiler::build_or(VisitorResult value1, VisitorResult value2) {
-    bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FOR : OP_OR, is_float);
+    return build_operator(value1, value2, OP_OR, false);
 }
 
 VisitorResult SageCompiler::build_load(NodeIndex reference_node) {

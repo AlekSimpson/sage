@@ -106,7 +106,6 @@ union primitive_union {
     float float_value;
     char char_value;
     bool bool_value;
-    void *complex_value;
 };
 
 class TypeRegistery {
@@ -141,27 +140,23 @@ public:
     SageValue(float, SageType *);
     SageValue(char, SageType *);
     SageValue(bool, SageType *);
-    SageValue(void *, SageType *);
     SageValue(uint64_t register_value);
     SageValue(int);
     SageValue(float);
     ~SageValue();
 
-    uint64_t load();
+    int load();
 
     bool is_null();
 
     bool equals(const SageValue &other);
 
-    operator uint64_t() { return load(); }
-
-    // For instruction operands
-    int as_operand() const;
+    operator int() { return load(); }
 
     // Convenience getters with automatic conversion
     int32_t as_i32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
-    void *as_ptr() const { return value.complex_value; }
+    // void *as_ptr() const { return value.complex_value; }
     // DEPRECATED: TODO: FIX: const char *as_charbuff() const { return static_cast<const char *>(value.complex_value); }
 };
 

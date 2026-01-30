@@ -23,7 +23,7 @@ enum class TaskResultType {
 };
 
 struct ComptimeTask {
-    bytecode task_instructions;
+    vector<Command> task_instructions;
     vector<comptime_task_id> prerequisite_tasks;
     map<int, int> procedure_to_instruction_index;
 
@@ -46,6 +46,8 @@ struct TaskComparator {
     }
 };
 
+// TODO: need a way to resolve the type of comptime tasks so that we know what to query for from the interpreter when
+//       when we do symbol table injection
 typedef priority_queue<ComptimeTask *, vector<ComptimeTask *>, TaskComparator> TaskMinHeap;
 struct ComptimeManager {
     NodeManager *node_man;

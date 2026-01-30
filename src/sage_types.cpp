@@ -200,11 +200,6 @@ SageValue::SageValue(bool _value, SageType *valuetype) : valuetype(valuetype) {
     nullvalue = false;
 }
 
-SageValue::SageValue(void *_value, SageType *valuetype) : valuetype(valuetype) {
-    value.complex_value = _value;
-    nullvalue = false;
-}
-
 SageValue::SageValue(int _value) : valuetype(TypeRegistery::get_integer_type(8)) {
     value.int_value = _value;
     nullvalue = false;
@@ -217,23 +212,9 @@ SageValue::SageValue(float _value) : valuetype(TypeRegistery::get_float_type(8))
 
 // Constructor from register
 SageValue::SageValue(ui64 register_value) {
-    RegType reg_type = unpack_type(register_value);
     nullvalue = false;
-
-    switch (reg_type) {
-        case I32_REG:
-            value.int_value = unpack_int(register_value);
-            valuetype = TypeRegistery::get_integer_type(4);
-            break;
-        case F32_REG:
-            value.float_value = unpack_float(register_value);
-            valuetype = TypeRegistery::get_float_type(4);
-            break;
-        case PTR_REG:
-            value.complex_value = unpack_pointer(register_value);
-            valuetype = TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(VOID));
-            break;
-    }
+    value.int_value = unpack_int(register_value);
+    valuetype = TypeRegistery::get_integer_type(4);
 }
 
 SageValue::SageValue() {
@@ -242,38 +223,16 @@ SageValue::SageValue() {
 SageValue::~SageValue() {
 }
 
-// For instruction operands
-int SageValue::as_operand() const {
+int SageValue::load() {
     switch (valuetype->identify()) {
-        case INT:
-            return value.int_value;
-        case FLOAT:
-            return static_cast<int>(value.float_value);
         case CHAR:
             return value.char_value;
         case BOOL:
             return value.bool_value;
-        case POINTER:
-        case ARRAY:
-            return static_cast<int>(reinterpret_cast<uintptr_t>(value.complex_value));
-        default:
-            return 0;
-    }
-}
-
-uint64_t SageValue::load() {
-    switch (valuetype->identify()) {
-        case CHAR:
-            return pack_int(value.char_value);
-        case BOOL:
-            return pack_int(value.bool_value);
         case INT:
-            return pack_int(value.int_value);
-        case FLOAT:
-            return pack_float(value.float_value);
         case POINTER:
         case ARRAY:
-            return pack_ptr(value.complex_value);
+            return value.int_value;
         case FUNC:
             break;
         default:
@@ -282,7 +241,7 @@ uint64_t SageValue::load() {
     ErrorLogger::get().log_internal_error_safe(
         "sage_types.cpp",
         current_linenum,
-        "unimplemented load() for function types");
+        sen("unimplemented load() for", valuetype->to_string(),"types"));
 
     return 0;
 }
@@ -298,13 +257,12 @@ bool SageValue::equals(const SageValue &other) {
             return value.char_value == other.value.char_value && this_type == other.valuetype->identify();
         case BOOL:
             return value.bool_value == other.value.bool_value && this_type == other.valuetype->identify();
+        case POINTER:
+        case ARRAY:
         case INT:
             return value.int_value == other.value.int_value && this_type == other.valuetype->identify();
         case FLOAT:
             return value.float_value == other.value.float_value && this_type == other.valuetype->identify();
-        case POINTER:
-        case ARRAY:
-            return value.complex_value == other.value.complex_value && this_type == other.valuetype->identify();
         case FUNC:
             break;
         default:

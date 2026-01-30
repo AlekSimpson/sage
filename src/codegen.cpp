@@ -272,7 +272,21 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
     }
 
     int argument_register_address = 0;
+    int static_pointer = 0;
     for (VisitorResult arg_result: args) {
+        if (static_program_memory.find(arg_result.symbol_table_index) != static_program_memory.end()) {
+            // its a float (TODO) or string literal
+            // TODO: replace this for loop with static program pointer address tracker that has uniqueness of elements and O(1) lookup time
+            for (int i = 0; i < (int)static_program_memory_insertion_order.size(); ++i) {
+                if (static_program_memory_insertion_order[i] == arg_result.symbol_table_index) {
+                    builder.build_move_immediate(argument_register_address, static_pointer);
+                    static_pointer = i + (int)static_program_memory[arg_result.symbol_table_index].size() + 1;
+                    break;
+                }
+            }
+            continue;
+        }
+
         auto arg_result_state = arg_result.get_result_state(&symbol_table);
         switch (arg_result_state) {
             case VisitorResultState::IMMEDIATE:
@@ -375,4 +389,6 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::visit_unary_operator(NodeIndex node) {}
+VisitorResult SageCompiler::visit_unary_operator(NodeIndex node) {
+    return VisitorResult();
+}
