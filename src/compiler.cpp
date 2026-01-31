@@ -29,21 +29,6 @@ SageCompiler::~SageCompiler() {
     delete node_manager;
 }
 
-void SageCompiler::print_bytecode(bytecode &code) {
-    int count = 0;
-    map<int, string> label_names;
-    for (const auto &[id, frame]: builder.get_active_procedures()) {
-        label_names[id] = frame.name;
-        printf("%s: %d\n", frame.name.c_str(), id);
-    }
-    printf("------------\n");
-    for (auto instruction: code) {
-        printf("%d: %s\n", count, instruction.print(&label_names).c_str());
-        count++;
-    }
-    printf("------------\n");
-}
-
 bool SageCompiler::generating_compile_time_bytecode() {
     return codegen_mode == GEN_COMPTIME;
 }
@@ -138,6 +123,7 @@ void SageCompiler::compile_file(string mainfile) {
                 visit(task->associated_ast_root);
                 map<int, int> procedure_line_locations;
                 task->task_instructions = builder.finalize_comptime_bytecode(procedure_line_locations);
+                // builder.print_bytecode(task->task_instructions);
                 task->procedure_to_instruction_index = procedure_line_locations;
                 comptime_manager.staged_for_execution.push(task);
             }
@@ -170,7 +156,9 @@ void SageCompiler::compile_file(string mainfile) {
                 // 2. rescan modified AST sections for symbols and do type resolution and
                 //    forward decl resolution for modified AST subtrees
             }
+
             // perform anymore needed context updating
+
         }
         builder.reset_and_exit_comptime();
     }
@@ -186,7 +174,7 @@ void SageCompiler::compile_file(string mainfile) {
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
 
-    print_bytecode(runtime_code);
+    //builder.print_bytecode(runtime_code);
 
     /// 4. RUNTIME EXECUTION
     /// temporary: for now only runtime target is sageVM

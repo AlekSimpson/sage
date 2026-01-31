@@ -6,7 +6,7 @@ add :: (x: int, y: int) -> int {
 main :: () {
 
     #run {
-        puts("at comptime\n", 12)
+        puts("at comptime, hello world, this string is really long!\n", 54)
     }
 
 

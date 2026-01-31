@@ -166,13 +166,13 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
     return full_lex;
 }
 
-NodeIndex NodeManager::get_left(NodeIndex index) {
-    auto box = get_node(index);
+NodeIndex NodeManager::get_left(NodeIndex node) {
+    auto box = get_node(node);
     if (box.node == nullptr) {
         ErrorLogger::get().log_internal_error_safe(
             "node_manager.cpp",
             current_linenum,
-            sen("get_left: out of range node index. Given", index,"which is invalid."));
+            sen("get_left: out of range node index. Given", node,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -196,7 +196,7 @@ NodeIndex NodeManager::get_right(NodeIndex node) {
         ErrorLogger::get().log_internal_error_safe(
             "node_manager.cpp",
             current_linenum,
-            sen("get_right: out of range node index. Given", index,"which is invalid."));
+            sen("get_right: out of range node index. Given", node,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -220,7 +220,7 @@ NodeIndex NodeManager::get_middle(NodeIndex node) {
         ErrorLogger::get().log_internal_error_safe(
            "node_manager.cpp",
            current_linenum,
-           sen("get_middle: out of range node index. Given", index,"which is invalid."));
+           sen("get_middle: out of range node index. Given", node,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -241,7 +241,7 @@ NodeIndex NodeManager::get_branch(NodeIndex node) {
         ErrorLogger::get().log_internal_error_safe(
            "node_manager.cpp",
            current_linenum,
-           sen("get_branch: out of range node index. Given", index,"which is invalid."));
+           sen("get_branch: out of range node index. Given", node,"which is invalid."));
         return NULL_INDEX;
     }
 
@@ -280,7 +280,7 @@ vector<NodeIndex> NodeManager::get_children(NodeIndex node) {
         ErrorLogger::get().log_internal_error_safe(
            "node_manager.cpp",
            current_linenum,
-           sen("get_children: out of range node index. Given", index,"which is invalid."));
+           sen("get_children: out of range node index. Given", node,"which is invalid."));
         return vector<NodeIndex>();
     }
 

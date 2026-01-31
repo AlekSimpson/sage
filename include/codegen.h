@@ -83,8 +83,6 @@ public:
   void register_allocation();
   int get_volatile_register();
   int get_volatile_float_register();
-  // bool volatile_is_stale(SageValue&, int);
-  void print_bytecode(bytecode&);
   void scan_all_program_symbols(NodeIndex root);
   void perform_type_resolution();
   void forward_declaration_resolution(int program_root);

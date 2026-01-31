@@ -5,7 +5,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S), Darwin)  # macOS
     LLVM_PATH := /opt/homebrew/opt/llvm@19/lib/
     LLVM_INCLUDE := /opt/homebrew/Cellar/llvm/19.1.7_1/include
-    CXX      := clang++
+    CXX      := clang++ -stdlib=libc++
     LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVM-19
     INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(LLVM_INCLUDE)
     DEBUG_FLAGS := -gdwarf-4 -fno-omit-frame-pointer -fstandalone-debug
@@ -18,7 +18,7 @@ else  # Assume Linux
 endif
 
 # Common flags
-CXXFLAGS := -Wall -std=c++17 -stdlib=libc++ -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
+CXXFLAGS := -Wall -std=c++17 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin

@@ -277,14 +277,14 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         if (it != static_program_memory.end()) {
             // its a float (TODO) or string literal
             // TODO: replace this for loop with static program pointer address tracker that has uniqueness of elements and O(1) lookup time
-            vector<uint8_t> mem = it->second;
+            //vector<uint8_t> mem = it->second;
             int static_pointer = 0;
             for (int order_index = 0; order_index < (int)static_program_memory_insertion_order.size(); ++order_index) {
                 if (static_program_memory_insertion_order[order_index] == arg_result.symbol_table_index) {
                     builder.build_move_immediate(argument_register_address, static_pointer);
                     break;
                 }
-                static_pointer += (int)mem.size();
+                static_pointer += (int)static_program_memory[static_program_memory_insertion_order[order_index]].size();
             }
             argument_register_address++;
             continue;

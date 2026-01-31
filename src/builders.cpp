@@ -38,6 +38,25 @@ BytecodeBuilder::BytecodeBuilder() {
     build_puti();
 }
 
+void BytecodeBuilder::print_bytecode(bytecode &code) {
+    int count = 0;
+    map<int, string> label_names;
+    printf("\n");
+    for (const auto &[id, frame]: get_active_procedures()) {
+        label_names[id] = frame.name;
+    }
+
+    if (emitting_comptime) {
+        printf("------[  COMPTIME CODE  ]------\n");
+    }else {
+        printf("------[  RUNTIME CODE  ]------\n");
+    }
+    for (auto instruction: code) {
+        printf("%d: %s\n", count, instruction.print(&label_names).c_str());
+        count++;
+    }
+    printf("------------\n");
+}
 
 map<int, ProcedureFrame> &BytecodeBuilder::get_active_procedures() {
     if (emitting_comptime) return comptime_procedures;

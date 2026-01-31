@@ -28,6 +28,7 @@ struct BytecodeBuilder {
 
     BytecodeBuilder();
 
+    void print_bytecode(bytecode &code);
     map<int, ProcedureFrame> &get_active_procedures();
     stack<int> &get_active_procedure_stack();
     int &get_total_instruction_count();
