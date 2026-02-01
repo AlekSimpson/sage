@@ -316,8 +316,6 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
                 builder.build_move_immediate(argument_register_address, arg_entry->value);
                 break;
             }
-            default:
-                break;
         }
         argument_register_address++;
     }
@@ -339,7 +337,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
     auto _build_and = [&](VisitorResult lhs, VisitorResult rhs) -> VisitorResult { return build_and(lhs, rhs); };
     auto _build_or = [&](VisitorResult lhs, VisitorResult rhs) -> VisitorResult { return build_or(lhs, rhs); };
 
-    auto process_operator = [&, this](function<VisitorResult(VisitorResult, VisitorResult)> builder) -> VisitorResult {
+    auto process_operator = [&, this](function<VisitorResult(VisitorResult, VisitorResult)> _builder) -> VisitorResult {
         auto left = node_manager->get_left(node);
         VisitorResult lhs;
         if (node_manager->get_host_nodetype(left) == PN_BINARY) {
@@ -356,7 +354,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             rhs = visit_literal(right);
         }
 
-        return builder(lhs, rhs);
+        return _builder(lhs, rhs);
     };
 
     switch (token.token_type) {
