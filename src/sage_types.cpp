@@ -180,22 +180,12 @@ string SageStructType::to_string() {
     return name;
 }
 
-SageValue::SageValue(int _value, SageType *valuetype) : valuetype(valuetype) {
-    value.int_value = _value;
-    nullvalue = false;
-}
-
-SageValue::SageValue(float _value, SageType *valuetype) : valuetype(valuetype) {
-    value.float_value = _value;
-    nullvalue = false;
-}
-
-SageValue::SageValue(char _value, SageType *valuetype) : valuetype(valuetype) {
+SageValue::SageValue(char _value) : valuetype(TypeRegistery::get_byte_type(CHAR)) {
     value.char_value = _value;
     nullvalue = false;
 }
 
-SageValue::SageValue(bool _value, SageType *valuetype) : valuetype(valuetype) {
+SageValue::SageValue(bool _value) : valuetype(TypeRegistery::get_byte_type(BOOL)) {
     value.bool_value = _value;
     nullvalue = false;
 }

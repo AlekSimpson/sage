@@ -34,8 +34,30 @@ BytecodeBuilder::BytecodeBuilder() {
     runtime_procedures[global_id] = ProcedureFrame("GLOBAL");
     runtime_procedure_stack.push(global_id);
 
+    builtins = {"puts", "puti"};
+
     build_puts();
     build_puti();
+}
+
+string BytecodeBuilder::emit() {
+    string result;
+
+    for (const auto &[id, frame]: comptime_procedures) {
+        if (builtins.find(frame.name) != builtins.end()) continue;
+
+        for (auto instruction: frame.procedure_instructions) {
+            result += instruction.print() + "\n";
+        }
+    }
+
+    for (const auto &[id, frame]: runtime_procedures) {
+        for (auto instruction: frame.procedure_instructions) {
+            result += instruction.print() + "\n";
+        }
+    }
+
+    return result;
 }
 
 void BytecodeBuilder::print_bytecode(bytecode &code) {
@@ -96,6 +118,7 @@ void BytecodeBuilder::new_frame(string name) {
         runtime_has_main_function = true;
     }
     int id = get_procedure_frame_id(name);
+    if (emitting_comptime) frame.is_comptime = true;
 
     auto &active_procedure_stack = get_active_procedure_stack();
     auto &active_procedures = get_active_procedures();

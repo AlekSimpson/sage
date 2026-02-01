@@ -69,7 +69,6 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
 
     // Global scope doesn't need to be exited
 
-    //delete lexer;
     return program_root;
 }
 
@@ -108,7 +107,6 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 
     // Global scope doesn't need to be exited
 
-    //delete lexer;
     return program_root;
 }
 
@@ -897,6 +895,13 @@ NodeIndex SageParser::parse_primary() {
         case TT_STRING:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_STRING);
+            symbol_count += 1;
+            advance();
+            return ret;
+
+        case TT_CHARACTER_LITERAL:
+            token.fill_with(*current_token);
+            ret = node_manager->create_unary(token, PN_CHARACTER_LITERAL);
             symbol_count += 1;
             advance();
             return ret;

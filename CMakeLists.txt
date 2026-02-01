@@ -86,7 +86,7 @@ file(MAKE_DIRECTORY "./build/objects")
 
 # Add custom target for running with a sample file
 add_custom_target(run
-    COMMAND sage sage_modules/add.sage
+    COMMAND sage sage_modules/basic_math.sage
     DEPENDS sage
     WORKING_DIRECTORY ./build/bin
     COMMENT "Running sage with add.sage"

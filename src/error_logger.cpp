@@ -39,6 +39,9 @@ string SageError::get_error_type_string() {
         case ErrorType::WARNING: return "warning";
         case ErrorType::TYPE: return "type error";
         case ErrorType::INTERNAL: return "internal error";
+        case ErrorType::USER: return "user error";
+        case ErrorType::COMPTIME: return "compile-time error";
+        case ErrorType::RUNTIME: return "runtime error";
         default: return "error";
     }
 }

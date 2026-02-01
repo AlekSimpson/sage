@@ -29,6 +29,7 @@ string sen(T... args) {
 }
 
 enum ErrorType {
+  USER,
   WARNING,
   GENERAL,
   SYNTAX,

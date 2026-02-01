@@ -29,6 +29,7 @@ typedef enum {
     TT_FUNC_RETURN_TYPE,
     TT_INCLUDE,
     TT_STRING,
+    TT_CHARACTER_LITERAL,
     TT_EOF,
     TT_SPACE,
     TT_STAR,

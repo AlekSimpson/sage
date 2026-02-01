@@ -144,13 +144,11 @@ public:
     bool nullvalue = true;
 
     SageValue();
-    SageValue(int, SageType *);
-    SageValue(float, SageType *);
-    SageValue(char, SageType *);
-    SageValue(bool, SageType *);
-    SageValue(uint64_t register_value);
     SageValue(int);
     SageValue(float);
+    SageValue(char);
+    SageValue(bool);
+    SageValue(uint64_t register_value);
     ~SageValue();
 
     int load();

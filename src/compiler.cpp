@@ -1,9 +1,10 @@
 #include <stack>
 #include <queue>
-#include <boost/algorithm/string.hpp>
 #include <numeric>
+#include <algorithm>
 #include <thread>
 #include <cassert>
+#include <filesystem>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -14,8 +15,8 @@
 
 using namespace std;
 
-SageCompiler::SageCompiler()
-    : debug(COMPILATION),
+SageCompiler::SageCompiler(CompilerOptions options)
+    : options(options),
       node_manager(new NodeManager()),
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager)),
@@ -35,11 +36,7 @@ bool SageCompiler::generating_compile_time_bytecode() {
 
 void SageCompiler::compile_file(string mainfile) {
     /// 1. INITIAL PROGRAM COMPILATION PASS
-    if (!check_filename_valid(mainfile)) {
-        logger.log_error_unsafe(mainfile, -1, "Program filename is not valid. Make sure it ends in '.sage'", GENERAL);
-        return;
-    }
-
+    string emit_string;
     NodeIndex ast_root = parser.parse_program(mainfile);
     if (ast_root == NULL_INDEX) {
         logger.log_internal_error_unsafe("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
@@ -123,6 +120,7 @@ void SageCompiler::compile_file(string mainfile) {
                 visit(task->associated_ast_root);
                 map<int, int> procedure_line_locations;
                 task->task_instructions = builder.finalize_comptime_bytecode(procedure_line_locations);
+                if (options.emit_bytecode) emit_string += builder.emit();
                 // builder.print_bytecode(task->task_instructions);
                 task->procedure_to_instruction_index = procedure_line_locations;
                 comptime_manager.staged_for_execution.push(task);
@@ -163,7 +161,7 @@ void SageCompiler::compile_file(string mainfile) {
         builder.reset_and_exit_comptime();
     }
 
-    /// 3. RUNTIME GENERATION
+    /// 3. SAGE RUNTIME BYTECODE GENERATION
     codegen_mode = GEN_RUNTIME;
     visit(ast_root);
     if (logger.has_errors()) {
@@ -174,18 +172,62 @@ void SageCompiler::compile_file(string mainfile) {
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
 
-    //builder.print_bytecode(runtime_code);
+    if (options.emit_bytecode) {
+        emit_string += "\n\n" + builder.emit();
+        std::filesystem::path filepath = ".sage/bytecode/s.asm";
+        std::filesystem::create_directories(filepath.parent_path());
 
-    /// 4. RUNTIME EXECUTION
-    /// temporary: for now only runtime target is sageVM
-    auto interpreter = SageInterpreter(&symbol_table);
-    interpreter.open(procedure_to_instruction_index, static_program_memory);
-    interpreter.load_program(runtime_code);
-    interpreter.execute();
-    interpreter.close();
-    // 5. Compiling to target instructions (if sagevm not the target)
-    // 6. Linking
-    /*bool success = emit_and_link_llvm(module, "sage.out"); */
+        FILE* file = fopen(".sage/bytecode/s.asm", "w");
+        if (file) {
+            fwrite(emit_string.data(), 1, emit_string.size(), file);
+            fclose(file);
+        }
+    }
+
+    if (options.compilation_target == SAGE_VM) {
+        auto interpreter = SageInterpreter(&symbol_table);
+        interpreter.open(procedure_to_instruction_index, static_program_memory);
+        interpreter.load_program(runtime_code);
+        interpreter.execute();
+        interpreter.close();
+
+        if (logger.has_errors()) {
+            logger.report_errors();
+        }
+        printf("compilation successful.\n");
+        return;
+    }
+
+    switch (options.compilation_target) {
+        case X86:
+            // TODO: target_llvm_x86(runtime_code, options.output_file);
+            break;
+        case X86_64:
+            // TODO: target_llvm_x86_64(runtime_code, options.output_file);
+            break;
+        case ARM32:
+            // TODO: target_llvm_arm32(runtime_code, options.output_file);
+            break;
+        case ARM64:
+            // TODO: target_llvm_arm64(runtime_code, options.output_file);
+            break;
+        case AARCH64_64:
+            // TODO: target_llvm_aarch64_64(runtime_code, options.output_file);
+            break;
+        case RISCV:
+            // TODO: target_llvm_riscv(runtime_code, options.output_file);
+            break;
+        case WEBASM:
+            // TODO: target_llvm_webasm(runtime_code, options.output_file);
+            break;
+        default:
+            break;
+    }
+
+    if (logger.has_errors()) {
+        logger.report_errors();
+    }
+    printf("compilation successful.\n");
 }
 
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
@@ -380,23 +422,7 @@ void SageCompiler::perform_type_resolution() {
     }
 }
 
-bool SageCompiler::check_filename_valid(const string &filename) {
-    // validate that file is valid
-    if (filename.find('.') == string::npos) {
-        logger.log_error_unsafe(filename, -1, "cannot target files that have no file extension.", GENERAL);
-        return false;
-    }
 
-    vector<string> delimited;
-    boost::split(delimited, filename, boost::is_any_of("."));
-
-    if (delimited[1] != "sage") {
-        logger.log_error_unsafe(filename, -1, "cannot target non-sage source files.", GENERAL);
-        return false;
-    }
-
-    return true;
-}
 
 void SageCompiler::register_allocation() {
     /*

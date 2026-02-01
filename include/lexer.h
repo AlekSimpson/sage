@@ -29,6 +29,7 @@ public:
 private:
     Token *lexer_make_token(TokenType type, string lexeme, int depth = -1);
     Token *check_for_string();
+    Token *check_for_character_literal();
     Token *handle_symbol_case(
         char default_char, TokenType default_type,
         TokenType target_type, string target_symbol

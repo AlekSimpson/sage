@@ -52,6 +52,28 @@ Token *SageLexer::check_for_string() {
     return nullptr;
 }
 
+Token *SageLexer::check_for_character_literal() {
+    string lexeme;
+    if (current_char == '\'') {
+        lexeme += '\'';
+        char_buffer->get(current_char);
+        linedepth++;
+
+        if (current_char != '\'') {
+            Token tok = Token(TT_CHARACTER_LITERAL, "\'", linenum);
+            ErrorLogger::get().log_error_unsafe(tok, "Character literals cannot be more than one character long.", SYNTAX);
+        }
+
+        char_buffer->get(current_char);
+        linedepth++;
+
+        lexeme += '\'';
+        return lexer_make_token(TT_CHARACTER_LITERAL, lexeme);
+    }
+
+    return nullptr;
+}
+
 Token *SageLexer::handle_symbol_case(
     char default_char, TokenType default_type,
     TokenType target_type, string target_symbol
@@ -65,6 +87,11 @@ Token *SageLexer::handle_symbol_case(
 
 Token *SageLexer::lex_for_symbols() {
     Token *return_val = check_for_string();
+    if (return_val != nullptr) {
+        return return_val;
+    }
+
+    return_val = check_for_string();
     if (return_val != nullptr) {
         return return_val;
     }
@@ -247,7 +274,7 @@ Token *SageLexer::lex_for_identifiers() {
         // like the break keyword but for nested loops, if used inside a nested loop it will break out of all loops
         {"ret", 18},
         {"struct", 19},
-        {"using", 20},
+        {"using", 20}, // todo: change to 'with'
         {"run", 21},
     };
 

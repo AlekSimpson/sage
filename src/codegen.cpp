@@ -237,6 +237,10 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
             return VisitorResult(symbol_index);
         }
+        case PN_CHARACTER_LITERAL: {
+            auto identifier = node_manager->get_identifier(node);
+            return VisitorResult(SageValue(identifier.c_str()[0]));
+        }
         case PN_NUMBER: {
             return VisitorResult(stoi(node_manager->get_lexeme(node)));
         }

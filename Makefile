@@ -45,11 +45,17 @@ endif
 
 -include $(DEPENDENCIES)
 
-.PHONY: all build clean debug release info rebuild-debug memdebug
+.PHONY: all build clean debug release info rebuild-debug memdebug test test-update
 
 build:
 	@mkdir -p $(APP_DIR)
 	@mkdir -p $(OBJ_DIR)
+
+test: build
+	julia tests/run_tests.jl
+
+test-update: build
+	julia tests/run_tests.jl --update
 
 # Memory debugging target with Address and Leak sanitizers
 memdebug: CXXFLAGS += $(DEBUG_FLAGS) -fsanitize=address,leak

@@ -2,10 +2,12 @@
 #include "sage_bytecode.h"
 #include <map>
 #include <stack>
+#include <set>
 
 struct ProcedureFrame {
     string name;
     bytecode procedure_instructions;
+    bool is_comptime = false;
 
     ProcedureFrame() : name("") {
     }
@@ -25,6 +27,7 @@ struct BytecodeBuilder {
     int runtime_total_instructions = 0;
     bool runtime_has_main_function = false;
     bool emitting_comptime = false;
+    set<string> builtins;
 
     BytecodeBuilder();
 
@@ -67,4 +70,6 @@ struct BytecodeBuilder {
 
     bytecode finalize_comptime_bytecode(map<int, int> &procedure_line_locations);
     bytecode finalize_runtime_bytecode(map<int, int> &procedure_line_locations);
+
+    string emit();
 };

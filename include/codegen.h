@@ -32,6 +32,30 @@ enum CodegenMode {
   GEN_COMPTIME
 };
 
+enum CompilationTarget {
+  SAGE_VM,
+  X86, // 32 bit legacy support
+  X86_64, // modern
+  ARM32, // pi / embedded support
+  ARM64, // apple silicon
+  AARCH64_64, // apple silicon, mobile, AWG Graviton, servers
+  RISCV,
+  WEBASM
+};
+
+struct CompilerOptions {
+  string input_file = "";
+  string output_file = "s.out";
+  debug_level debug = NONE;
+  CompilationTarget compilation_target = SAGE_VM;
+  bool emit_bytecode = false;
+
+  CompilerOptions(string input_file): input_file(input_file) {};
+};
+
+CompilerOptions parse_compiler_flags(int, char **);
+bool check_filename_valid(const string &filename);
+
 enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE};
 
 struct VisitorResult {
@@ -51,7 +75,7 @@ struct VisitorResult {
 // TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
 public:
-  debug_level debug;
+  CompilerOptions options;
 
   NodeManager *node_manager;
   ScopeManager scope_manager;
@@ -73,10 +97,9 @@ public:
   int volatile_index = 0;
   int volatile_float_index = 0;
 
-  SageCompiler();
+  SageCompiler(CompilerOptions options);
   ~SageCompiler();
 
-  bool check_filename_valid(const string &filename);
   void compile_file(string mainfile);
 
   bool generating_compile_time_bytecode();
