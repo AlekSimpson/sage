@@ -95,11 +95,13 @@ CFG:
 
 S               -> program
 
-STAR            -> *STAR | EMPTYSTRING
-array           -> [ primitive ] | [ ID ] | [ primitive : <digits> ] | [ ID : <digits> ]
-primitive       -> int | i.{16, 32, 64} | float | f.{16, 32, 64} | char | array | void
+STAR            -> STAR* | EMPTYSTRING
+array           -> TYPE[] | # a 'slice', basically a reference to an array
+		   TYPE[<digits>] |  # a static array
+		   TYPE[..] # a dynamic array
+primitive       -> int | i.{16, 32, 64} | float | f.{16, 32, 64} | u.{64, 32, 16} | char | bool | array | void | string
 pointer         -> TYPE STAR
-TYPE            -> primitive | pointer
+TYPE            -> primitive | ID | pointer
 
 program         -> statements
 
@@ -115,9 +117,9 @@ statement       -> value_dec  |
                    expression |
                    compile-time-run-stmt
 
-value_dec       -> ID TYPE
-assign          -> ID = expression | ID TYPE = expression
-value_dec_list  -> value_dec , value_dec_list | value_dec , | value_dec
+value_dec       -> ID: TYPE | ID: TYPE = expression | ID: TYPE = -- | ID := expression
+assign          -> ID = expression
+value_dec_list  -> value_dec , value_dec_list | value_dec , | value_dec | EMPTYSTRING
 
 range           -> expression ... expression | ( expression ... expression )
 return          -> ret expression | ret
@@ -125,21 +127,48 @@ return          -> ret expression | ret
 binding         -> :: funcdef | :: structdef | :: TYPE
 construct       -> ID binding
 
-funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE
-structdef       -> struct { value_dec_list }
-for_stmt        -> for ID in range body // TODO: we should support more for loop formats
-while_stmt      -> while expression body
-if_stmt         -> if expression body elif_stmt
+funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE | ( ) body
+structdef       -> struct { value_dec_list } | compact struct { value_dec_list }
+for_stmt        -> for atom body
+while_stmt      -> while atom body
+if_stmt         -> if expression body elif_stmt | if expression statement
 elif_stmt       -> else if expression body elif_stmt |
                    else if expression body else body |
                    else if expression body |
                    EMPTYSTRING
+funccall        -> ID ( list )
+list            -> expression , list | expression , | expression | EMPTYSTRING
 
-compile-time-run-stmt -> #run body
+compile-time-run-stmt -> #run body | 
+			 #run expression | 
+			 #import string | 
+			 #add string | 
+			 #filepath | 
+			 #directory | 
+			 #filename |
+			 #inject TODO | 
+			 #infer construct |
+			 #debug body | 
+			 #error TODO
 
-expression -> recursive descent on lang operators
+expression -> expression binop expression | unop expression | atom
+atom -> funccall | ID | range | number | string | character | compile-time-run-stmt
+binop -> + | add
+	- | sub
+	* | mult
+	/ | division
+	% | modulo
+	^ | exponent
+	& | logical and
+	| | logical or
+	&& |  bitwise and
+	|| bitwise or
+unop -> - |   # -1 * x
+	^ |   # pointer reference
+	@ |   # pointer dereference
+	! |   # negatation
 
-note: binding to a type means creating a constant value note: primary refers to the primary level of expression parsing which i have not written out here because it would just be boiler plate to write`
+recursive descent on lang operators
 
 VISION:
 
