@@ -344,6 +344,11 @@ void SageSymbolTable::initialize() {
     declare_builtin_type_symbol("f64", TypeRegistery::get_float_type(8));
     declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
 
+    declare_builtin_type_symbol("string", TypeRegistery::get_struct_type("string", {
+        TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
+        TypeRegistery::get_integer_type(8)
+    }));
+
     // setup builtin functions
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),

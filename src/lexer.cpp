@@ -203,16 +203,11 @@ Token *SageLexer::followed_by(char expected_char, TokenType expected_type, strin
 }
 
 Token *SageLexer::lexer_make_token(TokenType type, string lexeme, int depth) {
-    int d = depth;
-    if (d == -1) {
-        d = this->linedepth;
-    }
-
     current_token->lexeme = lexeme;
     current_token->token_type = type;
     current_token->filename = this->sourcename;
     current_token->linenum = this->linenum;
-    current_token->linedepth = d;
+    current_token->linedepth = depth == -1 ? this->linedepth : depth;
     return current_token;
 }
 
@@ -258,7 +253,6 @@ Token *SageLexer::lex_for_identifiers() {
        "int",
        "char",
        "void",
-       "i16",
        "i32",
        "i64",
        "f32",
@@ -267,7 +261,6 @@ Token *SageLexer::lex_for_identifiers() {
        "include",
        "for",
        "while",
-       "in",
        "if",
        "else",
        "break",

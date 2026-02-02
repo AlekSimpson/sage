@@ -101,10 +101,7 @@ primitive       -> int | i.{16, 32, 64} | float | f.{16, 32, 64} | char | array 
 pointer         -> TYPE STAR
 TYPE            -> primitive | pointer
 
-program         -> libraries statements | statements
-
-library         -> include string NEWLINE | EMPTYSTRING
-libraries       -> library libraries | library | EMPTYSTRING
+program         -> statements
 
 body            -> { statements }
 statements      -> statement statements | statement | EMPTYSTRING

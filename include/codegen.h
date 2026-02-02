@@ -18,7 +18,7 @@
 #define GENERAL_REGISTER_COUNT 100
 #define GENERAL_REG_RANGE_BEGIN 24
 #define GENERAL_REG_RANGE_END 124
-#define BUILTIN_COUNT 13
+#define BUILTIN_COUNT 14
 
 enum debug_level {
   NONE,

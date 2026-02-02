@@ -1,6 +1,7 @@
 
 
-MOV r24 239
+STORE ($fp - 0) 0
+MOV r24 0
 LABEL @2090629895
 MOV r22 1
 MOV r10 r1
