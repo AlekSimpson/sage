@@ -18,7 +18,8 @@ array           -> TYPE[] | # a 'slice', basically a reference to an array
 		   TYPE[..] # a dynamic array
 primitive       -> int | i.{16, 32, 64} | float | f.{16, 32, 64} | u.{64, 32, 16} | char | bool | array | void | string
 pointer         -> TYPE STAR
-TYPE            -> primitive | ID | pointer
+TYPE            -> primitive | ID | pointer | func_pointer
+func_pointer    -> ( ) -> return_type_exp | ( value_dec_list ) -> return_type_exp
 
 program         -> statements
 
@@ -45,7 +46,12 @@ return          -> ret expression | ret
 binding         -> :: funcdef | :: structdef | :: TYPE
 construct       -> ID binding
 
-funcdef         -> ( value_dec_list ) -> TYPE body | ( ) -> TYPE body | ( ) -> TYPE | ( value_dec_list ) -> TYPE | ( ) body
+funcdef         -> ( value_dec_list ) -> return_type_exp body | 
+		   ( ) -> return_type_exp body | 
+		   ( ) -> return_type_exp | 
+		   ( value_dec_list ) -> return_type_exp | 
+		   ( ) body
+return_type_exp -> TYPE | (TYPE, return_type_exp)
 structdef       -> struct { value_dec_list } | compact struct { value_dec_list }
 for_stmt        -> for atom body
 while_stmt      -> while atom body
@@ -67,10 +73,18 @@ compile-time-run-stmt -> #run body |
 			 #inject TODO | 
 			 #infer construct |
 			 #debug body | 
-			 #error TODO
+			 #error TODO |
+			 #alien ID :: funcdef
 
-expression -> expression binop expression | unop expression | atom
-atom -> funccall | ID | range | number | string | character | compile-time-run-stmt
+expression -> expression binop expression | unop expression | atom | [ expression, ] | [ expression ] |  EMPTYSTRING
+atom -> funccall | 
+	ID | 
+	range | 
+	number | 
+	string | 
+	character | 
+	compile-time-run-stmt
+
 binop -> + | add
 	- | sub
 	* | mult
