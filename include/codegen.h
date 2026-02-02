@@ -113,8 +113,9 @@ public:
   void resolve_definition_order(int target_scope);
   void process_escape_sequences(string &str);
   bool is_float_operation(VisitorResult &one, VisitorResult &two);
+  int get_literal_static_pointer(table_index literal_symbol_table_index);
 
-  /* builders -- TODO: these can just be inlined into the visitors, most of these don't need to be their own functions */
+  /* builders */
   VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
   VisitorResult build_return(VisitorResult, bool);
   VisitorResult build_function_with_block(string);

@@ -27,7 +27,7 @@ struct symbol_entry {
     string identifier;
     int assigned_register;
     int spill_offset;
-    int static_stack_pointer;
+    int static_stack_pointer = -1;
     NodeIndex definition_ast_index = -1;
     int scope_id;
     table_index symbol_id;
@@ -42,9 +42,57 @@ struct symbol_entry {
     bool needs_comptime_resolution();
 };
 
+class SymbolArena {
+public:
+    symbol_entry *data;
+    int CAPACITY;
+    int size = 0;
+    bool is_empty = true;
+
+    SymbolArena(): data(nullptr), CAPACITY(0) {}
+    SymbolArena(int capacity): CAPACITY(capacity) {
+        data = new symbol_entry[CAPACITY];
+    }
+
+    ~SymbolArena() {
+        if (data != nullptr) {
+            delete[] data;
+        }
+    }
+
+    SymbolArena(SymbolArena &&other) noexcept
+        : data(other.data), CAPACITY(other.CAPACITY),
+          size(other.size), is_empty(other.is_empty) {
+        other.data = nullptr;
+        other.size = 0;
+        other.is_empty = true;
+    }
+
+    SymbolArena &operator=(SymbolArena &&other) noexcept {
+        if (this != &other) {
+            delete[] data;
+            data = other.data;
+            CAPACITY = other.CAPACITY;
+            size = other.size;
+            is_empty = other.is_empty;
+            other.data = nullptr;
+            other.size = 0;
+            other.is_empty = true;
+        }
+        return *this;
+    }
+
+    SymbolArena(const SymbolArena &) = delete;
+    SymbolArena &operator=(const SymbolArena &) = delete;
+
+    table_index allocate_symbol();
+    symbol_entry &get(table_index index);
+    symbol_entry *get_pointer(table_index index);
+};
+
 class SageSymbolTable {
 public:
-    vector<symbol_entry> entries; // TODO: make symbol table use arena allocator instead of vector
+    SymbolArena entries;
     NodeManager *nm;
 	ScopeManager *scope_manager;
     stack<function_visit> function_visitor_state;
@@ -62,13 +110,10 @@ public:
     map<pair<int, string>, table_index> scope_symbol_map;
     map<comptime_task_id, table_index> comptime_task_id_to_symbol_id;
 
-    int size; // MAX SIZE THE TABLE CAN HOLD
-    int capacity; // the current capacity of the table
     int temporary_counter_gen = 0;
 
     SageSymbolTable();
     SageSymbolTable(ScopeManager* scopeman, NodeManager *nm, int size);
-    ~SageSymbolTable();
 
     SageType *resolve_variable_type(table_index);
     SageType *resolve_function_type(table_index);

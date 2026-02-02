@@ -5,6 +5,9 @@
 #include <thread>
 #include <cassert>
 #include <filesystem>
+#include <cstring>
+#include <cstdint>
+#include <array>
 
 #include "../include/codegen.h"
 #include "../include/parser.h"
@@ -145,7 +148,7 @@ void SageCompiler::compile_file(string mainfile) {
                     continue;
                 }
                 table_index symbol_index = symbol_table.comptime_task_id_to_symbol_id[finished_task->task_id];
-                symbol_table.entries[symbol_index].value = finished_task->symbol_injection_value;
+                symbol_table.entries.get_pointer(symbol_index)->value = finished_task->symbol_injection_value;
             }
 
             if (comptime_manager.modifies_runtime_ast()) {
@@ -228,6 +231,12 @@ void SageCompiler::compile_file(string mainfile) {
         logger.report_errors();
     }
     printf("compilation successful.\n");
+}
+
+std::array<uint8_t, sizeof(double)> double_to_bytes(double value) {
+    std::array<uint8_t, sizeof(double)> bytes;
+    std::memcpy(bytes.data(), &value, sizeof(double));
+    return bytes;
 }
 
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
@@ -355,9 +364,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 
                 process_escape_sequences(node_lexeme);
                 auto *char_type = TypeRegistery::get_byte_type(CHAR);
-                auto *array_type =  TypeRegistery::get_array_type(char_type, node_lexeme.length());
+                auto *array_type = TypeRegistery::get_array_type(char_type, node_lexeme.length());
                 auto index = symbol_table.declare_literal(current_node, SageValue());
-                symbol_table.entries[index].type = array_type;
+                symbol_table.entries.get_pointer(index)->type = array_type;
 
                 static_program_memory_insertion_order.push_back(index);
                 static_program_memory[index] = vector<uint8_t>();
@@ -369,20 +378,26 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_FLOAT: {
-                logger.log_internal_error_unsafe(
-                    "compiler.cpp",
-                    current_linenum,
-                    "UNIMPLEMENTED: Float literals are not implemented yet.");
-                // TODO: float literals need to be stored in static memory like strings are
-                //auto node_lexeme = node_manager->get_lexeme(current_node);
-                //SageValue float_literal = SageValue(stof(node_lexeme));
-                //symbol_table.declare_immediate(float_literal, node_lexeme);
+                auto *float_type = TypeRegistery::get_builtin_type(FLOAT, 8);
+                auto index = symbol_table.declare_literal(current_node, SageValue());
+                symbol_table.declare_literal(current_node, SageValue());
+                symbol_table.entries.get_pointer(index)->type = float_type;
+
+                string node_lexeme = node_manager->get_lexeme(current_node);
+                double raw_float_value = stof(node_lexeme);
+                auto bytes = double_to_bytes(raw_float_value);
+
+                static_program_memory_insertion_order.push_back(index);
+                static_program_memory[index] = vector<uint8_t>();
+                static_program_memory[index].reserve(8);
+                static_program_memory[index].insert(static_program_memory[index].begin(), bytes.begin(), bytes.end());
+
                 continue;
             }
             case PN_NUMBER: {
-                auto node_lexeme = node_manager->get_lexeme(current_node);
-                SageValue integer_literal = SageValue(stoi(node_lexeme));
-                symbol_table.declare_immediate(integer_literal, node_lexeme);
+                //auto node_lexeme = node_manager->get_lexeme(current_node);
+                //SageValue integer_literal = SageValue(stoi(node_lexeme));
+                //symbol_table.declare_immediate(integer_literal, node_lexeme);
                 continue;
             }
             default:
@@ -394,23 +409,24 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 }
 
 void SageCompiler::perform_type_resolution() {
-    vector<table_index> program_symbols(symbol_table.entries.size());
+    vector<table_index> program_symbols(symbol_table.entries.size);
     std::iota(program_symbols.begin(), program_symbols.end(), 0);
 
     for (table_index idx: program_symbols) {
+        auto *entry = symbol_table.entries.get_pointer(idx);
         if (symbol_table.builtins.find(idx) != symbol_table.builtins.end()) continue;
-        if (symbol_table.entries[idx].type_is_resolved()) continue;
+        if (entry->type_is_resolved()) continue;
 
-        auto nodetype = node_manager->get_nodetype(symbol_table.entries[idx].definition_ast_index);
+        auto nodetype = node_manager->get_nodetype(entry->definition_ast_index);
         switch (nodetype) {
             case PN_VAR_DEC:
-                symbol_table.entries[idx].type = symbol_table.resolve_variable_type(idx);
+                entry->type = symbol_table.resolve_variable_type(idx);
                 break;
             case PN_STRUCT:
-                symbol_table.entries[idx].type = symbol_table.resolve_struct_type(idx);
+                entry->type = symbol_table.resolve_struct_type(idx);
                 break;
             case PN_FUNCDEF:
-                symbol_table.entries[idx].type = symbol_table.resolve_function_type(idx);
+                entry->type = symbol_table.resolve_function_type(idx);
                 break;
             default:
                 logger.log_internal_error_unsafe(
@@ -441,7 +457,7 @@ void SageCompiler::register_allocation() {
 
     // then arange what is left according to scope_id descending
     std::sort(variables_by_scope.begin(), variables_by_scope.end(), [this](int a, int b) {
-        return (symbol_table.entries[a].scope_id < symbol_table.entries[b].scope_id);
+        return symbol_table.entries.get(a).scope_id < symbol_table.entries.get(b).scope_id;
     });
 
     set<int> available_registers;
@@ -452,33 +468,39 @@ void SageCompiler::register_allocation() {
         available_registers.insert(r);
     }
 
-    symbol_entry *entry;
+    symbol_entry *working_symbol_entry;
     int assigned_register;
     for (table_index idx: variables_by_scope) {
-        auto current_ident = symbol_table.entries[idx].identifier;
-        if (current_scope != symbol_table.entries[idx].scope_id) {
+        auto entry = symbol_table.entries.get(idx);
+        if (current_scope != entry.scope_id) {
             current_relative_stack_location = 0;
-            current_scope = symbol_table.entries[idx].scope_id;
+            current_scope = entry.scope_id;
+        }
+
+        if (entry.type->identify() == FLOAT) {
+            symbol_table.entries.get(idx).spill(current_relative_stack_location);
+            current_relative_stack_location += entry.type->size;
+            continue;
         }
 
         for (auto symbol: working_symbols) {
-            entry = symbol_table.lookup(symbol, current_scope);
-            if (entry != nullptr) continue;
+            working_symbol_entry = symbol_table.lookup(symbol, current_scope);
+            if (working_symbol_entry != nullptr) continue;
 
             working_symbols.erase(symbol);
-            available_registers.insert(symbol_table.entries[current_scope].assigned_register);
+            available_registers.insert(working_symbol_entry->assigned_register);
         }
 
         if (available_registers.empty()) {
             // no room -> spill
-            symbol_table.entries[idx].spill(current_relative_stack_location);
-            current_relative_stack_location++;
+            symbol_table.entries.get(idx).spill(current_relative_stack_location);
+            current_relative_stack_location += entry.type->size;
             continue;
         }
 
         assigned_register = *available_registers.begin();
-        symbol_table.entries[idx].assigned_register = assigned_register;
-        working_symbols.insert(symbol_table.entries[idx].identifier);
+        symbol_table.entries.get_pointer(idx)->assigned_register = assigned_register;
+        working_symbols.insert(entry.identifier);
         available_registers.erase(assigned_register);
     }
 }
@@ -624,7 +646,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(), symbol_table.functions.end());
     // then arange what is left according to scope_id descending
     std::sort(definitions_by_scope.begin(), definitions_by_scope.end(), [this](int a, int b) {
-        return (symbol_table.entries[a].scope_id < symbol_table.entries[b].scope_id);
+        return (symbol_table.entries.get(a).scope_id < symbol_table.entries.get(b).scope_id);
     });
     definitions_by_scope.push_back(SAGE_NULL_SYMBOL);
 
@@ -636,11 +658,11 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
     for (int symbol_id: definitions_by_scope) {
-        if (current_scope != symbol_table.entries[symbol_id].scope_id) {
+        if (current_scope != symbol_table.entries.get(symbol_id).scope_id) {
             resolve_definition_order(current_scope);
             if (symbol_id == SAGE_NULL_SYMBOL) break;
 
-            current_scope = symbol_table.entries[symbol_id].scope_id;
+            current_scope = symbol_table.entries.get(symbol_id).scope_id;
 
             for (const auto &[identifier, in_degree]: in_degree_map) {
                 previously_processed.insert(identifier);
@@ -649,7 +671,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
             definition_dependencies.clear();
         }
 
-        auto ast_id = symbol_table.entries[symbol_id].definition_ast_index;
+        auto ast_id = symbol_table.entries.get(symbol_id).definition_ast_index;
         if (ast_id == -1) continue; // find all definitions in that scope
 
         in_degree_map[node_manager->get_identifier(ast_id)] = 0;
@@ -670,3 +692,9 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
         }
     }
 }
+
+
+
+
+
+

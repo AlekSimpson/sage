@@ -1,2 +1,2 @@
 
-string_literal: char* = "this is a string literal"
+string_literal: char = "this is a string literal"

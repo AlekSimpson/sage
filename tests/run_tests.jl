@@ -1,4 +1,4 @@
-const COMPILER = get(ENV, "COMPILER", "./build/myc")
+const COMPILER = get(ENV, "COMPILER", "./build/bin/sage")
 const TEST_DIR = get(ENV, "TEST_DIR", "tests/golden")
 const TIMEOUT  = parse(Float64, get(ENV, "TEST_TIMEOUT", "10.0"))
 const UPDATE   = "--update" in ARGS
@@ -70,7 +70,8 @@ function relevant_output(result::CompilerResult, category::String)
     elseif category == "warnings"
         return result.stderr * result.stdout
     else
-        return result.stdout
+        return read(".sage/bytecode/s.asm", String)
+        # return result.stdout
     end
 end
 
@@ -102,7 +103,10 @@ function check_crash(result::CompilerResult)
 end
 
 function run_test(source::String, category::String)
-    expected_file = replace(source, r"\.\w+$" => ".expected")
+    base_path = dirname(source) * "/expected"
+    target_filename = split(basename(source), ".")[1]
+    expected_file = base_path * "/" * target_filename
+
     name = relpath(source, TEST_DIR)
 
     result = run_compiler(source)
@@ -141,9 +145,15 @@ function discover_tests()
     tests = Tuple{String,String}[]
     for category in readdir(TEST_DIR)
         cat_dir = joinpath(TEST_DIR, category)
-        isdir(cat_dir) || continue
+        if !isdir(cat_dir)
+            continue
+        end
+
         for f in readdir(cat_dir)
-            endswith(f, ".expected") && continue
+            if isdir(joinpath(cat_dir, f))
+                continue
+            end
+
             push!(tests, (joinpath(cat_dir, f), category))
         end
     end

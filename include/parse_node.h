@@ -7,8 +7,8 @@ using namespace std;
 
 class NodeManager;
 
-typedef enum {
-  PN_BINARY,
+enum ParseNodeType {
+  PN_BINARY = 0,
   PN_TRINARY,
   PN_UNARY,
   PN_NUMBER,
@@ -35,8 +35,9 @@ typedef enum {
   PN_LIST,
   PN_INCLUDE,
   PN_VARARG,
-  PN_CHARACTER_LITERAL
-} ParseNodeType;
+  PN_CHARACTER_LITERAL,
+  PN_BOOL
+};
 
 string nodetype_to_string(ParseNodeType nodetype);
 

@@ -112,7 +112,7 @@ inline void SageInterpreter::execute_add(vector<int> &operands, AddressMode &mod
 }
 
 inline void SageInterpreter::execute_float_add(vector<int> &operands, AddressMode &mode) {
-    // _xx | OP_ADD reg, op, op
+    // _xx | OP_FADD reg, op, op
     int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
     floating_point_registers[operands[0]] = operand1 + operand2;
@@ -126,7 +126,7 @@ inline void SageInterpreter::execute_sub(vector<int> &operands, AddressMode &mod
 }
 
 inline void SageInterpreter::execute_float_sub(vector<int> &operands, AddressMode &mode) {
-    // _xx | OP_SUB reg, op, op
+    // _xx | OP_FSUB reg, op, op
     int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
     floating_point_registers[operands[0]] = operand1 - operand2;
@@ -142,7 +142,7 @@ inline void SageInterpreter::execute_mul(vector<int> &operands, AddressMode &mod
 }
 
 inline void SageInterpreter::execute_float_mul(vector<int> &operands, AddressMode &mode) {
-    // _xx | OP_MUL reg, op, op
+    // _xx | OP_FMUL reg, op, op
 
     int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
@@ -166,7 +166,7 @@ inline void SageInterpreter::execute_div(vector<int> &operands, AddressMode &mod
 }
 
 inline void SageInterpreter::execute_float_div(vector<int> &operands, AddressMode &mode) {
-    // _xx | OP_DIV reg, op, op
+    // _xx | OP_FDIV reg, op, op
     if (operands[2] == 0) {
         ErrorLogger::get().log_internal_error_safe(
             "interpreter.cpp",
@@ -187,7 +187,7 @@ inline void SageInterpreter::execute_load(vector<int> &operands) {
 }
 
 inline void SageInterpreter::execute_float_load(vector<int> &operands) {
-    // _00 | load reg, ($fp - offset)
+    // _00 | fload reg, ($fp - offset)
     int load_address = frame_pointer->stack_pointer - operands[1];
     floating_point_registers[operands[0]] = memory[load_address];
 }
@@ -201,7 +201,7 @@ inline void SageInterpreter::execute_store(vector<int> &operands, AddressMode &m
 }
 
 inline void SageInterpreter::execute_float_store(vector<int> &operands, AddressMode &mode) {
-    // _0x | store ($fp - offset), op
+    // _0x | fstore ($fp - offset), op
     int offset = operands[0];
     int store_address = frame_pointer->stack_pointer - offset;
     int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
@@ -219,7 +219,7 @@ inline void SageInterpreter::execute_move(vector<int> &operands, AddressMode &mo
 }
 
 inline void SageInterpreter::execute_float_move(vector<int> &operands, AddressMode &mode) {
-    // _0x | mov reg, op
+    // _0x | fmov reg, op
     set_float_register(operands[0], mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1]);
 }
 
@@ -470,7 +470,7 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<ta
     size_t static_working_pointer = static_start_pointer;
     for (const auto &[static_symbol_index, symbol_memory_chunk]: static_section_components) {
         auto *symbol_entry = symbol_table->lookup_by_index(static_symbol_index);
-        if (symbol_entry->type->identify() != ARRAY) {
+        if (symbol_entry->type->identify() != ARRAY && symbol_entry->type->identify() != FLOAT) {
             ErrorLogger::get().log_internal_error_safe("interpreter.cpp", current_linenum, "Unsupported static member found.");
             continue;
         }

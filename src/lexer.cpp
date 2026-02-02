@@ -58,6 +58,8 @@ Token *SageLexer::check_for_character_literal() {
         lexeme += '\'';
         char_buffer->get(current_char);
         linedepth++;
+        char_buffer->get(current_char);
+        linedepth++;
 
         if (current_char != '\'') {
             Token tok = Token(TT_CHARACTER_LITERAL, "\'", linenum);
@@ -91,7 +93,7 @@ Token *SageLexer::lex_for_symbols() {
         return return_val;
     }
 
-    return_val = check_for_string();
+    return_val = check_for_character_literal();
     if (return_val != nullptr) {
         return return_val;
     }
@@ -252,30 +254,31 @@ Token *SageLexer::lex_for_identifiers() {
 
     string lexeme = "";
 
-    unordered_map<string, int> KEYWORDS = {
-        {"int", 0},
-        {"char", 1},
-        {"void", 2},
-        {"i16", 3},
-        {"i32", 4},
-        {"i64", 5},
-        {"f32", 6},
-        {"f64", 7},
-        {"bool", 8},
-        {"include", 9},
-        {"for", 10},
-        {"while", 11},
-        {"in", 12},
-        {"if", 13},
-        {"else", 14},
-        {"break", 15},
-        {"continue", 16},
-        {"fallthrough", 17},
-        // like the break keyword but for nested loops, if used inside a nested loop it will break out of all loops
-        {"ret", 18},
-        {"struct", 19},
-        {"using", 20}, // todo: change to 'with'
-        {"run", 21},
+    set<string> KEYWORDS = {
+       "int",
+       "char",
+       "void",
+       "i16",
+       "i32",
+       "i64",
+       "f32",
+       "f64",
+       "bool",
+       "include",
+       "for",
+       "while",
+       "in",
+       "if",
+       "else",
+       "break",
+       "continue",
+       "fallthrough",
+       "ret",
+       "struct",
+       "with", // previously: 'using'
+       "run",
+       "true",
+        "false"
     };
 
     int starting_linedepth = linedepth;

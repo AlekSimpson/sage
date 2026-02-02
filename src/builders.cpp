@@ -452,23 +452,13 @@ void BytecodeBuilder::build_puts() {
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
-    string for_debugging = var_symbol->identifier;
     auto right_value_state = right_value.get_result_state(&symbol_table);
     auto variable_symbol_state = var_symbol->spilled ? VisitorResultState::SPILLED : VisitorResultState::REGISTER ;
 
-    /*
-     * Warning: This logic may not actually end up being the case and could cause bugs, maybe. Needs testing.
-     * Note: in all of these control paths I am making the assumption that if we are assigning to a variable that is a
-     *       float then the right value will have been type checked already and or casted to be a float value
-     *
-     */
-
     int control_flow_path = ((int)right_value_state * 4) + (int)variable_symbol_state;
     switch (control_flow_path) {
-        case 4: {
+        case 1: {
             /* right_value=IMMEDIATE, var_symbol=SPILLED */
-            assertm(!TypeRegistery::is_float64_type(var_symbol->type), "Float literals are not yet implemented yet.");
-
             builder.build_store_immediate(var_symbol->spill_offset, right_value.immediate_value);
 
             break;
@@ -489,7 +479,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
 
             break;
         }
-        case 6: {
+        case 9: {
             /* right_value=REGISTER, var_symbol=SPILLED */
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
 
@@ -501,25 +491,23 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
 
             break;
         }
-        case 7: {
+        case 13: {
             /* right_value=VALUE, var_symbol=SPILLED */
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
 
             if (var_symbol->type->identify() == FLOAT) {
-                // all program float literals exist in static (so a raw value would be stored on the stack)
+                int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
                 int float_register = get_volatile_float_register();
-                builder.build_fload(float_register, right_variable_symbol->spill_offset);
-                builder.build_fstore_register(var_symbol->spill_offset, right_variable_symbol->assigned_register);
+                builder.build_fload(float_register, static_pointer);
+                builder.build_fstore_register(var_symbol->spill_offset, float_register);
             }else {
                 builder.build_store_immediate(var_symbol->spill_offset, right_variable_symbol->value);
             }
 
             break;
         }
-        case 8: {
+        case 2: {
             /* right_value=IMMEDIATE, var_symbol=REGISTER */
-            assertm(!TypeRegistery::is_float64_type(right_value.immediate_value.valuetype), "Float literals are not yet implemented yet.");
-
             if (var_symbol->type->identify() == FLOAT) {
                 int float_register = get_volatile_float_register();
                 builder.build_move_immediate(float_register, right_value.immediate_value);
@@ -529,7 +517,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
             }
             break;
         }
-        case 9: {
+        case 6: {
             /* right_value=SPILLED, var_symbol=REGISTER */
             SageOpCode opcode = var_symbol->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
@@ -547,12 +535,14 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
             }
             break;
         }
-        case 11: {
+        case 14: {
             /* right_value=VALUE, var_symbol=REGISTER */
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
             if (var_symbol->type->identify() == FLOAT) {
-                // all program float literals exist in static (so a raw value would be stored on the stack)
-                builder.build_fload(var_symbol->assigned_register, right_variable_symbol->spill_offset);
+                int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
+                int float_register = get_volatile_float_register();
+                builder.build_fload(float_register, static_pointer);
+                builder.build_fstore_register(var_symbol->spill_offset, float_register);
             }else {
                 builder.build_store_immediate(var_symbol->spill_offset, right_variable_symbol->value);
                 builder.build_move_immediate(var_symbol->assigned_register, right_variable_symbol->value);

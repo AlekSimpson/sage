@@ -848,6 +848,7 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
             current_op.fill_with(*current_token);
         }
         left = node_manager->create_binary(op, PN_BINARY, left, right);
+        //symbol_count++;
     }
     return left;
 }
@@ -883,6 +884,17 @@ NodeIndex SageParser::parse_primary() {
             }
 
             ret = node_manager->create_unary(token, PN_VAR_REF);
+            advance();
+            return ret;
+        case TT_KEYWORD:
+            token.fill_with(*current_token);
+            if (current_token->lexeme != "true" && current_token->lexeme != "false") {
+                ErrorLogger::get().log_error_unsafe(
+                    token,
+                    sen("Found non-literal keyword,", token.lexeme,", while parsing expression. Only boolean literal keywords ('true'/'false') can be in expressions."),
+                    SYNTAX);
+            }
+            ret = node_manager->create_unary(token, PN_BOOL);
             advance();
             return ret;
 

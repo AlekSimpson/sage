@@ -161,9 +161,13 @@ public:
 
     // Convenience getters with automatic conversion
     int32_t as_i32() const { return value.int_value; }
+    int64_t as_i64() const { return value.int_value; }
+    uint64_t as_u64() const { return value.int_value; }
+    uint32_t as_u32() const { return value.int_value; }
     float as_float() const { return value.float_value; }
-    // void *as_ptr() const { return value.complex_value; }
-    // DEPRECATED: TODO: FIX: const char *as_charbuff() const { return static_cast<const char *>(value.complex_value); }
+    double as_float64() const { return value.float_value; }
+    bool as_bool() const { return value.bool_value; }
+    char as_char() const { return value.char_value; }
 };
 
 namespace std {

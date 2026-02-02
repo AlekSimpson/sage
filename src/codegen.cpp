@@ -166,10 +166,6 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         auto lhs = node_manager->get_left(node);
         string variable_name = node_manager->get_lexeme(lhs);
         symbol_entry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
-        if (var_symbol == nullptr) { // this should be an assert also
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, sen("Symbol declaration was never initialized"));
-            return VisitorResult();
-        }
 
         return build_alloca(var_symbol);
     }
@@ -180,11 +176,6 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         string variable_name = node_manager->get_lexeme(lhs);
         int scope_id = node_manager->get_scope_id(node);
         symbol_entry *var_symbol = symbol_table.lookup(variable_name, scope_id);
-        if (var_symbol == nullptr) {
-            auto token = node_manager->get_token(lhs);
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, sen("Reference to undefined symbol: '", variable_name, "'."));
-            return VisitorResult();
-        }
 
         auto rightnode = node_manager->get_right(node);
         auto rhs = visit_expression(rightnode);
@@ -223,7 +214,6 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
     return visit_literal(node);
 }
 
-// todo: might make more sense to change this func name to "visit_atom"
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
@@ -245,12 +235,43 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             return VisitorResult(stoi(node_manager->get_lexeme(node)));
         }
         case PN_FLOAT: {
-            return VisitorResult(stof(node_manager->get_lexeme(node)));
+            auto identifier = node_manager->get_identifier(node);
+            table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
+            return VisitorResult(symbol_index);
+        }
+        case PN_BOOL: {
+            auto identifier = node_manager->get_identifier(node);
+            if (identifier == "true") {
+                return VisitorResult(SageValue(true));
+            }
+            if (identifier == "false") {
+                return VisitorResult(SageValue(false));
+            }
+            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, sen("Expected to find 'true' or 'false', found", identifier));
+            return VisitorResult();
         }
         default:
             break;
     }
     return VisitorResult();
+}
+
+int SageCompiler::get_literal_static_pointer(table_index literal_symbol_table_index) {
+    auto static_stack_pointer = symbol_table.entries.get(literal_symbol_table_index).static_stack_pointer;
+    if (static_stack_pointer != -1) return static_stack_pointer;
+
+    auto it = static_program_memory.find(literal_symbol_table_index);
+    if (it != static_program_memory.end()) {
+        int static_pointer = 0;
+        for (int insertion_order_index = 0; insertion_order_index < (int)static_program_memory_insertion_order.size(); ++insertion_order_index) {
+            if (static_program_memory_insertion_order[insertion_order_index] == literal_symbol_table_index) {
+                symbol_table.entries.get_pointer(literal_symbol_table_index)->static_stack_pointer = static_pointer;
+                return static_pointer;
+            }
+            static_pointer += (int)static_program_memory[static_program_memory_insertion_order[insertion_order_index]].size();
+        }
+    }
+    return -1;
 }
 
 VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
@@ -277,19 +298,22 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
 
     int argument_register_address = 0;
     for (VisitorResult arg_result: args) {
-        auto it = static_program_memory.find(arg_result.symbol_table_index);
-        if (it != static_program_memory.end()) {
-            // its a float (TODO) or string literal
-            // TODO: replace this for loop with static program pointer address tracker that has uniqueness of elements and O(1) lookup time
-            //vector<uint8_t> mem = it->second;
-            int static_pointer = 0;
-            for (int order_index = 0; order_index < (int)static_program_memory_insertion_order.size(); ++order_index) {
-                if (static_program_memory_insertion_order[order_index] == arg_result.symbol_table_index) {
-                    builder.build_move_immediate(argument_register_address, static_pointer);
-                    break;
-                }
-                static_pointer += (int)static_program_memory[static_program_memory_insertion_order[order_index]].size();
-            }
+        //auto it = static_program_memory.find(arg_result.symbol_table_index);
+        //if (it != static_program_memory.end()) {
+        //    int static_pointer = 0;
+        //    for (int order_index = 0; order_index < (int)static_program_memory_insertion_order.size(); ++order_index) {
+        //        if (static_program_memory_insertion_order[order_index] == arg_result.symbol_table_index) {
+        //            builder.build_move_immediate(argument_register_address, static_pointer);
+        //            break;
+        //        }
+        //        static_pointer += (int)static_program_memory[static_program_memory_insertion_order[order_index]].size();
+        //    }
+        //    argument_register_address++;
+        //    continue;
+        //}
+        int possible_literal_memory_pointer = get_literal_static_pointer(arg_result.symbol_table_index);
+        if (possible_literal_memory_pointer != -1) {
+            builder.build_move_immediate(argument_register_address, possible_literal_memory_pointer);
             argument_register_address++;
             continue;
         }
