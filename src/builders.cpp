@@ -495,13 +495,13 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
             /* right_value=VALUE, var_symbol=SPILLED */
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
 
+            int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
             if (var_symbol->type->identify() == FLOAT) {
-                int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
                 int float_register = get_volatile_float_register();
                 builder.build_fload(float_register, static_pointer);
                 builder.build_fstore_register(var_symbol->spill_offset, float_register);
             }else {
-                builder.build_store_immediate(var_symbol->spill_offset, right_variable_symbol->value);
+                builder.build_store_immediate(var_symbol->spill_offset, static_pointer);
             }
 
             break;
@@ -538,14 +538,13 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
         case 14: {
             /* right_value=VALUE, var_symbol=REGISTER */
             symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
+            int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
             if (var_symbol->type->identify() == FLOAT) {
-                int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
                 int float_register = get_volatile_float_register();
                 builder.build_fload(float_register, static_pointer);
                 builder.build_fstore_register(var_symbol->spill_offset, float_register);
             }else {
-                builder.build_store_immediate(var_symbol->spill_offset, right_variable_symbol->value);
-                builder.build_move_immediate(var_symbol->assigned_register, right_variable_symbol->value);
+                builder.build_move_immediate(var_symbol->assigned_register, static_pointer);
             }
             break;
         }

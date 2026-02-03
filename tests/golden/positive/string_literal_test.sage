@@ -1,2 +1,2 @@
 
-string_literal: string = "this is a string literal"
+string_value: string = "this is a string literal"

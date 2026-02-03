@@ -43,6 +43,8 @@ enum CompilationTarget {
   WEBASM
 };
 
+string compilation_target_string(CompilationTarget target);
+
 struct CompilerOptions {
   string input_file = "";
   string output_file = "s.out";

@@ -450,6 +450,8 @@ SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
 
 
 table_index SymbolArena::allocate_symbol() {
+    assertm(size < CAPACITY && size + 1 < CAPACITY, "ATTEMPTED TO ALLOCATE WHEN ARENA IS FULL.");
+
     int new_id = size;
     size++;
     return new_id;

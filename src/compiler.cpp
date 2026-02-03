@@ -38,6 +38,13 @@ bool SageCompiler::generating_compile_time_bytecode() {
 }
 
 void SageCompiler::compile_file(string mainfile) {
+    if (options.compilation_target != SAGE_VM) {
+        logger.log_internal_error_unsafe(
+            "compiler.cpp",
+            current_linenum,
+            sen("Support for compilation target", compilation_target_string(options.compilation_target), "is not implemented yet."));
+    }
+
     /// 1. INITIAL PROGRAM COMPILATION PASS
     string emit_string;
     NodeIndex ast_root = parser.parse_program(mainfile);
@@ -438,7 +445,28 @@ void SageCompiler::perform_type_resolution() {
     }
 }
 
-
+string compilation_target_string(CompilationTarget target) {
+    switch (target) {
+        case SAGE_VM:
+            return "SageVM";
+        case X86:
+            return "X86";
+        case X86_64:
+            return "X86_64";
+        case ARM32:
+            return "ARM32";
+        case ARM64:
+            return "ARM64";
+        case AARCH64_64:
+            return "AArch64";
+        case RISCV:
+            return "RISC";
+        case WEBASM:
+            return "Web Assembly";
+        default:
+            return "Unknown target.";
+    }
+}
 
 void SageCompiler::register_allocation() {
     /*
