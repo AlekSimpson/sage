@@ -45,14 +45,16 @@ symbol_entry::symbol_entry(SageValue sval, string ident) : value(sval),
 }
 
 SageSymbolTable::SageSymbolTable() {
-    this->function_visitor_state = stack<function_visit>();
+    this->function_visitor_state = stack<FunctionVisit>();
     this->scope_manager = nullptr;
 }
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
     : entries(SymbolArena(initial_size)), nm(nm), scope_manager(scopeman) {
-    this->function_visitor_state = stack<function_visit>();
+    this->function_visitor_state = stack<FunctionVisit>();
     this->scope_manager = scopeman;
+
+
 
     declare_builtin_symbol("__SAGE__NULL__SYMBOL__", TypeRegistery::get_byte_type(VOID));
 }
@@ -222,6 +224,31 @@ table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetyp
     return new_index;
 }
 
+table_index SageSymbolTable::declare_function(NodeIndex ast_id, SageType *function_type) {
+    auto name = nm->get_identifier(ast_id);
+    auto scope_id = nm->get_scope_id(ast_id);
+    auto symbol_check = lookup(name, scope_id);
+    if (symbol_check != nullptr) return symbol_check->symbol_id;
+
+    table_index new_index = entries.allocate_symbol();
+    auto &entry = entries.get(new_index);
+    entry.type = function_type;
+    entry.identifier = name;
+    entry.scope_id = scope_id;
+    entry.definition_ast_index = ast_id;
+    entry.symbol_id = new_index;
+
+    if (name == "main") {
+        program_uses_main_function = true;
+    }
+
+    functions.insert(new_index);
+    scope_symbol_map[{scope_id, name}] = new_index;
+    scope_manager->register_symbol_in_scope(scope_id, new_index);
+
+    return new_index;
+}
+
 table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuetype) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
@@ -350,6 +377,9 @@ void SageSymbolTable::initialize() {
     }));
 
     // setup builtin functions
+    function_visitor_state.push(FunctionVisit("GLOABL"))
+    declare_builtin_symbol("GLOBAL", TypeRegistery::get_function_type());
+
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),
         TypeRegistery::get_integer_type(8)
@@ -458,10 +488,12 @@ table_index SymbolArena::allocate_symbol() {
 }
 
 symbol_entry &SymbolArena::get(table_index index) {
+    assertm(index >= 0 && index < CAPACITY, "Out of bounds arena access.");
     return data[index];
 }
 
 symbol_entry *SymbolArena::get_pointer(table_index index) {
+    assertm(index >= 0 && index < CAPACITY, "Out of bounds arena access.");
     return &data[index];
 }
 

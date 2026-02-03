@@ -13,15 +13,25 @@
 
 #define SAGE_NULL_SYMBOL 0
 
-struct function_visit {
-    string function_name = "";
+struct FunctionVisit {
+    table_index symbol_index;
     int return_statement_count = 0;
+    int return_stack_pointer = 0;
+    bool needs_return_stack_pointer = false; // determined when we do type resolution
 
-    function_visit(string name) : function_name(name) {};
+    FunctionVisit(table_index index) : symbol_index(index) {};
     bool has_returned() const { return return_statement_count > 0; }
 };
 
+struct ReturnResult {
+    int result_total_byte_size;
+    int elements_returned_amount;
+
+    bool fits_function_return_registers();
+};
+
 struct symbol_entry {
+    FunctionVisit function_info;
     SageValue value;
     SageType *type;
     string identifier;
@@ -40,6 +50,7 @@ struct symbol_entry {
     bool type_is_resolved();
     void spill(int offset);
     bool needs_comptime_resolution();
+    bool is_not_global_function();
 };
 
 class SymbolArena {
@@ -94,8 +105,8 @@ class SageSymbolTable {
 public:
     SymbolArena entries;
     NodeManager *nm;
-	ScopeManager *scope_manager;
-    stack<function_visit> function_visitor_state;
+    ScopeManager *scope_manager;
+    stack<FunctionVisit *> function_visitor_state;
     set<table_index> builtins;
     set<table_index> variables;
     set<table_index> structs;
@@ -111,6 +122,7 @@ public:
     map<comptime_task_id, table_index> comptime_task_id_to_symbol_id;
 
     int temporary_counter_gen = 0;
+    bool program_uses_main_function = false;
 
     SageSymbolTable();
     SageSymbolTable(ScopeManager* scopeman, NodeManager *nm, int size);
@@ -137,6 +149,7 @@ public:
     table_index declare_variable(NodeIndex ast_id, SageType *valuetype);
     table_index declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment);
     table_index declare_type_symbol(NodeIndex ast_id, SageType *type);
+    table_index declare_function(NodeIndex ast_id, SageType *type); // creates FunctionVisit value, lives here now
 
     // Lookups
     const symbol_entry *global_lookup(const string &name);

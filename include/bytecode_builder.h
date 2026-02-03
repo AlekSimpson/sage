@@ -7,7 +7,11 @@
 struct ProcedureFrame {
     string name;
     bytecode procedure_instructions;
+    bytecode stack_memory_setup_instructions;
     bool is_comptime = false;
+
+    // this holds space for function calls whose return values can only fit on the stack
+    vector<SageType *> stack_frame_memory_requirements;
 
     ProcedureFrame() : name("") {
     }

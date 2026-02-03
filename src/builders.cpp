@@ -555,9 +555,6 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
 }
 
 VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_program_exit) {
-    // TODO: doesn't yet support multiple return values
-    // TODO: float return values not supported yet
-
     SageOpCode opcode = OP_RET;
     if (is_program_exit) {
         opcode = VOP_EXIT;
@@ -565,6 +562,7 @@ VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_pro
 
     if (return_value.is_null()) {
         builder.build_instruction(opcode, 0, _00);
+        // FIX:
         builder.exit_frame();
         return VisitorResult();
     }
@@ -604,6 +602,8 @@ VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_pro
     }
 
     builder.build_instruction(opcode, 0, _00);
+    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic 
+    // will bug out
     builder.exit_frame();
     return VisitorResult();
 }
