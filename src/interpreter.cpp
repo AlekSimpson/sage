@@ -194,7 +194,7 @@ inline void SageInterpreter::execute_float_load(vector<int> &operands) {
 
 inline void SageInterpreter::execute_store(vector<int> &operands, AddressMode &mode) {
     // _0x | store ($fp - offset), op
-    int offset = operands[0];
+    int offset = mode[0] == 1 ? read_register(operands[0]) : operands[0];
     int store_address = frame_pointer->stack_pointer - offset;
     int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
     memory[store_address] = operand1;

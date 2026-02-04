@@ -58,11 +58,12 @@ struct CompilerOptions {
 CompilerOptions parse_compiler_flags(int, char **);
 bool check_filename_valid(const string &filename);
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE};
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE }; // , LIST
 
 struct VisitorResult {
   table_index symbol_table_index = SAGE_NULL_SYMBOL;
   SageValue immediate_value = SageValue();
+  vector<VisitorResult> list_results;
 
   VisitorResult() {};
   VisitorResult(int value) : immediate_value(SageValue(value)) {}
@@ -119,7 +120,6 @@ public:
 
   /* builders */
   VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
-  VisitorResult build_return(VisitorResult, bool);
   VisitorResult build_function_with_block(string);
   VisitorResult build_alloca(symbol_entry *var_symbol);
   VisitorResult build_add(VisitorResult, VisitorResult);

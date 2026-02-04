@@ -131,7 +131,7 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
     string function_name = node_manager->get_lexeme(node_manager->get_left(node));
     symbol_entry *function_entry = symbol_table.lookup(function_name, node_manager->get_scope_id(node));
-    symbol_table.function_visitor_state.push(&function_entry->function_info)
+    symbol_table.function_visitor_state.push(&function_entry->function_info);
 
     NodeIndex function_signature_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(function_signature_node);
@@ -153,10 +153,16 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
         bool is_main = function_name == "main";
         bool is_global = function_name == "global";
         bool is_final_program_return = symbol_table.program_uses_main_function ? is_main : is_global;
-        build_return(VisitorResult(), is_final_program_return);
+
+        SageOpCode opcode = OP_RET;
+        if (is_final_program_return) {
+            opcode = VOP_EXIT;
+        }
+        builder.build_instruction(opcode, 0, _00);
+        builder.exit_frame();
     }
 
-    symbol_table.function_visitor_state->pop();
+    symbol_table.function_visitor_state.pop();
     return VisitorResult();
 }
 
@@ -195,30 +201,89 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
 VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     // TODO: doesn't yet support multiple return values
     symbol_table.function_visitor_state.top()->return_statement_count++;
-    int function_symbol_index = symbol_table.function_visitor_state.top()->function_index;
+    int function_symbol_index = symbol_table.function_visitor_state.top()->symbol_index;
     symbol_entry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
+
+    SageFunctionType *function_type = static_cast<SageFunctionType *>(function_entry->type);
+    for (auto *type: function_type->return_type) {
+        if (type->identify() == FLOAT) {
+            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, "UNIMPLEMENTED: Float return types are not supported yet.");
+            return VisitorResult();
+        }
+    }
 
     bool is_main = function_entry->identifier == "main";
     bool is_global = function_entry->identifier == "global";
     bool is_program_exit = symbol_table.program_uses_main_function ? is_main : is_global;
 
-    auto branch_id = node_manager->get_branch(node);
-    if (branch_id != NULL_INDEX) {
-        VisitorResult return_value = visit_expression(branch_id);
-        if (!function_entry->function_info.needs_return_stack_pointer) {
-            build_store
-        }
-
-
-        return build_return(visit_expression(branch_id), is_program_exit);
-    }
-
     SageOpCode opcode = OP_RET;
     if (is_program_exit) {
         opcode = VOP_EXIT;
     }
+
+    auto branch_id = node_manager->get_branch(node);
+    if (branch_id != NULL_INDEX) {
+        VisitorResult return_value = visit_expression(branch_id);
+        if (!symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
+            switch (return_value.get_result_state(&symbol_table)) {
+                case VisitorResultState::IMMEDIATE: {
+                    builder.build_move_immediate(6, return_value.immediate_value);
+                    break;
+                }
+                case VisitorResultState::SPILLED: {
+                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                    builder.build_load(6, src_symbol->spill_offset);
+                    break;
+                }
+                case VisitorResultState::REGISTER: {
+                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                    builder.build_move_register(6, src_symbol->assigned_register);
+                    break;
+                }
+                case VisitorResultState::VALUE: {
+                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                    int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
+                    builder.build_move_immediate(6, static_pointer);
+                    break;
+                }
+            }
+            builder.build_instruction(opcode, 0, _00);
+            // FIX:
+            builder.exit_frame();
+            function_entry->assigned_register = 6;
+            return VisitorResult((table_index)function_entry->symbol_id);
+        }
+
+        // store return_value into stack return address
+        switch (return_value.get_result_state(&symbol_table)) {
+            case VisitorResultState::IMMEDIATE: {
+                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
+                break;
+            }
+            case VisitorResultState::SPILLED: {
+                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                builder.build_instruction(OP_MEMCPY, 6, src_symbol->spill_offset, _10);
+                break;
+            }
+            case VisitorResultState::REGISTER: {
+                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _11);
+                break;
+            }
+            case VisitorResultState::VALUE: {
+                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
+                break;
+            }
+        }
+
+        builder.build_instruction(opcode, 0, _00);
+        // FIX:
+        builder.exit_frame();
+        function_entry->spilled = true;
+        return VisitorResult((table_index)function_entry->symbol_id);
+    }
+
     builder.build_instruction(opcode, 0, _00);
-    // FIX:
+    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
     builder.exit_frame();
     return VisitorResult();
 }
@@ -242,6 +307,10 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
+        case PN_LIST: {
+            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, "TODO: List literal visitor unimplemented.");
+            return VisitorResult();
+        }
         case PN_VAR_REF:
         case PN_IDENTIFIER:
             return build_load(node);
@@ -346,6 +415,7 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
             continue;
         }
 
+
         auto arg_result_state = arg_result.get_result_state(&symbol_table);
         switch (arg_result_state) {
             case VisitorResultState::IMMEDIATE:
@@ -372,26 +442,16 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         argument_register_address++;
     }
 
+    if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_id)) {
+        int pointer = symbol_table.function_visitor_state.top()->stack_return_pointer_counter;
+        int return_bytesize = symbol_table.get_result_total_byte_size(symbol_table.function_visitor_state.top()->symbol_index);
+        symbol_table.function_visitor_state.top()->stack_return_pointer_counter += return_bytesize;
+        builder.build_move_immediate(6, pointer); // if the function return is on the stack then we don't need to use the function return register
+    }
+
     builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
 
-    // TODO: (temporary) when we support more than one return value we will need to beef up the logic around this
-    // FIX: ok so functions_three.sage is failing due to an incorrect calculation of the amount of symbols the program
-    //      requires. we are not accounting for the extra symbols that are created everytime a function is called. here
-    //      in this code we create a new "temporary" symbol for every function call. we could simply update the parser
-    //      to account for this but it probably would be better to consider a solution which minimizes symbol table
-    //      memory footprint. probably the better solution is to reuse the function symbol to manage its own function
-    //      call result references. this should include handling spilled return values, float return values, multiple
-    //      return values. for each function call the results of the previous function call will be overwritten. this is
-    //      ok because if the result was really something the programmer needed then that would get moved to another
-    //      variable before the point at which the compiler would overwrite the previous function call return data with
-    //      newer latest return data.
-    // ALSO: the function "declare_temporary" should probably be renamed. the symbols generated by this function are hardly
-    //      temporary. either they should be renamed to something more fitting or they should be reworked such that only
-    //      a set pool of temporary symbols are allowed to exist within the symbol table and we will reuse this one set of
-    //      temporary symbols to represent all temporary values in the code during bytecode generation.
-    // ALSO: we probably will want to create a "declare_function" symbol which will have special instructions related to
-    //      setting up and managing its function call return values.
-    return VisitorResult((table_index) symbol_table.declare_temporary(6));
+    return VisitorResult((table_index)function_symbol->symbol_id);
 }
 
 VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {

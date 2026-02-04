@@ -26,7 +26,8 @@ bool symbol_entry::needs_comptime_resolution() {
     return type->match(TypeRegistery::get_pending_comptime_type());
 }
 
-symbol_entry::symbol_entry() : value(SageValue()),
+symbol_entry::symbol_entry() : function_info(FunctionVisit()),
+                               value(SageValue()),
                                type(nullptr),
                                identifier(""),
                                assigned_register(-1),
@@ -45,16 +46,14 @@ symbol_entry::symbol_entry(SageValue sval, string ident) : value(sval),
 }
 
 SageSymbolTable::SageSymbolTable() {
-    this->function_visitor_state = stack<FunctionVisit>();
+    this->function_visitor_state = stack<FunctionVisit *>();
     this->scope_manager = nullptr;
 }
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
     : entries(SymbolArena(initial_size)), nm(nm), scope_manager(scopeman) {
-    this->function_visitor_state = stack<FunctionVisit>();
+    this->function_visitor_state = stack<FunctionVisit *>();
     this->scope_manager = scopeman;
-
-
 
     declare_builtin_symbol("__SAGE__NULL__SYMBOL__", TypeRegistery::get_byte_type(VOID));
 }
@@ -83,7 +82,7 @@ void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *
     scope_manager->register_symbol_in_current_scope(new_index);
 }
 
-void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type) {
+table_index SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type) {
     table_index new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
     entry.type = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
@@ -95,6 +94,7 @@ void SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type)
     builtins.insert(new_index);
     scope_symbol_map[{0, name}] = new_index;
     scope_manager->register_symbol_in_current_scope(new_index);
+    return new_index;
 }
 
 table_index SageSymbolTable::declare_immediate(SageValue value, string lexeme) {
@@ -232,6 +232,7 @@ table_index SageSymbolTable::declare_function(NodeIndex ast_id, SageType *functi
 
     table_index new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
+    entry.function_info = FunctionVisit(new_index);
     entry.type = function_type;
     entry.identifier = name;
     entry.scope_id = scope_id;
@@ -377,8 +378,8 @@ void SageSymbolTable::initialize() {
     }));
 
     // setup builtin functions
-    function_visitor_state.push(FunctionVisit("GLOABL"))
-    declare_builtin_symbol("GLOBAL", TypeRegistery::get_function_type());
+    //declare_builtin_symbol("GLOBAL", TypeRegistery::get_function_type());
+    //function_visitor_state.push();
 
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),
@@ -488,17 +489,36 @@ table_index SymbolArena::allocate_symbol() {
 }
 
 symbol_entry &SymbolArena::get(table_index index) {
-    assertm(index >= 0 && index < CAPACITY, "Out of bounds arena access.");
+    assertm((int)index < CAPACITY, "Out of bounds arena access.");
     return data[index];
 }
 
 symbol_entry *SymbolArena::get_pointer(table_index index) {
-    assertm(index >= 0 && index < CAPACITY, "Out of bounds arena access.");
+    assertm((int)index < CAPACITY, "Out of bounds arena access.");
     return &data[index];
 }
 
 
+int SageSymbolTable::get_result_total_byte_size(table_index symbol_index) {
+    auto *entry = lookup_by_index(symbol_index);
+    auto *function_type = static_cast<SageFunctionType *>(entry->type);
+    int bytesize = 0;
+    for (auto *type: function_type->return_type) {
+        bytesize+=type->size;
+    }
+    return bytesize;
+}
 
+int SageSymbolTable::get_amount_of_elements_being_returned(table_index symbol_index) {
+    auto *entry = lookup_by_index(symbol_index);
+    auto *function_type = static_cast<SageFunctionType *>(entry->type);
+    return function_type->return_type.size();
+}
+
+bool SageSymbolTable::needs_return_stack_pointer(table_index index) {
+    int bytesize = get_result_total_byte_size(index);
+    return bytesize > 8;
+}
 
 
 

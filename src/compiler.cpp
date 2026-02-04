@@ -275,7 +275,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 continue;
             }
             case PN_FUNCDEF: {
-                auto table_idx = symbol_table.declare_symbol(current_node, nullptr);
+                auto table_idx = symbol_table.declare_function(current_node, nullptr);
                 symbol_table.functions.insert(table_idx);
                 string identifier = node_manager->get_identifier(current_node);
 

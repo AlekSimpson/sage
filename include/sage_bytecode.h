@@ -36,7 +36,8 @@ enum SageOpCode {
     OP_FMUL,    // _xx | fmul freg, op, op
     OP_FDIV,    // _xx | fdiv freg, op, op
 
-    OP_ALLOC,   // _00 | alloc size    | size in bytes
+    OP_MEMCPY,  // _xx | memcpy ($fp - dest_offset), ($fp - src_offset), bytesize
+    OP_ALLOC,   // _00 | alloc bytesize
     OP_FLOAD,   // _00 | load freg, ($fp - offset)
                 // build_fload(register, offset)
     OP_LOAD,    // _00 | load reg, ($fp - offset)

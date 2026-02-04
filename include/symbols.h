@@ -16,18 +16,11 @@
 struct FunctionVisit {
     table_index symbol_index;
     int return_statement_count = 0;
-    int return_stack_pointer = 0;
-    bool needs_return_stack_pointer = false; // determined when we do type resolution
+    int stack_return_pointer_counter = 0;
 
+    FunctionVisit(): symbol_index(-1) {};
     FunctionVisit(table_index index) : symbol_index(index) {};
     bool has_returned() const { return return_statement_count > 0; }
-};
-
-struct ReturnResult {
-    int result_total_byte_size;
-    int elements_returned_amount;
-
-    bool fits_function_return_registers();
 };
 
 struct symbol_entry {
@@ -50,7 +43,6 @@ struct symbol_entry {
     bool type_is_resolved();
     void spill(int offset);
     bool needs_comptime_resolution();
-    bool is_not_global_function();
 };
 
 class SymbolArena {
@@ -139,7 +131,7 @@ public:
 
     // Symbol declarations
     void declare_builtin_type_symbol(const string &name, SageType *type);
-    void declare_builtin_symbol(const string &name, SageType *type);
+    table_index declare_builtin_symbol(const string &name, SageType *type);
 
     table_index declare_immediate(SageValue value, string lexeme);
     table_index declare_literal(NodeIndex ast_id, SageValue value);
@@ -160,5 +152,8 @@ public:
     // Check if symbol is visible from a given scope
     bool is_visible(table_index symbol_index, int from_scope_id);
     void register_comptime_value(ComptimeManager &, NodeIndex, table_index);
+    int get_result_total_byte_size(table_index);
+    int get_amount_of_elements_being_returned(table_index);
+    bool needs_return_stack_pointer(table_index);
     void initialize();
 };

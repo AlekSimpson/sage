@@ -554,60 +554,6 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry 
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::build_return(VisitorResult return_value, bool is_program_exit) {
-    SageOpCode opcode = OP_RET;
-    if (is_program_exit) {
-        opcode = VOP_EXIT;
-    }
-
-    if (return_value.is_null()) {
-        builder.build_instruction(opcode, 0, _00);
-        // FIX:
-        builder.exit_frame();
-        return VisitorResult();
-    }
-
-    constexpr int RETURN_REGISTER = 6;
-    if (return_value.is_immediate()) {
-        assertm(!TypeRegistery::is_float64_type(return_value.immediate_value.valuetype), "Float return types are not supported yet.");
-        builder.build_instruction(OP_MOV, RETURN_REGISTER, return_value.immediate_value, _00);
-        builder.build_instruction(opcode, 0, _00);
-        builder.exit_frame();
-        return VisitorResult();
-    }
-    auto *return_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-    assertm(!TypeRegistery::is_float64_type(return_symbol->type), "Float return types are not supported yet.");
-
-    switch (return_value.get_result_state(&symbol_table)) {
-        case VisitorResultState::IMMEDIATE: {
-            builder.build_move_immediate(RETURN_REGISTER, return_value.immediate_value);
-            break;
-        }
-        case VisitorResultState::SPILLED: {
-            int temporary_register = get_volatile_register();
-            builder.build_load(temporary_register, return_symbol->spill_offset);
-            builder.build_instruction(OP_MOV, RETURN_REGISTER, temporary_register, _01);
-            break;
-        }
-        case VisitorResultState::REGISTER: {
-            builder.build_instruction(OP_MOV, RETURN_REGISTER, return_symbol->assigned_register, _01);
-            break;
-        }
-        case VisitorResultState::VALUE: {
-            builder.build_instruction(OP_MOV, RETURN_REGISTER, return_symbol->value, _00);
-            break;
-        }
-        default:
-            break;
-    }
-
-    builder.build_instruction(opcode, 0, _00);
-    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic 
-    // will bug out
-    builder.exit_frame();
-    return VisitorResult();
-}
-
 VisitorResult SageCompiler::build_function_with_block(string function_name) {
     builder.new_frame(function_name);
     builder.build_instruction(OP_LABEL, get_procedure_frame_id(function_name), _00);
