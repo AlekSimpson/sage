@@ -388,7 +388,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
             case PN_FLOAT: {
                 auto *float_type = TypeRegistery::get_builtin_type(FLOAT, 8);
                 auto index = symbol_table.declare_literal(current_node, SageValue());
-                symbol_table.declare_literal(current_node, SageValue());
+                //symbol_table.declare_literal(current_node, SageValue());
                 symbol_table.entries.get_pointer(index)->type = float_type;
 
                 string node_lexeme = node_manager->get_lexeme(current_node);
