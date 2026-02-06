@@ -96,7 +96,7 @@ public:
 
   CodegenMode codegen_mode;
   const int VOLATILE_REGISTER_SIZE = 10;
-  const int VOLATILE_FLOAT_REGISTER_SIZE = 50;
+  const int VOLATILE_FLOAT_REGISTER_SIZE = 29;
   int volatile_index = 0;
   int volatile_float_index = 0;
 

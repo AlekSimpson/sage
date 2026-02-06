@@ -4,11 +4,11 @@ MOV r24 0
 MOV r25 9
 MOV r26 23000
 SUB r23 r23 4
-FLOAD fr0 $0
-FSTORE ($fp - 0) fr0
+FLOAD fr70 $0
+FSTORE ($fp - 0) fr70
 SUB r23 r23 8
-FLOAD fr1 $8
-FSTORE ($fp - 4) fr1
+FLOAD fr71 $8
+FSTORE ($fp - 4) fr71
 MOV r27 39
 MOV r28 1
 LABEL @2090629895

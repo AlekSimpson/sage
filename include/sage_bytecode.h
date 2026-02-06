@@ -48,6 +48,7 @@ enum SageOpCode {
     OP_FSTORE,  // _0x | fstore ($fp - offset), op
                 // build_fstore_register(offset, register)
 
+    OP_ITF_MOV, // _01 | itfmov freg, ireg
     OP_FMOV,    // _0x | mov freg, op
                 // build_fmove_register(register, register)
     OP_MOV,     // _0x | mov reg, op

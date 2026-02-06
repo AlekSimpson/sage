@@ -181,6 +181,7 @@ void SageCompiler::compile_file(string mainfile) {
 
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
+    builder.print_bytecode(runtime_code);
 
     if (options.emit_bytecode) {
         emit_string += "\n\n" + builder.emit();
@@ -540,14 +541,10 @@ int SageCompiler::get_volatile_register() {
 }
 
 int SageCompiler::get_volatile_float_register() {
-    int _register = (volatile_float_index % VOLATILE_FLOAT_REGISTER_SIZE);
+    int _register = 70 + (volatile_float_index % VOLATILE_FLOAT_REGISTER_SIZE);
     volatile_float_index++;
     return _register;
 }
-
-//bool SageCompiler::volatile_is_stale(SageValue &live, int volatile_idx) {
-//    return !volatile_register_state[volatile_idx].equals(live);
-//}
 
 void SageCompiler::get_in_degree_of(
     const string &root_definition_identifier,

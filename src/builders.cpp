@@ -373,6 +373,18 @@ void BytecodeBuilder::build_fmove_register(int destination_register, int source_
     increment_total_instruction_count(1);
 }
 
+void BytecodeBuilder::build_int_to_float_move_register(int dest_float_register, int src_int_register) {
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
+    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
+        OP_ITF_MOV,
+        dest_float_register,
+        src_int_register,
+        _01
+    ));
+}
+
 void BytecodeBuilder::build_move_immediate(int sage_register, int immediate) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
@@ -592,72 +604,28 @@ int SageCompiler::materialize_to_float_register(VisitorResult &value) {
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
-            // Convert int immediate to float if needed
-            float float_val;
-            if (value.immediate_value.valuetype->identify() == FLOAT) {
-                float_val = value.immediate_value.as_float();
-            } else {
-                float_val = static_cast<float>(value.immediate_value.as_i32());
-            }
+            // this is probably a whole number int value
 
-            // Reinterpret float bits as int32 so we can use integer store
-            int32_t float_bits;
-            memcpy(&float_bits, &float_val, sizeof(float));
-
-            // Allocate stack space and store the float bits
-            int offset = sizeof(float);
-            builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
-            builder.build_store_immediate(offset, float_bits);
-            builder.build_fload(float_reg, offset);
             break;
         }
         case VisitorResultState::SPILLED: {
             symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
-            if (entry->type->identify() == FLOAT) {
-                builder.build_fload(float_reg, entry->spill_offset);
-            } else {
-                // Int is spilled - load to int register, then need int-to-float conversion
-                int int_reg = get_volatile_register();
-                builder.build_load(int_reg, entry->spill_offset);
-                // TODO: emit int-to-float conversion instruction here
-                logger.log_internal_error_unsafe(
-                    "builders.cpp",
-                    current_linenum,
-                    "UNIMPLEMENTED: Float operation requires int-to-float cast instruction.");
-                // builder.build_instruction(OP_ITOF, float_reg, int_reg, _01);
-            }
+            builder.build_fload(float_reg, entry->spill_offset);
             break;
         }
         case VisitorResultState::REGISTER: {
             symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
-            if (entry->type->identify() == FLOAT) {
-                builder.build_fmove_register(float_reg, entry->assigned_register);
-            } else {
-                // Int in register - need int-to-float conversion
-                // TODO: emit int-to-float conversion instruction here
-                logger.log_internal_error_unsafe(
-                    "builders.cpp",
-                    current_linenum,
-                    "UNIMPLEMENTED: Float operation requires int-to-float cast instruction.");
-                // builder.build_instruction(OP_ITOF, float_reg, entry->assigned_register, _01);
-            }
-            break;
+            return entry->assigned_register;
         }
         case VisitorResultState::VALUE: {
             symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
             if (entry->type->identify() == FLOAT) {
-                builder.build_fload(float_reg, entry->spill_offset);
-            } else {
-                // Compile-time int value - convert to float, spill to stack, load
-                float float_val = static_cast<float>(entry->value.as_i32());
-
-                int32_t float_bits;
-                memcpy(&float_bits, &float_val, sizeof(float));
-
-                int offset = sizeof(float);
-                builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
-                builder.build_store_immediate(offset, float_bits);
-                builder.build_fload(float_reg, offset);
+                int literal_pointer = get_literal_static_pointer(value.symbol_table_index);
+                builder.build_fload(float_reg, literal_pointer);
+            }else {
+                int temp_int_register = get_volatile_register();
+                builder.build_move_immediate(temp_int_register, value.immediate_value);
+                builder.build_int_to_float_move_register(float_reg, temp_int_register);
             }
             break;
         }
@@ -673,6 +641,7 @@ VisitorResult SageCompiler::build_operator(
         int register1 = materialize_to_float_register(value1);
         int register2 = materialize_to_float_register(value2);
         builder.build_instruction(opcode, result_register, register1, register2, _11);
+        return VisitorResult((table_index)symbol_table.declare_temporary(result_register));
     }
     int result_register = get_volatile_register();
 

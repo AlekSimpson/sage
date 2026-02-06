@@ -218,6 +218,11 @@ inline void SageInterpreter::execute_move(vector<int> &operands, AddressMode &mo
     set_register(operands[0], mode[1] == 1 ? read_register(operands[1]) : operands[1]);
 }
 
+inline void SageInterpreter::execute_int_to_float_move(vector<int> &operands) {
+    // _01 | itfmov freg, ireg
+    set_float_register(operands[0], (double)read_register(operands[1]));
+}
+
 inline void SageInterpreter::execute_float_move(vector<int> &operands, AddressMode &mode) {
     // _0x | fmov reg, op
     set_float_register(operands[0], mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1]);
@@ -348,7 +353,7 @@ void SageInterpreter::execute() {
         current_command = program[program_pointer];
         auto debug_string = current_command.print();
 
-         operands = current_command.instruction.unpack_instruction();
+        operands = current_command.instruction.unpack_instruction();
         switch (current_command.instruction.opcode) {
             case OP_FADD:
                 execute_float_add(operands, current_command.address_mode);
@@ -394,6 +399,9 @@ void SageInterpreter::execute() {
                 break;
             case OP_FMOV:
                 execute_float_move(operands, current_command.address_mode);
+                break;
+            case OP_ITF_MOV:
+                execute_int_to_float_move(operands);
                 break;
             case OP_JMP:
                 break; // TODO:
@@ -462,10 +470,18 @@ void SageInterpreter::execute() {
 }
 
 void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<table_index, vector<uint8_t>> &static_section_components) {
-    if (frame_pointer == nullptr) frame_pointer = new StackFrame();
-
     const int megabyte = 1024 * 1024;
     memory.resize(megabyte);
+
+    if (frame_pointer == nullptr) {
+        frame_pointer = new StackFrame(
+            nullptr,
+            procedure_line_locations,
+            -1,
+            memory.size()-1,
+            proc_line_locations[get_procedure_frame_id("GLOBAL")]
+        );
+    }
 
     size_t static_working_pointer = static_start_pointer;
     for (const auto &[static_symbol_index, symbol_memory_chunk]: static_section_components) {

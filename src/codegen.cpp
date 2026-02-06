@@ -205,10 +205,11 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     symbol_entry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
 
     SageFunctionType *function_type = static_cast<SageFunctionType *>(function_entry->type);
+    bool is_float_return = false;
     for (auto *type: function_type->return_type) {
         if (type->identify() == FLOAT) {
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, "UNIMPLEMENTED: Float return types are not supported yet.");
-            return VisitorResult();
+            is_float_return = true;
+            break;
         }
     }
 
@@ -223,34 +224,49 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
 
     auto branch_id = node_manager->get_branch(node);
     if (branch_id != NULL_INDEX) {
+        // store return value in return dedicated return registers
         VisitorResult return_value = visit_expression(branch_id);
         if (!symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
+            int return_register = function_entry->type->identify() == FLOAT ? 50 : 6;
             switch (return_value.get_result_state(&symbol_table)) {
                 case VisitorResultState::IMMEDIATE: {
-                    builder.build_move_immediate(6, return_value.immediate_value);
+                    // note: is return value is an immediate then it must not be a float because floats literals are always spilled to the stack
+                    builder.build_move_immediate(return_register, return_value.immediate_value);
                     break;
                 }
                 case VisitorResultState::SPILLED: {
                     symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                    builder.build_load(6, src_symbol->spill_offset);
+                    if (is_float_return) {
+                        builder.build_fload(return_register, src_symbol->spill_offset);
+                    }else {
+                        builder.build_load(return_register, src_symbol->spill_offset);
+                    }
                     break;
                 }
                 case VisitorResultState::REGISTER: {
                     symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                    builder.build_move_register(6, src_symbol->assigned_register);
+                    if (is_float_return) {
+                        builder.build_fmove_register(return_register, src_symbol->assigned_register);
+                    }else {
+                        builder.build_move_register(return_register, src_symbol->assigned_register);
+                    }
                     break;
                 }
                 case VisitorResultState::VALUE: {
                     symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
                     int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
-                    builder.build_move_immediate(6, static_pointer);
+                    if (is_float_return) {
+                        builder.build_fload(return_register, static_pointer);
+                    }else {
+                        builder.build_move_immediate(return_register, static_pointer);
+                    }
                     break;
                 }
             }
             builder.build_instruction(opcode, 0, _00);
             // FIX:
             builder.exit_frame();
-            function_entry->assigned_register = 6;
+            function_entry->assigned_register = return_register;
             return VisitorResult((table_index)function_entry->symbol_id);
         }
 
@@ -266,11 +282,14 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
                 break;
             }
             case VisitorResultState::REGISTER: {
-                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _11);
+                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                builder.build_store_register(6, src_symbol->assigned_register);
                 break;
             }
             case VisitorResultState::VALUE: {
-                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
+                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+                int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
+                builder.build_instruction(OP_MEMCPY, 6, static_pointer, _10);
                 break;
             }
         }

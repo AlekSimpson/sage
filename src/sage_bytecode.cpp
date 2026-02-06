@@ -60,7 +60,8 @@ string Command::print(const map<int, string> *label_names) {
         {OP_ALLOC, "ALLOC"},
         {OP_FLOAD, "FLOAD"},
         {OP_FSTORE, "FSTORE"},
-        {OP_FMOV, "FMOV"}
+        {OP_FMOV, "FMOV"},
+        {OP_ITF_MOV, "ITFMOV"}
     };
 
     if (instruction.opcode == OP_RET ||
@@ -90,6 +91,13 @@ string Command::print(const map<int, string> *label_names) {
             _double operands = dunpack(instruction.operands);
             string operand_string_1 = str("r", to_string(operands.one));
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+        }
+
+        case OP_ITF_MOV: {
+            _double operands = dunpack(instruction.operands);
+            string operand_string_1 = str("fr", to_string(operands.one));
+            string operand_string_2 = str("r", to_string(operands.two));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
@@ -231,24 +239,37 @@ vector<int> Instruction::unpack_instruction() {
         case OP_SUB:
         case OP_MUL:
         case OP_DIV:
-        case OP_AND:
-        case OP_OR:
-        case OP_EQ:
-        case OP_LT:
-        case OP_GT: {
-            // These typically need 3 operands (dest, src1, src2)
+        case OP_FADD:
+        case OP_FSUB:
+        case OP_FMUL:
+        case OP_FDIV:
+        case OP_MEMCPY: {
+            // These need 3 operands (dest, src1, src2)
             _triple unpacked = tunpack(operands);
             result = {unpacked.one, unpacked.two, unpacked.three};
             break;
         }
+        case OP_AND:
+        case OP_GT:
+        case OP_OR:
+        case OP_EQ:
+        case OP_LT:
+        case OP_FGT:
+        case OP_FEQ:
+        case OP_FLT:
         case OP_LOAD:
+        case OP_FLOAD:
+        case OP_FSTORE:
         case OP_STORE:
+        case OP_FMOV:
+        case OP_ITF_MOV:
         case OP_MOV: {
-            // These typically need 2 operands
+            // These need 2 operands
             _double unpacked = dunpack(operands);
             result = {static_cast<int>(unpacked.one), static_cast<int>(unpacked.two)};
             break;
         }
+        case OP_NOT:
         default: {
             // Single operand
             result = {static_cast<int>(operands)};

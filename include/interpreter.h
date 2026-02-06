@@ -48,8 +48,10 @@ public:
     // sr22 = syscall register
     // sr23 = stack pointer
     //
-    // fsr0-49 = volatile float registers
-    // fsr50-99 = float registers
+    // fsr0-5  = function parameter registers
+    // fsr6-9  = return value registers
+    // fsr10-69 = float registers
+    // fsr70-99 = volatile float registers
     //
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
@@ -118,6 +120,7 @@ public:
     inline void execute_store(vector<int> &, AddressMode &mode);
     inline void execute_float_store(vector<int> &, AddressMode &mode);
     inline void execute_move(vector<int> &, AddressMode &mode);
+    inline void execute_int_to_float_move(vector<int> &operands);
     inline void execute_float_move(vector<int> &, AddressMode &mode);
     inline void execute_call(vector<int> &);
     inline void execute_return();
