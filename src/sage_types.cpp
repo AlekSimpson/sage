@@ -361,8 +361,8 @@ SageType *TypeRegistery::get_struct_type(string name, std::vector<SageType *> me
     return struct_types[name].get();
 }
 
-SageType *TypeRegistery::get_function_type(std::vector<SageType *> return_types,
-                                           std::vector<SageType *> parameter_types) {
+SageType *TypeRegistery::get_function_type(std::vector<SageType *> parameter_types,
+                                           std::vector<SageType *> return_types) {
     auto key = std::make_pair(return_types, parameter_types);
     auto it = function_types.find(key);
     if (it != function_types.end()) {

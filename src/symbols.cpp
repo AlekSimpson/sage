@@ -389,8 +389,11 @@ void SageSymbolTable::initialize() {
         TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
         TypeRegistery::get_integer_type(8)
     };
-    declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, vector<SageType *>()));
-    declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, vector<SageType *>()));
+    vector<SageType *> return_type = {
+        TypeRegistery::get_byte_type(VOID),
+    };
+    declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, return_type));
+    declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, return_type));
 }
 
 SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
@@ -476,7 +479,7 @@ SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
         return_types.push_back(TypeRegistery::get_byte_type(VOID));
     }
 
-    return TypeRegistery::get_function_type(return_types, parameter_types);
+    return TypeRegistery::get_function_type(parameter_types, return_types);
 }
 
 
