@@ -51,7 +51,7 @@ SageSymbolTable::SageSymbolTable() {
 }
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
-    : entries(SymbolArena(initial_size)), nm(nm), scope_manager(scopeman) {
+    : entries(SymbolArena(initial_size+1)), nm(nm), scope_manager(scopeman) {
     this->function_visitor_state = stack<FunctionVisit *>();
     this->scope_manager = scopeman;
 
