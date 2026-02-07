@@ -299,37 +299,18 @@ NodeIndex SageParser::parse_value_dec_list() {
 }
 
 NodeIndex SageParser::parse_assign() {
-    Token name_token = Token();
-    name_token.fill_with(*current_token);
+    Token lefthand_token = Token();
+    lefthand_token.fill_with(*current_token);
 
-    NodeIndex name_node = node_manager->create_unary(name_token, PN_IDENTIFIER);
-
-    Token lookahead = peek();
-    bool is_field_access = match_types(lookahead.token_type, TT_FIELD_ACCESSOR);
-    if (is_field_access) {
-        node_manager->delete_node(name_node);
-
-        name_node = parse_struct_field_access();
-        name_token.lexeme = node_manager->get_full_lexeme(name_node);
-    } else {
-        // parse_struct_field_access leaves the current token cursor on the next token already
-        // so if it is a field access then calling this p.advance() would be unnecessary
-        advance(); // advance past the current identifier
-    }
-
-    // it could be that we are referencing the field in some expression
-    if (is_field_access && current_token->token_type != TT_ASSIGN) {
-        node_cache = name_node; // save parsed node for further expression parsing
-        return NULL_INDEX; // return null to signify that we actually are parsing a different kind of statement
-    }
+    NodeIndex lefthand_node = parse_unary_operator();
 
     consume(TT_ASSIGN, "Expected '=' symbol in assign statement.");
 
-    NodeIndex value_node = parse_expression();
+    NodeIndex righthand_node = parse_expression();
 
-    string token_lexeme = name_token.lexeme + " = " + node_manager->get_lexeme(value_node);
-    Token token = Token(TT_ASSIGN, token_lexeme, name_token.linenum);
-    return node_manager->create_binary(token, PN_ASSIGN, name_node, value_node);
+    string token_lexeme = lefthand_token.lexeme + " = " + node_manager->get_lexeme(righthand_node);
+    Token token = Token(TT_ASSIGN, token_lexeme, lefthand_token.linenum);
+    return node_manager->create_binary(token, PN_ASSIGN, lefthand_node, righthand_node);
 }
 
 NodeIndex SageParser::parse_keyword_statement() {
@@ -664,7 +645,7 @@ NodeIndex SageParser::parse_function_call() {
     NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
 
     while (true) {
-        NodeIndex param = parse_primary();
+        NodeIndex param = parse_postfix_operator();
         node_manager->add_child(params_node, param);
 
         if (!match_types(current_token->token_type, TT_COMMA)) {
@@ -810,7 +791,7 @@ NodeIndex SageParser::parse_expression() {
 
         return parse_operator(first_primary, TT_EQUALITY);
     }
-    return parse_operator(parse_primary(), TT_EQUALITY);
+    return parse_operator(parse_postfix_operator(), TT_EQUALITY);
 }
 
 bool is_operator(Token op) {
@@ -834,7 +815,7 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
         Token op = current_op;
         advance();
 
-        NodeIndex right = parse_primary();
+        NodeIndex right = parse_unary_operator();
         current_op.fill_with(*current_token);
 
         while (
@@ -848,9 +829,63 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
             current_op.fill_with(*current_token);
         }
         left = node_manager->create_binary(op, PN_BINARY, left, right);
-        //symbol_count++;
     }
     return left;
+}
+
+NodeIndex SageParser::parse_postfix_operator() {
+    bool has_a_postfix_operator = peek().token_type == TT_FIELD_ACCESSOR;
+    if (!has_a_postfix_operator) {
+        return parse_primary();
+    }
+
+    // note: in the future if we choose to keep the '++'/'--' postfix operators, their parsing would also happen here
+
+    Token postfix_token;
+    NodeIndex current_postfix_target_node = parse_primary();
+    while (has_a_postfix_operator) {
+        postfix_token = *current_token;
+        advance(); // advance past '.' token
+        current_postfix_target_node = node_manager->create_binary(
+            postfix_token,
+            PN_FIELD_ACCESS,
+            current_postfix_target_node,
+            parse_primary()
+        );
+
+        has_a_postfix_operator = true;
+        if (peek().token_type != TT_FIELD_ACCESSOR) {
+            has_a_postfix_operator = false;
+            ErrorLogger::get().log_error_unsafe(
+                *current_token,
+                str("Expected a field accessor character, '.', instead found: ", current_token->lexeme, ". Only a field accessor operator can be used to access data in a structure."),
+                SYNTAX
+            );
+        }
+    }
+
+    return current_postfix_target_node;
+}
+
+NodeIndex SageParser::parse_unary_operator() {
+    Token unary_token = *current_token;
+    ParseNodeType node_type;
+    switch (current_token->token_type) {
+        case TT_POINTER_DEREFERENCE:
+            node_type = PN_POINTER_DEREFERENCE;
+            break;
+        case TT_POINTER_REFERENCE:
+            node_type = PN_POINTER_REFERENCE;
+            break;
+        case TT_NOT:
+            node_type = PN_NOT;
+            break;
+        default:
+            return parse_postfix_operator();
+    }
+    advance(); // advance past unary operator
+
+    return node_manager->create_unary(unary_token, node_type, parse_unary_operator());
 }
 
 NodeIndex SageParser::parse_primary() {
@@ -876,9 +911,7 @@ NodeIndex SageParser::parse_primary() {
         case TT_IDENT:
             token.fill_with(*current_token);
             lookahead = peek();
-            if (match_types(lookahead.token_type, TT_FIELD_ACCESSOR)) {
-                return parse_struct_field_access();
-            }
+
             if (match_types(lookahead.token_type, TT_LPAREN)) {
                 return parse_function_call();
             }
@@ -922,36 +955,6 @@ NodeIndex SageParser::parse_primary() {
             return NULL_INDEX;
     }
 }
-
-NodeIndex SageParser::parse_struct_field_access() {
-    vector<string> identifier_lexemes = vector<string>();
-    identifier_lexemes.push_back(current_token->lexeme);
-    advance();
-
-    while (match_types(current_token->token_type, TT_FIELD_ACCESSOR)) {
-        advance();
-        if (!match_types(current_token->token_type, TT_IDENT)) {
-            ErrorLogger::get().log_error_unsafe(
-                *current_token,
-                "Expected identifier in struct field accessor statement.",
-                SYNTAX);
-            return NULL_INDEX;
-        }
-
-        identifier_lexemes.push_back(current_token->lexeme);
-        advance();
-    }
-
-    Token token = Token(TT_COMPILER_CREATED, identifier_lexemes[0], -1);
-    return node_manager->create_unary(token, PN_LIST, identifier_lexemes);
-}
-
-// parser utility methods
-// void SageParser::raise_error(string message) {
-//     Token error_token = Token(message, current_token->linenum);
-//     error_token.filename = filename;
-//     errors.push_back(error_token);
-// }
 
 bool SageParser::match_types(TokenType type_a, TokenType type_b) {
     return type_a == type_b;

@@ -58,18 +58,29 @@ struct CompilerOptions {
 CompilerOptions parse_compiler_flags(int, char **);
 bool check_filename_valid(const string &filename);
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE }; // , LIST
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_INT_REGISTER, TEMP_FLOAT_REGISTER }; // , LIST
 
 struct VisitorResult {
-  table_index symbol_table_index = SAGE_NULL_SYMBOL;
   SageValue immediate_value = SageValue();
   vector<VisitorResult> list_results;
+  int temporary_int_register = -1;
+  int temporary_float_register = -1;
+  table_index symbol_table_index = SAGE_NULL_SYMBOL;
 
   VisitorResult() {};
   VisitorResult(int value) : immediate_value(SageValue(value)) {}
   VisitorResult(float value) : immediate_value(SageValue(value)) {}
   VisitorResult(table_index symbol_index) : symbol_table_index(symbol_index) {}
+  VisitorResult(int temp_register, bool is_float) {
+    if (is_float) {
+      temporary_float_register = temp_register;
+    }else {
+      temporary_int_register = temp_register;
+    }
+  }
 
+  int get_temporary_register() { return temporary_int_register == -1 ? temporary_float_register : temporary_int_register; }
+  bool is_temporary() { return temporary_int_register != -1 || temporary_float_register != -1; }
   bool is_immediate() { return !immediate_value.is_null(); }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
   VisitorResultState get_result_state(SageSymbolTable *);
@@ -117,6 +128,8 @@ public:
   void process_escape_sequences(string &str);
   bool is_float_operation(VisitorResult &one, VisitorResult &two);
   int get_literal_static_pointer(table_index literal_symbol_table_index);
+
+  void f(VisitorResult &, VisitorResult &);
 
   /* builders */
   VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);

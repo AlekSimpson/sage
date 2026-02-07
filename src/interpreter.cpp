@@ -444,6 +444,10 @@ void SageInterpreter::execute() {
             case OP_FGT:
                 execute_float_greater_than_comparison(operands, current_command.address_mode);
                 break;
+            case OP_DEREF:
+                break;
+            case OP_REF:
+                break;
             case OP_SYSCALL:
                 execute_system_call();
                 break;

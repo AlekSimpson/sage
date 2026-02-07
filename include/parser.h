@@ -54,8 +54,10 @@ private:
   NodeIndex parse_type();
   NodeIndex parse_expression();
   NodeIndex parse_operator(NodeIndex left, int min_precedence);
+  NodeIndex parse_unary_operator();
+  NodeIndex parse_postfix_operator();
   NodeIndex parse_primary();
-  NodeIndex parse_struct_field_access();
+  //NodeIndex parse_struct_field_access();
 
   // util methods
   bool match_types(TokenType type_a, TokenType type_b);

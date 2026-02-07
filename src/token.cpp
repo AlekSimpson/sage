@@ -128,24 +128,29 @@ void Token::print() {
 
 int Token::get_operator_precedence() {
     switch (token_type) {
+        case TT_AND:
+        case TT_OR:
+            return -2;
+        case TT_BIT_AND:
+        case TT_BIT_OR:
+            return -1;
         case TT_EQUALITY:
             return 0;
         case TT_LT:
-            return 1;
         case TT_GT:
             return 1;
         case TT_GTE:
-            return 2;
         case TT_LTE:
             return 2;
         case TT_ADD:
-            return 3;
         case TT_SUB:
             return 3;
         case TT_MUL:
-            return 4;
         case TT_DIV:
+        case TT_MODULO: 
             return 4;
+        case TT_EXPONENT:
+            return 5;
         default:
             return -1;
     }

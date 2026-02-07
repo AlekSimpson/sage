@@ -103,12 +103,14 @@ Token *SageLexer::lex_for_symbols() {
         {')', TT_RPAREN},
         {'*', TT_MUL},
         {'/', TT_DIV},
+        {'%', TT_MODULO},
         {',', TT_COMMA},
         {'[', TT_LBRACKET},
         {']', TT_RBRACKET},
         {'{', TT_LBRACE},
         {'}', TT_RBRACE},
         {'#', TT_POUND},
+        {'@', TT_POINTER_DEREFERENCE}
     };
 
     char peekahead;
@@ -121,6 +123,12 @@ Token *SageLexer::lex_for_symbols() {
             }
 
             return lexer_make_token(TT_COLON, ":");
+        }
+        case '^': {
+            if (last_token.token_type == TT_NUM || last_token.token_type == TT_FLOAT) {
+                return lexer_make_token(TT_EXPONENT, "^");
+            }
+            return lexer_make_token(TT_POINTER_REFERENCE, "^");
         }
 
         case '-':
@@ -250,28 +258,29 @@ Token *SageLexer::lex_for_identifiers() {
     string lexeme = "";
 
     set<string> KEYWORDS = {
-       "int",
-       "char",
-       "void",
-       "i32",
-       "i64",
-       "f32",
-       "f64",
-       "bool",
-       "include",
-       "for",
-       "while",
-       "if",
-       "else",
-       "break",
-       "continue",
-       "fallthrough",
-       "ret",
-       "struct",
-       "with", // previously: 'using'
-       "run",
-       "true",
-        "false"
+        "int",
+        "char",
+        "void",
+        "i32",
+        "i64",
+        "f32",
+        "f64",
+        "bool",
+        "for",
+        "while",
+        "if",
+        "else",
+        "break",
+        "continue",
+        "fallthrough",
+        "ret",
+        "struct",
+        "with", // previously: 'using'
+        "run",
+        "true",
+        "false",
+        "compact",
+        "defer"
     };
 
     int starting_linedepth = linedepth;

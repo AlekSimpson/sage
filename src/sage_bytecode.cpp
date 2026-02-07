@@ -61,7 +61,9 @@ string Command::print(const map<int, string> *label_names) {
         {OP_FLOAD, "FLOAD"},
         {OP_FSTORE, "FSTORE"},
         {OP_FMOV, "FMOV"},
-        {OP_ITF_MOV, "ITFMOV"}
+        {OP_ITF_MOV, "ITFMOV"},
+        {OP_REF, "REF"},
+        {OP_DEREF, "DEREF"}
     };
 
     if (instruction.opcode == OP_RET ||
@@ -125,6 +127,20 @@ string Command::print(const map<int, string> *label_names) {
             string operand_string_1 = address_mode[0] == 1 ? str("r", to_string(operands.one)) : to_string(operands.one);
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+        }
+        case OP_DEREF: {
+            // two operands
+            _double operands = dunpack(instruction.operands);
+            string operand_string_1 = to_string(operands.one);
+            string operand_string_2 = to_string(operands.two);
+            return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
+        }
+        case OP_REF: {
+            // two operands
+            _double operands = dunpack(instruction.operands);
+            string operand_string_1 = str("r", to_string(operands.one));
+            string operand_string_2 = to_string(operands.two);
+            return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
         }
 
         case OP_JZ:
@@ -262,6 +278,8 @@ vector<int> Instruction::unpack_instruction() {
         case OP_FSTORE:
         case OP_STORE:
         case OP_FMOV:
+        case OP_DEREF:
+        case OP_REF:
         case OP_ITF_MOV:
         case OP_MOV: {
             // These need 2 operands

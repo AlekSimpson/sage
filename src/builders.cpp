@@ -641,7 +641,7 @@ VisitorResult SageCompiler::build_operator(
         int register1 = materialize_to_float_register(value1);
         int register2 = materialize_to_float_register(value2);
         builder.build_instruction(opcode, result_register, register1, register2, _11);
-        return VisitorResult((table_index)symbol_table.declare_temporary(result_register));
+        return VisitorResult(result_register, true);
     }
     int result_register = get_volatile_register();
 
@@ -787,7 +787,7 @@ VisitorResult SageCompiler::build_operator(
             break;
     }
 
-    return VisitorResult((table_index)symbol_table.declare_temporary(result_register));
+    return VisitorResult(result_register, false);
 }
 
 VisitorResult SageCompiler::build_add(VisitorResult value1, VisitorResult value2) {

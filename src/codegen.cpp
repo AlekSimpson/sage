@@ -1,16 +1,17 @@
 #include <memory>
 #include <functional>
+#include <cassert>
 
 #include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/codegen.h"
 
-#include <complex>
-
 using namespace std;
 
 VisitorResultState VisitorResult::get_result_state(SageSymbolTable *table) {
     if (is_immediate()) return VisitorResultState::IMMEDIATE;
+    if (is_temporary() && temporary_float_register != -1) return VisitorResultState::TEMP_FLOAT_REGISTER;
+    if (is_temporary() && temporary_int_register != -1) return VisitorResultState::TEMP_INT_REGISTER;
     symbol_entry *entry = table->lookup_by_index(symbol_table_index);
     if (entry->spilled) return VisitorResultState::SPILLED;
     if (entry->assigned_register != -1) return VisitorResultState::REGISTER;
@@ -113,6 +114,11 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     // so that we can inform this code section with what IR generation to use
 
     NodeIndex LHS = node_manager->get_left(node);
+    if (node_manager->get_nodetype(LHS) != PN_FIELD_ACCESS && node_manager->get_nodetype(LHS) != PN_IDENTIFIER) {
+        Token token = node_manager->get_token(node);
+        logger.log_error_unsafe(token, sen("Can only assign values to structure members or to variables."), SYNTAX);
+    }
+
     // Use hybrid symbol resolution - fast path if early-bound, else scope-based lookup
     auto lhs_identifier = node_manager->get_identifier(LHS);
     auto scope_id = node_manager->get_scope_id(LHS);
@@ -223,88 +229,101 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     }
 
     auto branch_id = node_manager->get_branch(node);
-    if (branch_id != NULL_INDEX) {
-        // store return value in return dedicated return registers
-        VisitorResult return_value = visit_expression(branch_id);
-        if (!symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
-            int return_register = function_entry->type->identify() == FLOAT ? 50 : 6;
-            switch (return_value.get_result_state(&symbol_table)) {
-                case VisitorResultState::IMMEDIATE: {
-                    // note: is return value is an immediate then it must not be a float because floats literals are always spilled to the stack
-                    builder.build_move_immediate(return_register, return_value.immediate_value);
-                    break;
-                }
-                case VisitorResultState::SPILLED: {
-                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                    if (is_float_return) {
-                        builder.build_fload(return_register, src_symbol->spill_offset);
-                    }else {
-                        builder.build_load(return_register, src_symbol->spill_offset);
-                    }
-                    break;
-                }
-                case VisitorResultState::REGISTER: {
-                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                    if (is_float_return) {
-                        builder.build_fmove_register(return_register, src_symbol->assigned_register);
-                    }else {
-                        builder.build_move_register(return_register, src_symbol->assigned_register);
-                    }
-                    break;
-                }
-                case VisitorResultState::VALUE: {
-                    symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                    int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
-                    if (is_float_return) {
-                        builder.build_fload(return_register, static_pointer);
-                    }else {
-                        builder.build_move_immediate(return_register, static_pointer);
-                    }
-                    break;
-                }
-            }
-            builder.build_instruction(opcode, 0, _00);
-            // FIX:
-            builder.exit_frame();
-            function_entry->assigned_register = return_register;
-            return VisitorResult((table_index)function_entry->symbol_id);
-        }
+    if (branch_id == NULL_INDEX) {
+        builder.build_instruction(opcode, 0, _00);
+        // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
+        builder.exit_frame();
+        return VisitorResult();
+    }
 
-        // store return_value into stack return address
+    VisitorResult return_value = visit_expression(branch_id);
+    if (!symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
         switch (return_value.get_result_state(&symbol_table)) {
             case VisitorResultState::IMMEDIATE: {
-                builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
+                // note: is return value is an immediate then it must not be a float because floats literals are always spilled to the stack
+                builder.build_move_immediate(6, return_value.immediate_value);
                 break;
             }
             case VisitorResultState::SPILLED: {
                 symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                builder.build_instruction(OP_MEMCPY, 6, src_symbol->spill_offset, _10);
+                if (is_float_return) {
+                    builder.build_fload(6, src_symbol->spill_offset);
+                }else {
+                    builder.build_load(6, src_symbol->spill_offset);
+                }
                 break;
             }
             case VisitorResultState::REGISTER: {
                 symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                builder.build_store_register(6, src_symbol->assigned_register);
+                if (is_float_return) {
+                    builder.build_fmove_register(6, src_symbol->assigned_register);
+                }else {
+                    builder.build_move_register(6, src_symbol->assigned_register);
+                }
                 break;
             }
             case VisitorResultState::VALUE: {
                 symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
                 int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
-                builder.build_instruction(OP_MEMCPY, 6, static_pointer, _10);
+                if (is_float_return) {
+                    builder.build_fload(6, static_pointer);
+                }else {
+                    builder.build_move_immediate(6, static_pointer);
+                }
+                break;
+            }
+            case VisitorResultState::TEMP_FLOAT_REGISTER: {
+                builder.build_fmove_register(6, return_value.temporary_float_register);
+                break;
+            }
+            case VisitorResultState::TEMP_INT_REGISTER: {
+                builder.build_move_register(6, return_value.temporary_int_register);
                 break;
             }
         }
-
         builder.build_instruction(opcode, 0, _00);
         // FIX:
         builder.exit_frame();
-        function_entry->spilled = true;
-        return VisitorResult((table_index)function_entry->symbol_id);
+        return VisitorResult();
+    }
+
+    // store return_value into stack return address
+    switch (return_value.get_result_state(&symbol_table)) {
+        case VisitorResultState::IMMEDIATE: {
+            builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
+            break;
+        }
+        case VisitorResultState::SPILLED: {
+            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            builder.build_instruction(OP_MEMCPY, 6, src_symbol->spill_offset, _10);
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            builder.build_store_register(6, src_symbol->assigned_register);
+            break;
+        }
+        case VisitorResultState::VALUE: {
+            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
+            int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
+            builder.build_instruction(OP_MEMCPY, 6, static_pointer, _10);
+            break;
+        }
+        case VisitorResultState::TEMP_INT_REGISTER: {
+            builder.build_instruction(OP_STORE, 6, return_value.temporary_int_register, _10);
+            break;
+        }
+        case VisitorResultState::TEMP_FLOAT_REGISTER: {
+            builder.build_instruction(OP_FSTORE, 6, return_value.temporary_float_register, _10);
+            break;
+        }
     }
 
     builder.build_instruction(opcode, 0, _00);
-    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
+    // FIX:
     builder.exit_frame();
-    return VisitorResult();
+    function_entry->spilled = true;
+    return VisitorResult((table_index)function_entry->symbol_id);
 }
 
 
@@ -319,8 +338,15 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
     if (node_manager->get_host_nodetype(node) == PN_BINARY) {
         return visit_binary_operator(node);
     }
+    if ((node_manager->get_host_nodetype(node) == PN_UNARY)) {
+        return visit_unary_operator(node);
+    }
 
     return visit_literal(node);
+}
+
+VisitorResult SageCompiler::visit_unary_operator(NodeIndex node) {
+
 }
 
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
@@ -364,6 +390,44 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
                                              sen("Expected to find 'true' or 'false', found", identifier));
             return VisitorResult();
         }
+        case PN_FIELD_ACCESS: {
+            // TODO:
+        }
+        case PN_POINTER_DEREFERENCE: {
+            // get pointer variable of operand
+            auto visit_result = visit_literal(node_manager->get_branch(node));
+            assertm(!visit_result.is_immediate(), "visit_result is an immediate, in pointer dereference visit.");
+            auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
+            assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
+
+            if (symbol->type->identify() != POINTER) {
+                Token token = node_manager->get_token(node);
+                logger.log_error_unsafe(
+                    token,
+                    sen("Cannot dereference non-pointer type:", symbol->type->to_string()),
+                    SEMANTIC
+                );
+                return VisitorResult();
+            }
+
+            // generate bytecode instruction to read value p on the stack and then read the value on the stack: stack[p]
+            int temporary_register = get_volatile_register();
+            builder.build_move_register(temporary_register, 23);
+            builder.build_instruction(OP_DEREF, temporary_register, symbol->spill_offset, _10);
+            return VisitorResult(temporary_register, false);
+        }
+        case PN_POINTER_REFERENCE: {
+            auto visit_result = visit_literal(node_manager->get_branch(node));
+            assertm(!visit_result.is_immediate(), "visit_result is an immediate, in pointer dereference visit.");
+            auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
+            assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
+
+            int temp_register = get_volatile_register();
+            builder.build_instruction(OP_REF, temp_register, symbol->spill_offset, _00);
+            return VisitorResult(temp_register, false);
+        }
+        case PN_NOT:
+            break;
         default:
             break;
     }
@@ -457,6 +521,13 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
                 builder.build_move_immediate(argument_register_address, arg_entry->value);
                 break;
             }
+            case VisitorResultState::TEMP_FLOAT_REGISTER: {
+                builder.build_fmove_register(argument_register_address, arg_result.temporary_float_register);
+                break;
+            }
+            case VisitorResultState::TEMP_INT_REGISTER: {
+                break;
+            }
         }
         argument_register_address++;
     }
@@ -537,9 +608,5 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
                 str("Node", node, "recieved incorrect node type for binary operation."));
             break;
     }
-    return VisitorResult();
-}
-
-VisitorResult SageCompiler::visit_unary_operator(NodeIndex node) {
     return VisitorResult();
 }

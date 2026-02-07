@@ -36,7 +36,11 @@ enum ParseNodeType {
   PN_INCLUDE,
   PN_VARARG,
   PN_CHARACTER_LITERAL,
-  PN_BOOL
+  PN_BOOL,
+  PN_FIELD_ACCESS,
+  PN_POINTER_DEREFERENCE,
+  PN_POINTER_REFERENCE,
+  PN_NOT
 };
 
 string nodetype_to_string(ParseNodeType nodetype);
