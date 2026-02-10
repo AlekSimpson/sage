@@ -31,6 +31,10 @@ public:
     virtual ~SageType() = default;
     virtual CanonicalType identify() = 0;
     virtual bool match(SageType *) = 0;
+    virtual bool is_array() = 0;
+    virtual bool is_pointer() = 0;
+    virtual bool is_struct() = 0;
+    virtual bool is_function() = 0;
     virtual string to_string() = 0;
     // TODO: virtual SageValue get_default_value() = 0;
 };
@@ -43,6 +47,10 @@ public:
 
     CanonicalType identify() override;
     bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
     string to_string() override;
 };
 
@@ -54,6 +62,10 @@ public:
 
     CanonicalType identify() override;
     bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
     string to_string() override;
 };
 
@@ -66,6 +78,10 @@ public:
 
     CanonicalType identify() override;
     bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
     string to_string() override;
 };
 
@@ -81,6 +97,10 @@ public:
 
     CanonicalType identify() override;
     bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
     string to_string() override;
 };
 
@@ -98,6 +118,10 @@ public:
 
     CanonicalType identify() override;
     bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
     string to_string() override;
 };
 

@@ -94,13 +94,14 @@ struct VisitorResult {
 
   void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
   void to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode = _00);
-  int materialize_register(SageCompiler &compiler);
+  pair<int, bool> materialize_register(SageCompiler &compiler);
 
   bool is_temporary() { return temporary_int_register != -1 || temporary_float_register != -1; }
   bool is_immediate() { return !immediate_value.is_null(); }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
 };
 
+using TR = TypeRegistery;
 
 // TODO: create robust debug settings for debugging the compiler
 class SageCompiler {

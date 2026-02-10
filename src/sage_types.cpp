@@ -3,6 +3,7 @@
 #include <error_logger.h>
 #include <cstdint>
 
+// builtin_type
 SageBuiltinType::SageBuiltinType(CanonicalType type, int size, int alignment) {
     this->canonical_type = type;
     this->size = size;
@@ -17,6 +18,11 @@ bool SageBuiltinType::match(SageType *other) {
     auto other_identity = other->identify();
     return other_identity == this->identify();
 }
+
+bool SageBuiltinType::is_array() {return false;}
+bool SageBuiltinType::is_pointer() {return false;}
+bool SageBuiltinType::is_struct() {return false;}
+bool SageBuiltinType::is_function() {return false;}
 
 string SageBuiltinType::to_string() {
     switch (canonical_type) {
@@ -35,6 +41,7 @@ string SageBuiltinType::to_string() {
     }
 }
 
+// pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
     this->size = 4;
     this->alignment = 4;
@@ -54,10 +61,16 @@ bool SagePointerType::match(SageType *other) {
     return pointer_type->match(other_pointer->pointer_type);
 }
 
+bool SagePointerType::is_array() {return false;}
+bool SagePointerType::is_pointer() {return true;}
+bool SagePointerType::is_struct() {return false;}
+bool SagePointerType::is_function() {return false;}
+
 string SagePointerType::to_string() {
     return str(pointer_type->to_string(), "*");
 }
 
+// array_type
 SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
     this->size = length * element_type->size;
     this->alignment = element_type->alignment;
@@ -77,10 +90,16 @@ bool SageArrayType::match(SageType *other) {
     return (size != other_array->size) && array_type->match(other_array->array_type);
 }
 
+bool SageArrayType::is_array() {return true;}
+bool SageArrayType::is_pointer() {return false;}
+bool SageArrayType::is_struct() {return false;}
+bool SageArrayType::is_function() {return false;}
+
 string SageArrayType::to_string() {
     return str(array_type->to_string(), "[", length, "]");
 }
 
+// function_type
 SageFunctionType::SageFunctionType(vector<SageType *> returns, vector<SageType *> params) : return_type(returns),
     parameter_types(params) {
     this->size = 0;
@@ -117,6 +136,11 @@ bool SageFunctionType::match(SageType *other) {
     return true;
 }
 
+bool SageFunctionType::is_array() {return false;}
+bool SageFunctionType::is_pointer() {return false;}
+bool SageFunctionType::is_struct() {return false;}
+bool SageFunctionType::is_function() {return true;}
+
 string SageFunctionType::to_string() {
     string value = "(";
     for (int i = 0; i < (int) parameter_types.size(); ++i) {
@@ -146,6 +170,7 @@ string SageFunctionType::to_string() {
     return value;
 }
 
+// struct_type
 SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
     member_types(member_types) {
     this->size = size;
@@ -175,6 +200,11 @@ bool SageStructType::match(SageType *other) {
     }
     return true;
 }
+
+bool SageStructType::is_array() {return false;}
+bool SageStructType::is_pointer() {return false;}
+bool SageStructType::is_struct() {return true;}
+bool SageStructType::is_function() {return false;}
 
 string SageStructType::to_string() {
     return name;
