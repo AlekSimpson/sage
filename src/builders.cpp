@@ -1,8 +1,10 @@
 #include <atomic>
 #include <cassert>
+#include <complex>
 
 #include "../include/platform.h"
 #include <cstring>
+#include <boost/preprocessor/arithmetic/add.hpp>
 
 #include "../include/bytecode_builder.h"
 #include "../include/symbols.h"
@@ -16,7 +18,7 @@ std::unordered_map<SageType *, std::unique_ptr<SageType> > TypeRegistery::pointe
 std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > TypeRegistery::array_types;
 std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >, std::unique_ptr<SageType> >
 TypeRegistery::function_types;
-std::unordered_map<std::string, std::unique_ptr<SageType>> TypeRegistery::struct_types;
+std::unordered_map<std::string, std::unique_ptr<SageType> > TypeRegistery::struct_types;
 
 int get_procedure_frame_id(const std::string &str) {
     uint64_t hash = 5381;
@@ -70,7 +72,7 @@ void BytecodeBuilder::print_bytecode(bytecode &code) {
 
     if (emitting_comptime) {
         printf("------[  COMPTIME CODE  ]------\n");
-    }else {
+    } else {
         printf("------[  RUNTIME CODE  ]------\n");
     }
     for (auto instruction: code) {
@@ -174,7 +176,6 @@ bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_li
 
 bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_line_locations) {
     int total_instruction_count = get_total_instruction_count();
-    int neutral_operand_encoding[4] = {0, 0, 0, 0};
     bytecode result;
     result.reserve(total_instruction_count);
 
@@ -198,7 +199,7 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
     }
 
     result.insert(result.end(), global_instructions.begin(), global_instructions.end());
-    result.push_back(Command(VOP_EXIT, -1, neutral_operand_encoding));
+    result.push_back(Command(VOP_EXIT, -1, _00));
     return result;
 }
 
@@ -241,7 +242,8 @@ void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand, AddressM
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, int operand3, AddressMode mode) {
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, int operand3,
+                                                AddressMode mode) {
     runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
         opcode,
         operand1,
@@ -433,7 +435,7 @@ void BytecodeBuilder::build_puti() {
     comptime_procedure_stack.push(id);
     build_builtin_instruction(OP_LABEL, id, _00);
     build_builtin_instruction(OP_MOV, 22, SYS_WRITE_INT, _00);
-    build_builtin_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
+    build_builtin_instruction(OP_MOV, 10, 1, _01); // save digit count (r1) in temp register r10
     build_builtin_instruction(OP_MOV, 1, 0, _01); // save integer to print into r1
     build_builtin_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
     build_builtin_instruction(OP_MOV, 0, STDOUT_FILENO, _00); // tell system that this is outputting to stdout
@@ -453,10 +455,10 @@ void BytecodeBuilder::build_puts() {
     comptime_procedure_stack.push(id);
     build_builtin_instruction(OP_LABEL, id, _00);
     build_builtin_instruction(OP_MOV, 22, SYS_WRITE, _00);
-    build_builtin_instruction(OP_MOV, 10, 1, _01);  // save digit count (r1) in temp register r10
-    build_builtin_instruction(OP_MOV, 1, 0, _01);  // save character buff pointer to print into r1
-    build_builtin_instruction(OP_MOV, 2, 10, _01);  // save digit count into r2
-    build_builtin_instruction(OP_MOV, 0, STDOUT_FILENO, _00);  // tell system that this is outputting to stdout
+    build_builtin_instruction(OP_MOV, 10, 1, _01); // save digit count (r1) in temp register r10
+    build_builtin_instruction(OP_MOV, 1, 0, _01); // save character buff pointer to print into r1
+    build_builtin_instruction(OP_MOV, 2, 10, _01); // save digit count into r2
+    build_builtin_instruction(OP_MOV, 0, STDOUT_FILENO, _00); // tell system that this is outputting to stdout
     build_builtin_instruction(OP_SYSCALL, -1, _00);
     build_builtin_instruction(OP_RET, -1, _00);
     runtime_procedure_stack.pop();
@@ -464,105 +466,23 @@ void BytecodeBuilder::build_puts() {
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
-    auto right_value_state = right_value.get_result_state(&symbol_table);
-    auto variable_symbol_state = var_symbol->spilled ? VisitorResultState::SPILLED : VisitorResultState::REGISTER ;
+    // var_symbol in register ==> LOAD
+    // var_symbol on stack    ==> STORE
+    bool is_float_operation = (var_symbol->type->identify() == FLOAT);
+    SageOpCode int_decision = var_symbol->spilled ? OP_STORE : OP_LOAD;
+    SageOpCode float_decision = var_symbol->spilled ? OP_FSTORE : OP_FLOAD;
+    SageOpCode store_instruction_opcode = is_float_operation ? float_decision : int_decision;
+    int storage_destination = var_symbol->spilled ? var_symbol->spill_offset : var_symbol->assigned_register;
 
-    int control_flow_path = ((int)right_value_state * 4) + (int)variable_symbol_state;
-    switch (control_flow_path) {
-        case 1: {
-            /* right_value=IMMEDIATE, var_symbol=SPILLED */
-            builder.build_store_immediate(var_symbol->spill_offset, right_value.immediate_value);
-
-            break;
-        }
-        case 5: {
-            /* right_value=SPILLED, var_symbol=SPILLED */
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-
-            if (var_symbol->type->identify() == FLOAT || right_variable_symbol->type->identify() == FLOAT) {
-                int float_register = get_volatile_float_register();
-                builder.build_fload(float_register, right_variable_symbol->spill_offset);
-                builder.build_fstore_register(var_symbol->spill_offset, float_register);
-            }else {
-                int temporary_register = get_volatile_register();
-                builder.build_load(temporary_register, right_variable_symbol->spill_offset);
-                builder.build_store_register(var_symbol->spill_offset, temporary_register);
-            }
-
-            break;
-        }
-        case 9: {
-            /* right_value=REGISTER, var_symbol=SPILLED */
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-
-            if (var_symbol->type->identify() == FLOAT || right_variable_symbol->type->identify() == FLOAT) {
-                builder.build_fstore_register(var_symbol->spill_offset, right_variable_symbol->assigned_register);
-            }else {
-                builder.build_store_register(var_symbol->spill_offset, right_variable_symbol->assigned_register);
-            }
-
-            break;
-        }
-        case 13: {
-            /* right_value=VALUE, var_symbol=SPILLED */
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-
-            int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
-            if (var_symbol->type->identify() == FLOAT) {
-                int float_register = get_volatile_float_register();
-                builder.build_fload(float_register, static_pointer);
-                builder.build_fstore_register(var_symbol->spill_offset, float_register);
-            }else {
-                builder.build_store_immediate(var_symbol->spill_offset, static_pointer);
-            }
-
-            break;
-        }
-        case 2: {
-            /* right_value=IMMEDIATE, var_symbol=REGISTER */
-            if (var_symbol->type->identify() == FLOAT) {
-                int float_register = get_volatile_float_register();
-                builder.build_move_immediate(float_register, right_value.immediate_value);
-                builder.build_fmove_register(var_symbol->assigned_register, right_value.immediate_value);
-            }else {
-                builder.build_move_immediate(var_symbol->assigned_register, right_value.immediate_value);
-            }
-            break;
-        }
-        case 6: {
-            /* right_value=SPILLED, var_symbol=REGISTER */
-            SageOpCode opcode = var_symbol->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-            builder.build_instruction(opcode, var_symbol->assigned_register, right_variable_symbol->spill_offset, _00);
-
-            break;
-        }
-        case 10: {
-            /* right_value=REGISTER, var_symbol=REGISTER */
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-            if (var_symbol->type->identify() == FLOAT) {
-                builder.build_fmove_register(var_symbol->assigned_register, right_variable_symbol->assigned_register);
-            }else {
-                builder.build_move_register(var_symbol->assigned_register, right_variable_symbol->assigned_register);
-            }
-            break;
-        }
-        case 14: {
-            /* right_value=VALUE, var_symbol=REGISTER */
-            symbol_entry *right_variable_symbol = symbol_table.lookup_by_index(right_value.symbol_table_index);
-            int static_pointer = get_literal_static_pointer(right_variable_symbol->symbol_id);
-            if (var_symbol->type->identify() == FLOAT) {
-                int float_register = get_volatile_float_register();
-                builder.build_fload(float_register, static_pointer);
-                builder.build_fstore_register(var_symbol->spill_offset, float_register);
-            }else {
-                builder.build_move_immediate(var_symbol->assigned_register, static_pointer);
-            }
-            break;
-        }
-        default:
-            break;
+    //auto right_material = is_float_operation
+    //                          ? right_value.to_float_register_instruction(*this)
+    //                          : right_value.to_register_instruction(*this);
+    auto right_material = right_value.materialize_register(*this);
+    if (right_material == -1) {
+        builder.build_instruction(store_instruction_opcode, storage_destination, right_value.immediate_value, _10);
     }
+
+    builder.build_instruction(store_instruction_opcode, storage_destination, right_material, _11);
     return VisitorResult();
 }
 
@@ -598,201 +518,32 @@ bool SageCompiler::is_float_operation(VisitorResult &one, VisitorResult &two) {
     return false;
 }
 
-int SageCompiler::materialize_to_float_register(VisitorResult &value) {
-    auto state = value.get_result_state(&symbol_table);
-    int float_reg = get_volatile_float_register();
-
-    switch (state) {
-        case VisitorResultState::IMMEDIATE: {
-            // this is probably a whole number int value
-
-            break;
-        }
-        case VisitorResultState::SPILLED: {
-            symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
-            builder.build_fload(float_reg, entry->spill_offset);
-            break;
-        }
-        case VisitorResultState::REGISTER: {
-            symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
-            return entry->assigned_register;
-        }
-        case VisitorResultState::VALUE: {
-            symbol_entry *entry = symbol_table.lookup_by_index(value.symbol_table_index);
-            if (entry->type->identify() == FLOAT) {
-                int literal_pointer = get_literal_static_pointer(value.symbol_table_index);
-                builder.build_fload(float_reg, literal_pointer);
-            }else {
-                int temp_int_register = get_volatile_register();
-                builder.build_move_immediate(temp_int_register, value.immediate_value);
-                builder.build_int_to_float_move_register(float_reg, temp_int_register);
-            }
-            break;
-        }
-    }
-    return float_reg;
-}
-
 VisitorResult SageCompiler::build_operator(
     VisitorResult value1, VisitorResult value2, SageOpCode opcode, bool is_float_operation) {
+    AddressMode mode = _11;
+    int result_register = is_float_operation ? get_volatile_float_register() : get_volatile_register() ;
+    int register1 = value1.materialize_register(*this);
+    int register2 = value2.materialize_register(*this);
 
-    if (is_float_operation) {
-        int result_register = get_volatile_float_register();
-        int register1 = materialize_to_float_register(value1);
-        int register2 = materialize_to_float_register(value2);
-        builder.build_instruction(opcode, result_register, register1, register2, _11);
-        return VisitorResult(result_register, true);
-    }
-    int result_register = get_volatile_register();
-
-    int control_path_id = ((int)value1.get_result_state(&symbol_table) * 4) + (int)value2.get_result_state(&symbol_table);
-    switch (control_path_id) {
-        case 0:
-            /* value1=IMMEDIATE , value2=IMMEDIATE */
-            builder.build_instruction(opcode, result_register, value1.immediate_value, value2.immediate_value, _00);
-            break;
-        case 1: {
-            /* value1=IMMEDIATE , value2=SPILLED */
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            int temporary_result = get_volatile_register();
-            builder.build_load(temporary_result, value2_entry->spill_offset);
-            builder.build_instruction(opcode, result_register, value1.immediate_value, temporary_result, _01);
-            break;
-        }
-        case 2: {
-            /* value1=IMMEDIATE , value2=REGISTER */
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            builder.build_instruction(opcode, result_register, value1.immediate_value, value2_entry->assigned_register, _01);
-            break;
-        }
-        case 3: {
-            /* value1=IMMEDIATE , value2=VALUE */
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            builder.build_instruction(opcode, result_register, value1.immediate_value, value2_entry->value, _00);
-            break;
-        }
-        case 4: {
-            /* value1=SPILLED, value2=IMMEDIATE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            int temporary_result = get_volatile_register();
-            builder.build_load(temporary_result, value1_entry->spill_offset);
-            builder.build_instruction(opcode, result_register, temporary_result, value2.immediate_value, _10);
-            break;
-        }
-        case 5: {
-            /* value1=SPILLED, value2=SPILLED */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            int temporary_result1 = get_volatile_register();
-            builder.build_load(temporary_result1, value1_entry->spill_offset);
-
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            int temporary_result2 = get_volatile_register();
-            builder.build_load(temporary_result2, value2_entry->spill_offset);
-
-            builder.build_instruction(opcode, result_register, temporary_result1, temporary_result2, _11);
-            break;
-        }
-        case 6: {
-            /* value1=SPILLED, value2=REGISTER */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            int temporary_result1 = get_volatile_register();
-            builder.build_load(temporary_result1, value1_entry->spill_offset);
-
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            builder.build_instruction(opcode, result_register, temporary_result1, value2_entry->assigned_register, _11);
-            break;
-        }
-        case 7: {
-            /* value1=SPILLED, value2=VALUE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            int temporary_result1 = get_volatile_register();
-            builder.build_load(temporary_result1, value1_entry->spill_offset);
-
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            builder.build_instruction(opcode, result_register, temporary_result1, value2_entry->value, _10);
-            break;
-        }
-        case 8: {
-            /* value1=REGISTER, value2=IMMEDIATE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2.immediate_value, _10);
-            break;
-        }
-        case 9: {
-            /* value1=REGISTER, value2=SPILLED */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            int temporary_result2 = get_volatile_register();
-            builder.build_load(temporary_result2, value2_entry->spill_offset);
-
-            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, temporary_result2, _11);
-            break;
-        }
-        case 10: {
-            /* value1=REGISTER, value2=REGISTER */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2_entry->assigned_register, _11);
-            break;
-        }
-        case 11: {
-            /* value1=REGISTER, value2=VALUE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->assigned_register, value2_entry->value, _10);
-            break;
-        }
-        case 12: {
-            /* value1=VALUE, value2=IMMEDIATE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->value, value2.immediate_value, _00);
-            break;
-        }
-        case 13: {
-            /* value1=VALUE, value2=SPILLED */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-            int temporary_result2 = get_volatile_register();
-            builder.build_load(temporary_result2, value2_entry->spill_offset);
-
-            builder.build_instruction(opcode, result_register, value1_entry->value, temporary_result2, _01);
-            break;
-        }
-        case 14: {
-            /* value1=VALUE, value2=REGISTER */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->value, value2_entry->assigned_register, _01);
-            break;
-        }
-        case 15: {
-            /* value1=VALUE, value2=VALUE */
-            symbol_entry *value1_entry = symbol_table.lookup_by_index(value1.symbol_table_index);
-            symbol_entry *value2_entry = symbol_table.lookup_by_index(value2.symbol_table_index);
-
-            builder.build_instruction(opcode, result_register, value1_entry->value, value2_entry->value, _00);
-            break;
-        }
-        default:
-            logger.log_internal_error_unsafe(
-                "builders.cpp",
-                current_linenum,
-                "build operator tried to execute an invalid operator control path.");
-            break;
+    if (register1 == -1 && register2 == -1) {
+        register1 = value1.immediate_value;
+        register2 = value2.immediate_value;
+        mode = _00;
+    } else if (register1 == -1) {
+        register1 = value1.immediate_value;
+        mode = _01;
+    } else if (register2 == -1) {
+        register2 = value2.immediate_value;
+        mode = _10;
     }
 
-    return VisitorResult(result_register, false);
+    builder.build_instruction(opcode, result_register, register1, register2, mode);
+    return VisitorResult(result_register, is_float_operation);
 }
 
 VisitorResult SageCompiler::build_add(VisitorResult value1, VisitorResult value2) {
     bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2,  is_float ? OP_FADD : OP_ADD, is_float);
+    return build_operator(value1, value2, is_float ? OP_FADD : OP_ADD, is_float);
 }
 
 VisitorResult SageCompiler::build_sub(VisitorResult value1, VisitorResult value2) {
@@ -829,14 +580,213 @@ VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
             volatile_reg = get_volatile_float_register();
             builder.build_fload(volatile_reg, symbol->spill_offset);
             symbol->assigned_register = volatile_reg;
-        }else {
+        } else {
             volatile_reg = get_volatile_register();
             builder.build_load(volatile_reg, symbol->spill_offset);
             symbol->assigned_register = volatile_reg;
         }
     }
 
-    return VisitorResult((table_index)symbol_table.lookup_table_index(reference_name, scope_id));
+    return VisitorResult(symbol_table.lookup_table_index(reference_name, scope_id));
+}
+
+
+void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument_register,
+                                            SageType *argument_type) {
+    // generate instructions which stores this visitor result into an argument register
+    auto &builder = compiler.builder;
+    auto &symbol_table = compiler.symbol_table;
+
+    switch (state) {
+        case VisitorResultState::IMMEDIATE: {
+            if (argument_type->identify() == FLOAT) {
+                int temporary_register = compiler.get_volatile_register();
+                builder.build_move_immediate(temporary_register, immediate_value);
+                builder.build_int_to_float_move_register(argument_register, temporary_register);
+            } else {
+                builder.build_move_immediate(argument_register, immediate_value);
+            }
+            break;
+        }
+        case VisitorResultState::SPILLED: {
+            auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+            if (argument_type->identify() == FLOAT) {
+                // moving value from stack into float register
+                builder.build_fload(argument_register, entry->spill_offset);
+            } else {
+                // moving value from stack into normal register
+                builder.build_load(argument_register, entry->spill_offset);
+            }
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+            int combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->identify() == FLOAT;
+
+            switch (combination) {
+                case 0: /* arg=int, vis=int */
+                    builder.build_move_register(argument_register, entry->assigned_register);
+                    break;
+                case 1: /* arg=int, vis=float */
+                    //builder.build_move_register(argument_register, );
+                    compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
+                                                              "This visitor combination shouldn't happen.");
+                    break;
+                case 2: /* arg=float, vis=int */
+                    builder.build_int_to_float_move_register(argument_register, entry->assigned_register);
+                    break;
+                case 4: /* arg=float, vis=float */
+                    builder.build_fmove_register(argument_register, entry->assigned_register);
+                    break;
+                default:
+                    break;
+            }
+            break;
+        }
+        case VisitorResultState::VALUE: {
+            auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+            if (argument_type->identify() == FLOAT) {
+                // we are either moving a static literal or an immediate value into a float register
+                int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+                if (static_pointer == -1) {
+                    int temporary_register = compiler.get_volatile_register();
+                    builder.build_move_immediate(temporary_register, entry->value);
+                    builder.build_int_to_float_move_register(argument_register, temporary_register);
+                    break;
+                }
+                builder.build_fload(argument_register, static_pointer);
+            } else {
+                // we are either moving a static literal or an immediate value into a register
+                int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+                if (static_pointer == -1) {
+                    builder.build_move_immediate(argument_register, entry->value);
+                    break;
+                }
+                builder.build_load(argument_register, static_pointer);
+            }
+            break;
+        }
+        case VisitorResultState::TEMP_INT_REGISTER: {
+            builder.build_move_register(argument_register, temporary_int_register);
+            break;
+        }
+        case VisitorResultState::TEMP_FLOAT_REGISTER: {
+            builder.build_fmove_register(argument_register, temporary_float_register);
+            break;
+        }
+        case VisitorResultState::LIST: {
+            // TODO
+            break;
+        }
+    }
+}
+
+void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode) {
+    // generate instructions which stores this visitor result into an argument register
+    auto &builder = compiler.builder;
+    auto &symbol_table = compiler.symbol_table;
+    auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+
+    map<int, SageOpCode> register_state_combination_map = {
+        {0, OP_STORE},
+        {1, OP_FSTORE},
+        {2, OP_STORE},
+        {3, OP_FSTORE}
+    };
+
+    switch (state) {
+        case VisitorResultState::IMMEDIATE: {
+            builder.build_instruction(OP_STORE, offset, immediate_value, offset_mode);
+            break;
+        }
+        case VisitorResultState::SPILLED: {
+            builder.build_instruction(OP_MEMCPY, offset, entry->spill_offset, offset_mode);
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            int type_state_combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->identify() == FLOAT;
+            auto opcode = register_state_combination_map[type_state_combination];
+            AddressMode argument_mode = _01;
+
+            builder.build_instruction(opcode, offset, entry->assigned_register, offset_mode + argument_mode);
+            //switch (type_state_combination) {
+            //    case 0: /* arg=int, vis=int */
+            //        builder.build_store_register(offset, entry->assigned_register);
+            //        break;
+            //    case 1: /* arg=int, vis=float */
+            //        builder.build_fstore_register(offset, entry->assigned_register);
+            //        break;
+            //    case 2: /* arg=float, vis=int */
+            //        builder.build_store_register(offset, entry->assigned_register);
+            //        break;
+            //    case 4: /* arg=float, vis=float */
+            //        builder.build_fstore_register(offset, entry->assigned_register);
+            //        break;
+            //    default:
+            //        break;
+            //}
+            break;
+        }
+        case VisitorResultState::VALUE: {
+            int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+            if (static_pointer == -1) {
+                builder.build_instruction(OP_STORE, offset, entry->value, offset_mode);
+                break;
+            }
+            builder.build_instruction(OP_MEMCPY, offset, static_pointer, offset_mode);
+            break;
+        }
+        case VisitorResultState::TEMP_INT_REGISTER: {
+            builder.build_instruction(OP_STORE, offset, temporary_int_register, offset_mode);
+            break;
+        }
+        case VisitorResultState::TEMP_FLOAT_REGISTER: {
+            builder.build_instruction(OP_FSTORE, offset, temporary_float_register, offset_mode);
+            break;
+        }
+        case VisitorResultState::LIST: {
+            // TODO
+            break;
+        }
+    }
+}
+
+int VisitorResult::materialize_register(SageCompiler &compiler) {
+    auto &builder = compiler.builder;
+    auto *entry = compiler.symbol_table.lookup_by_index(symbol_table_index);
+
+    auto opcode = entry->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
+    auto temporary_register = entry->type->identify() == FLOAT ? compiler.get_volatile_register() : compiler.get_volatile_float_register();
+
+    switch (state) {
+        case VisitorResultState::IMMEDIATE: {
+            return -1;
+        }
+        case VisitorResultState::SPILLED: {
+            builder.build_instruction(opcode, temporary_register, entry->spill_offset, _00);
+            return temporary_register;
+        }
+        case VisitorResultState::REGISTER: {
+            return entry->assigned_register;
+        }
+        case VisitorResultState::VALUE: {
+            int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+            builder.build_instruction(opcode, temporary_register, static_pointer, _00);
+            return temporary_register;
+        }
+        case VisitorResultState::TEMP_INT_REGISTER: {
+            return temporary_int_register;
+        }
+        case VisitorResultState::TEMP_FLOAT_REGISTER: {
+            return temporary_float_register;
+        }
+        case VisitorResultState::LIST: {
+            // TODO:
+            return -1;
+        }
+        default:
+            return -1;
+    }
 }
 
 void SageCompiler::process_escape_sequences(string &str) {

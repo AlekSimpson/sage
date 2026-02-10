@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <map>
+#include <array>
 
 using namespace std;
 
@@ -17,11 +18,13 @@ using namespace std;
 #define ui16 uint16_t
 #define ui32 uint32_t
 
-typedef int AddressMode[2];
-inline int _00[2] = {0, 0};
-inline int _10[2] = {1, 0};
-inline int _01[2] = {0, 1};
-inline int _11[2] = {1, 1};
+using AddressMode = std::array<int, 2>;
+inline AddressMode _00 = {0, 0};
+inline AddressMode _10 = {1, 0};
+inline AddressMode _01 = {0, 1};
+inline AddressMode _11 = {1, 1};
+
+AddressMode operator+(AddressMode &, AddressMode &);
 
 enum SageOpCode {
     // op (operand) = could be referencing immediate value or value at registers[op]
@@ -110,7 +113,7 @@ struct Instruction {
 
 struct Command {
     Instruction instruction;
-    int address_mode[2] = {0, 0};
+    AddressMode address_mode = _00;
     // 0 - neutral, use raw immediate
     // 1 - deref register
 

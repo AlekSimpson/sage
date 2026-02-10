@@ -1,7 +1,6 @@
 #include <string>
 #include <set>
 #include <stack>
-#include <numeric>
 #include <algorithm>
 #include <cassert>
 
@@ -51,7 +50,7 @@ SageSymbolTable::SageSymbolTable() {
 }
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
-    : entries(SymbolArena(initial_size+1)), nm(nm), scope_manager(scopeman) {
+    : entries(SymbolArena(initial_size + 1)), nm(nm), scope_manager(scopeman) {
     this->function_visitor_state = stack<FunctionVisit *>();
     this->scope_manager = scopeman;
 
@@ -135,8 +134,7 @@ table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) 
         return new_index;
     }
 
-    return (table_index)it->second;
-
+    return (table_index) it->second;
 }
 
 table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value) {
@@ -162,7 +160,7 @@ table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value)
         return new_index;
     }
 
-    return (table_index)it->second;
+    return (table_index) it->second;
 }
 
 table_index SageSymbolTable::declare_temporary(int register_alloc) {
@@ -271,7 +269,8 @@ table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuet
     return new_index;
 }
 
-table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment) {
+table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype,
+                                               int parameter_register_assignment) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
@@ -331,7 +330,7 @@ table_index SageSymbolTable::lookup_table_index(const string &name, int scope_id
 }
 
 symbol_entry *SageSymbolTable::lookup_by_index(table_index entry_index) {
-    if (entry_index < (table_index)entries.CAPACITY) return entries.get_pointer(entry_index);
+    if (entry_index < (table_index) entries.CAPACITY) return entries.get_pointer(entry_index);
 
     return nullptr;
 }
@@ -353,7 +352,7 @@ symbol_entry *SageSymbolTable::lookup(const string &name, int scope_id) {
 }
 
 bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
-    if (symbol_index >= (table_index)entries.CAPACITY || scope_manager == nullptr) return false;
+    if (symbol_index >= (table_index) entries.CAPACITY || scope_manager == nullptr) return false;
 
     int symbol_scope = entries.get(symbol_index).scope_id;
     return scope_manager->is_ancestor_of(symbol_scope, from_scope_id);
@@ -373,9 +372,10 @@ void SageSymbolTable::initialize() {
     declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
 
     declare_builtin_type_symbol("string", TypeRegistery::get_struct_type("string", {
-        TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
-        TypeRegistery::get_integer_type(8)
-    }));
+                                                                             TypeRegistery::get_pointer_type(
+                                                                                 TypeRegistery::get_byte_type(CHAR)),
+                                                                             TypeRegistery::get_integer_type(8)
+                                                                         }));
 
     // setup builtin functions
     //declare_builtin_symbol("GLOBAL", TypeRegistery::get_function_type());
@@ -507,7 +507,7 @@ int SageSymbolTable::get_result_total_byte_size(table_index symbol_index) {
     auto *function_type = static_cast<SageFunctionType *>(entry->type);
     int bytesize = 0;
     for (auto *type: function_type->return_type) {
-        bytesize+=type->size;
+        bytesize += type->size;
     }
     return bytesize;
 }
@@ -522,48 +522,3 @@ bool SageSymbolTable::needs_return_stack_pointer(table_index index) {
     int bytesize = get_result_total_byte_size(index);
     return bytesize > 8;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

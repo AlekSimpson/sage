@@ -66,6 +66,8 @@ CompilerOptions parse_compiler_flags(int argc, char **argv) {
     const int ABBREVIATED_COMPILATION_TARGET = get_procedure_frame_id(string("-ct"));
     const int EMIT_BYTECODE = get_procedure_frame_id(string("--emit-bytecode"));
     const int ABBREVIATED_EMIT_BYTECODE = get_procedure_frame_id(string("-e"));
+    const int PRINT_BYTECODE = get_procedure_frame_id(string("--print-bytecode"));
+    const int ABBREVIATED_PRINT_BYTECODE = get_procedure_frame_id(string("-p"));
 
     char *current_option;
     for (int i = 1; i < argc; ++i) {
@@ -103,6 +105,8 @@ CompilerOptions parse_compiler_flags(int argc, char **argv) {
                 }
             }else if (flag_hash == ABBREVIATED_EMIT_BYTECODE || flag_hash == EMIT_BYTECODE) {
                 options.emit_bytecode = true;
+            }else if (flag_hash == ABBREVIATED_PRINT_BYTECODE || flag_hash == PRINT_BYTECODE) {
+                options.debug_print_bytecode = true;
             }else {
                 ErrorLogger::get().log_error_unsafe(
                     null_token,

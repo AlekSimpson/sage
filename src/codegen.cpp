@@ -8,16 +8,6 @@
 
 using namespace std;
 
-VisitorResultState VisitorResult::get_result_state(SageSymbolTable *table) {
-    if (is_immediate()) return VisitorResultState::IMMEDIATE;
-    if (is_temporary() && temporary_float_register != -1) return VisitorResultState::TEMP_FLOAT_REGISTER;
-    if (is_temporary() && temporary_int_register != -1) return VisitorResultState::TEMP_INT_REGISTER;
-    symbol_entry *entry = table->lookup_by_index(symbol_table_index);
-    if (entry->spilled) return VisitorResultState::SPILLED;
-    if (entry->assigned_register != -1) return VisitorResultState::REGISTER;
-    return VisitorResultState::VALUE;
-};
-
 VisitorResult SageCompiler::visit(NodeIndex node) {
     switch (node_manager->get_nodetype(node)) {
         case PN_BLOCK: {
@@ -209,15 +199,7 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     symbol_table.function_visitor_state.top()->return_statement_count++;
     int function_symbol_index = symbol_table.function_visitor_state.top()->symbol_index;
     symbol_entry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
-
-    SageFunctionType *function_type = static_cast<SageFunctionType *>(function_entry->type);
-    bool is_float_return = false;
-    for (auto *type: function_type->return_type) {
-        if (type->identify() == FLOAT) {
-            is_float_return = true;
-            break;
-        }
-    }
+    vector<SageType *> return_types = ((SageFunctionType *) function_entry->type)->return_type;
 
     bool is_main = function_entry->identifier == "main";
     bool is_global = function_entry->identifier == "global";
@@ -236,94 +218,19 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
         return VisitorResult();
     }
 
-    VisitorResult return_value = visit_expression(branch_id);
-    if (!symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
-        switch (return_value.get_result_state(&symbol_table)) {
-            case VisitorResultState::IMMEDIATE: {
-                // note: is return value is an immediate then it must not be a float because floats literals are always spilled to the stack
-                builder.build_move_immediate(6, return_value.immediate_value);
-                break;
-            }
-            case VisitorResultState::SPILLED: {
-                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                if (is_float_return) {
-                    builder.build_fload(6, src_symbol->spill_offset);
-                }else {
-                    builder.build_load(6, src_symbol->spill_offset);
-                }
-                break;
-            }
-            case VisitorResultState::REGISTER: {
-                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                if (is_float_return) {
-                    builder.build_fmove_register(6, src_symbol->assigned_register);
-                }else {
-                    builder.build_move_register(6, src_symbol->assigned_register);
-                }
-                break;
-            }
-            case VisitorResultState::VALUE: {
-                symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-                int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
-                if (is_float_return) {
-                    builder.build_fload(6, static_pointer);
-                }else {
-                    builder.build_move_immediate(6, static_pointer);
-                }
-                break;
-            }
-            case VisitorResultState::TEMP_FLOAT_REGISTER: {
-                builder.build_fmove_register(6, return_value.temporary_float_register);
-                break;
-            }
-            case VisitorResultState::TEMP_INT_REGISTER: {
-                builder.build_move_register(6, return_value.temporary_int_register);
-                break;
-            }
-        }
-        builder.build_instruction(opcode, 0, _00);
-        // FIX:
-        builder.exit_frame();
-        return VisitorResult();
-    }
 
-    // store return_value into stack return address
-    switch (return_value.get_result_state(&symbol_table)) {
-        case VisitorResultState::IMMEDIATE: {
-            builder.build_instruction(OP_STORE, 6, return_value.immediate_value, _10);
-            break;
-        }
-        case VisitorResultState::SPILLED: {
-            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-            builder.build_instruction(OP_MEMCPY, 6, src_symbol->spill_offset, _10);
-            break;
-        }
-        case VisitorResultState::REGISTER: {
-            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-            builder.build_store_register(6, src_symbol->assigned_register);
-            break;
-        }
-        case VisitorResultState::VALUE: {
-            symbol_entry *src_symbol = symbol_table.lookup_by_index(return_value.symbol_table_index);
-            int static_pointer = get_literal_static_pointer(src_symbol->symbol_id);
-            builder.build_instruction(OP_MEMCPY, 6, static_pointer, _10);
-            break;
-        }
-        case VisitorResultState::TEMP_INT_REGISTER: {
-            builder.build_instruction(OP_STORE, 6, return_value.temporary_int_register, _10);
-            break;
-        }
-        case VisitorResultState::TEMP_FLOAT_REGISTER: {
-            builder.build_instruction(OP_FSTORE, 6, return_value.temporary_float_register, _10);
-            break;
-        }
+    VisitorResult return_value = visit_expression(branch_id);
+    if (symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
+        return_value.to_stack_instruction(*this, 6, return_types[0], _10);
+        function_entry->spilled = true;
+    }else {
+        return_value.to_register_instruction(*this, 6, return_types[0]);
     }
 
     builder.build_instruction(opcode, 0, _00);
-    // FIX:
+    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
     builder.exit_frame();
-    function_entry->spilled = true;
-    return VisitorResult((table_index)function_entry->symbol_id);
+    return VisitorResult(symbol_table, function_entry->symbol_id);
 }
 
 
@@ -338,22 +245,17 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
     if (node_manager->get_host_nodetype(node) == PN_BINARY) {
         return visit_binary_operator(node);
     }
-    if ((node_manager->get_host_nodetype(node) == PN_UNARY)) {
-        return visit_unary_operator(node);
-    }
 
     return visit_literal(node);
 }
 
-VisitorResult SageCompiler::visit_unary_operator(NodeIndex node) {
-
-}
 
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
         case PN_LIST: {
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum, "TODO: List literal visitor unimplemented.");
+            logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
+                                             "TODO: List literal visitor unimplemented.");
             return VisitorResult();
         }
         case PN_VAR_REF:
@@ -364,7 +266,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         case PN_STRING: {
             auto identifier = node_manager->get_identifier(node);
             table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
-            return VisitorResult(symbol_index);
+            return VisitorResult(symbol_table, symbol_index);
         }
         case PN_CHARACTER_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
@@ -376,7 +278,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         case PN_FLOAT: {
             auto identifier = node_manager->get_identifier(node);
             table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
-            return VisitorResult(symbol_index);
+            return VisitorResult(symbol_table, symbol_index);
         }
         case PN_BOOL: {
             auto identifier = node_manager->get_identifier(node);
@@ -422,9 +324,9 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
             assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
 
-            int temp_register = get_volatile_register();
-            builder.build_instruction(OP_REF, temp_register, symbol->spill_offset, _00);
-            return VisitorResult(temp_register, false);
+            int temporary_register = get_volatile_register();
+            builder.build_instruction(OP_REF, temporary_register, symbol->spill_offset, _00);
+            return VisitorResult(temporary_register, false);
         }
         case PN_NOT:
             break;
@@ -455,6 +357,8 @@ int SageCompiler::get_literal_static_pointer(table_index literal_symbol_table_in
 }
 
 VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
+    // TODO: more than 6 function parameters not supported
+    // TODO: multiple return values not supported
     NodeIndex args_node = node_manager->get_branch(node);
     auto arg_children = node_manager->get_children(args_node);
     vector<VisitorResult> args;
@@ -476,72 +380,42 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         return VisitorResult();
     }
 
-    int argument_register_address = 0;
+    int argument_int_register_address = 0;
+    int argument_float_register_address = 0;
+    int current_argument_count = 0;
+    vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->type)->parameter_types;
     for (VisitorResult arg_result: args) {
-        //auto it = static_program_memory.find(arg_result.symbol_table_index);
-        //if (it != static_program_memory.end()) {
-        //    int static_pointer = 0;
-        //    for (int order_index = 0; order_index < (int)static_program_memory_insertion_order.size(); ++order_index) {
-        //        if (static_program_memory_insertion_order[order_index] == arg_result.symbol_table_index) {
-        //            builder.build_move_immediate(argument_register_address, static_pointer);
-        //            break;
-        //        }
-        //        static_pointer += (int)static_program_memory[static_program_memory_insertion_order[order_index]].size();
-        //    }
-        //    argument_register_address++;
-        //    continue;
-        //}
         int possible_literal_memory_pointer = get_literal_static_pointer(arg_result.symbol_table_index);
         if (possible_literal_memory_pointer != -1) {
-            builder.build_move_immediate(argument_register_address, possible_literal_memory_pointer);
-            argument_register_address++;
+            builder.build_move_immediate(argument_int_register_address, possible_literal_memory_pointer);
+            argument_int_register_address++;
+            current_argument_count++;
             continue;
         }
 
+        int &register_address = defined_parameter_types[current_argument_count]->identify() == FLOAT
+                                    ? argument_float_register_address
+                                    : argument_int_register_address;
 
-        auto arg_result_state = arg_result.get_result_state(&symbol_table);
-        switch (arg_result_state) {
-            case VisitorResultState::IMMEDIATE:
-                builder.build_move_immediate(argument_register_address, arg_result.immediate_value);
-                break;
-            case VisitorResultState::SPILLED: {
-                int temporary_register = get_volatile_register();
-                symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_load(temporary_register, arg_entry->spill_offset);
-                builder.build_move_register(argument_register_address, temporary_register);
-                break;
-            }
-            case VisitorResultState::REGISTER: {
-                symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_move_register(argument_register_address, arg_entry->assigned_register);
-                break;
-            }
-            case VisitorResultState::VALUE: {
-                symbol_entry *arg_entry = symbol_table.lookup_by_index(arg_result.symbol_table_index);
-                builder.build_move_immediate(argument_register_address, arg_entry->value);
-                break;
-            }
-            case VisitorResultState::TEMP_FLOAT_REGISTER: {
-                builder.build_fmove_register(argument_register_address, arg_result.temporary_float_register);
-                break;
-            }
-            case VisitorResultState::TEMP_INT_REGISTER: {
-                break;
-            }
-        }
-        argument_register_address++;
+        arg_result.to_register_instruction(
+            *this, register_address, defined_parameter_types[current_argument_count]);
+
+        register_address++;
+        current_argument_count++;
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_id)) {
         int pointer = symbol_table.function_visitor_state.top()->stack_return_pointer_counter;
-        int return_bytesize = symbol_table.get_result_total_byte_size(symbol_table.function_visitor_state.top()->symbol_index);
+        int return_bytesize = symbol_table.get_result_total_byte_size(
+            symbol_table.function_visitor_state.top()->symbol_index);
         symbol_table.function_visitor_state.top()->stack_return_pointer_counter += return_bytesize;
-        builder.build_move_immediate(6, pointer); // if the function return is on the stack then we don't need to use the function return register
+        builder.build_move_immediate(6, pointer);
+        // if the function return is on the stack then we don't need to use the function return register
     }
 
     builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
 
-    return VisitorResult((table_index)function_symbol->symbol_id);
+    return VisitorResult(symbol_table, function_symbol->symbol_id);
 }
 
 VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {

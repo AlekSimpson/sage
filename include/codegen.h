@@ -51,6 +51,7 @@ struct CompilerOptions {
   debug_level debug = NONE;
   CompilationTarget compilation_target = SAGE_VM;
   bool emit_bytecode = false;
+  bool debug_print_bytecode = false;
 
   CompilerOptions(string input_file): input_file(input_file) {};
 };
@@ -58,7 +59,9 @@ struct CompilerOptions {
 CompilerOptions parse_compiler_flags(int, char **);
 bool check_filename_valid(const string &filename);
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_INT_REGISTER, TEMP_FLOAT_REGISTER }; // , LIST
+class SageCompiler;
+
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_INT_REGISTER, TEMP_FLOAT_REGISTER, LIST };
 
 struct VisitorResult {
   SageValue immediate_value = SageValue();
@@ -66,25 +69,38 @@ struct VisitorResult {
   int temporary_int_register = -1;
   int temporary_float_register = -1;
   table_index symbol_table_index = SAGE_NULL_SYMBOL;
+  VisitorResultState state = VisitorResultState::VALUE;
 
   VisitorResult() {};
-  VisitorResult(int value) : immediate_value(SageValue(value)) {}
-  VisitorResult(float value) : immediate_value(SageValue(value)) {}
-  VisitorResult(table_index symbol_index) : symbol_table_index(symbol_index) {}
+  VisitorResult(int value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {}
+  VisitorResult(SageSymbolTable &table, table_index symbol_index) : symbol_table_index(symbol_index) {
+    if (table.lookup_by_index(symbol_index)->spilled) {
+      state = VisitorResultState::SPILLED;
+    }else if (table.lookup_by_index(symbol_index)->assigned_register != -1) {
+      state = VisitorResultState::REGISTER;
+    }else {
+      state = VisitorResultState::VALUE;
+    }
+  }
   VisitorResult(int temp_register, bool is_float) {
     if (is_float) {
       temporary_float_register = temp_register;
+      state = VisitorResultState::TEMP_FLOAT_REGISTER;
     }else {
       temporary_int_register = temp_register;
+      state = VisitorResultState::TEMP_INT_REGISTER;
     }
   }
 
-  int get_temporary_register() { return temporary_int_register == -1 ? temporary_float_register : temporary_int_register; }
+  void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
+  void to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode = _00);
+  int materialize_register(SageCompiler &compiler);
+
   bool is_temporary() { return temporary_int_register != -1 || temporary_float_register != -1; }
   bool is_immediate() { return !immediate_value.is_null(); }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
-  VisitorResultState get_result_state(SageSymbolTable *);
 };
+
 
 // TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
@@ -129,8 +145,6 @@ public:
   bool is_float_operation(VisitorResult &one, VisitorResult &two);
   int get_literal_static_pointer(table_index literal_symbol_table_index);
 
-  void f(VisitorResult &, VisitorResult &);
-
   /* builders */
   VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
   VisitorResult build_function_with_block(string);
@@ -143,7 +157,6 @@ public:
   VisitorResult build_or(VisitorResult, VisitorResult);
   VisitorResult build_load(NodeIndex);
   VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode, bool is_float_operation);
-  int materialize_to_float_register(VisitorResult &);
 
   /* visitors */
   VisitorResult visit(NodeIndex);
@@ -163,6 +176,4 @@ public:
   VisitorResult visit_literal(NodeIndex);
   VisitorResult visit_function_call(NodeIndex);
   VisitorResult visit_binary_operator(NodeIndex);
-  VisitorResult visit_unary_operator(NodeIndex);
-
 };

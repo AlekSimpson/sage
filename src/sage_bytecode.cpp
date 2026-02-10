@@ -8,6 +8,10 @@
 
 using namespace std;
 
+AddressMode operator+(AddressMode &operand_a, AddressMode &operand_b) {
+    return {operand_a[0] + operand_b[0], operand_a[1] + operand_b[1]};
+}
+
 Command::Command() {
 }
 
@@ -90,30 +94,30 @@ string Command::print(const map<int, string> *label_names) {
         }
 
         case OP_MOV: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("r", to_string(operands.one));
-            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("r", to_string(operands[0]));
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_ITF_MOV: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("fr", to_string(operands.one));
-            string operand_string_2 = str("r", to_string(operands.two));
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("fr", to_string(operands[0]));
+            string operand_string_2 = str("r", to_string(operands[1]));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_LOAD: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("r", to_string(operands.one));
-            string operand_string_2 = str("$", to_string(operands.two));
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("r", to_string(operands[0]));
+            string operand_string_2 = str("$", to_string(operands[1]));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
         case OP_STORE: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("($fp - ", to_string(operands.one), ")");
-            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("($fp - ", to_string(operands[0]), ")");
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
@@ -123,38 +127,38 @@ string Command::print(const map<int, string> *label_names) {
         case OP_AND:
         case OP_OR: {
             // two operands
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = address_mode[0] == 1 ? str("r", to_string(operands.one)) : to_string(operands.one);
-            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = address_mode[0] == 1 ? str("r", to_string(operands[0])) : to_string(operands[0]);
+            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         case OP_DEREF: {
             // two operands
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = to_string(operands.one);
-            string operand_string_2 = to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
         }
         case OP_REF: {
             // two operands
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("r", to_string(operands.one));
-            string operand_string_2 = to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("r", to_string(operands[0]));
+            string operand_string_2 = to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
         }
 
         case OP_JZ:
         case OP_JNZ: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("r", to_string(operands.one));
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("r", to_string(operands[0]));
 
             if (label_names != nullptr) {
-                auto it = label_names->find(operands.two);
-                string operand_string_2 = str("@", to_string(operands.two), " (", it->second, ")");
+                auto it = label_names->find(operands[1]);
+                string operand_string_2 = str("@", to_string(operands[1]), " (", it->second, ")");
                 return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
             }
 
-            string operand_string_2 = str("@", to_string(operands.two));
+            string operand_string_2 = str("@", to_string(operands[2]));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
@@ -162,20 +166,20 @@ string Command::print(const map<int, string> *label_names) {
         case OP_SUB:
         case OP_MUL:
         case OP_DIV: {
-            _triple operands = tunpack(instruction.operands);
-            string operand_string_1 = str("r", to_string(operands.one));
-            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands.two)) : to_string(operands.two);
-            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands.three)) : to_string(operands.three);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("r", to_string(operands[0]));
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
         case OP_FADD:
         case OP_FSUB:
         case OP_FMUL:
         case OP_FDIV: {
-            _triple operands = tunpack(instruction.operands);
-            string operand_string_1 = str("fr", to_string(operands.one));
-            string operand_string_2 = address_mode[0] == 1 ? str("fr", to_string(operands.two)) : to_string(operands.two);
-            string operand_string_3 = address_mode[1] == 1 ? str("fr", to_string(operands.three)) : to_string(operands.three);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("fr", to_string(operands[0]));
+            string operand_string_2 = address_mode[0] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
+            string operand_string_3 = address_mode[1] == 1 ? str("fr", to_string(operands[2])) : to_string(operands[2]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
 
@@ -183,21 +187,21 @@ string Command::print(const map<int, string> *label_names) {
             return sen(opcode_map[instruction.opcode], to_string(instruction.operands));
         }
         case OP_FLOAD: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("fr", to_string(operands.one));
-            string operand_string_2 = str("$", to_string(operands.two));
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("fr", to_string(operands[0]));
+            string operand_string_2 = str("$", to_string(operands[1]));
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         case OP_FSTORE: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("($fp - ", to_string(operands.one), ")");
-            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands.two)) : to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("($fp - ", to_string(operands[0]), ")");
+            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         case OP_FMOV: {
-            _double operands = dunpack(instruction.operands);
-            string operand_string_1 = str("fr", to_string(operands.one));
-            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands.two)) : to_string(operands.two);
+            auto operands = instruction.unpack_instruction();
+            string operand_string_1 = str("fr", to_string(operands[0]));
+            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         default:

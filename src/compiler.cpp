@@ -24,7 +24,7 @@ SageCompiler::SageCompiler(CompilerOptions options)
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager)),
       builder(BytecodeBuilder()),
-      comptime_manager(ComptimeManager(node_manager)){
+      comptime_manager(ComptimeManager(node_manager)) {
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 }
@@ -42,7 +42,8 @@ void SageCompiler::compile_file(string mainfile) {
         logger.log_internal_error_unsafe(
             "compiler.cpp",
             current_linenum,
-            sen("Support for compilation target", compilation_target_string(options.compilation_target), "is not implemented yet."));
+            sen("Support for compilation target", compilation_target_string(options.compilation_target),
+                "is not implemented yet."));
     }
 
     /// 1. INITIAL PROGRAM COMPILATION PASS
@@ -141,7 +142,7 @@ void SageCompiler::compile_file(string mainfile) {
             }
 
             // execute each task in parallel
-            int thread_count = std::min((int)comptime_manager.tasks.size(), (int)std::thread::hardware_concurrency());
+            int thread_count = std::min((int) comptime_manager.tasks.size(), (int) std::thread::hardware_concurrency());
             comptime_manager.execute_tasks_in_parallel(thread_count);
             if (logger.has_errors()) {
                 logger.report_errors();
@@ -151,7 +152,8 @@ void SageCompiler::compile_file(string mainfile) {
             // propogate comptime constants to symbol table
             for (auto *finished_task: task_execution_batch) {
                 // skip any tasks that aren't associated with a symbol pending task execution
-                if (symbol_table.comptime_task_id_to_symbol_id.find(finished_task->task_id) == symbol_table.comptime_task_id_to_symbol_id.end()) {
+                if (symbol_table.comptime_task_id_to_symbol_id.find(finished_task->task_id) == symbol_table.
+                    comptime_task_id_to_symbol_id.end()) {
                     continue;
                 }
                 table_index symbol_index = symbol_table.comptime_task_id_to_symbol_id[finished_task->task_id];
@@ -166,7 +168,6 @@ void SageCompiler::compile_file(string mainfile) {
             }
 
             // perform anymore needed context updating
-
         }
         builder.reset_and_exit_comptime();
     }
@@ -181,14 +182,14 @@ void SageCompiler::compile_file(string mainfile) {
 
     map<int, int> procedure_to_instruction_index;
     bytecode runtime_code = builder.finalize_runtime_bytecode(procedure_to_instruction_index);
-    builder.print_bytecode(runtime_code);
+    if (options.debug_print_bytecode) builder.print_bytecode(runtime_code);
 
     if (options.emit_bytecode) {
         emit_string += "\n\n" + builder.emit();
         std::filesystem::path filepath = ".sage/bytecode/s.asm";
         std::filesystem::create_directories(filepath.parent_path());
 
-        FILE* file = fopen(".sage/bytecode/s.asm", "w");
+        FILE *file = fopen(".sage/bytecode/s.asm", "w");
         if (file) {
             fwrite(emit_string.data(), 1, emit_string.size(), file);
             fclose(file);
@@ -303,9 +304,10 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 table_index new_variable_symbol;
                 if (parameter_name_to_parent_function.find(identifier) != parameter_name_to_parent_function.end()) {
                     string parent_function_name = parameter_name_to_parent_function[identifier];
-                    new_variable_symbol = symbol_table.declare_parameter(current_node, nullptr, function_parameter_register_generator[parent_function_name]);
+                    new_variable_symbol = symbol_table.declare_parameter(
+                        current_node, nullptr, function_parameter_register_generator[parent_function_name]);
                     function_parameter_register_generator[parent_function_name]++;
-                }else {
+                } else {
                     new_variable_symbol = symbol_table.declare_variable(current_node, nullptr);
                 }
 
@@ -379,7 +381,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 static_program_memory_insertion_order.push_back(index);
                 static_program_memory[index] = vector<uint8_t>();
                 static_program_memory[index].reserve(node_lexeme.size());
-                for (int i = 0; i < (int)node_lexeme.size(); ++i) {
+                for (int i = 0; i < (int) node_lexeme.size(); ++i) {
                     static_program_memory[index].push_back(static_cast<uint8_t>(node_lexeme[i]));
                 }
 
@@ -668,7 +670,8 @@ void SageCompiler::resolve_definition_order(int target_scope) {
 void SageCompiler::forward_declaration_resolution(int program_root) {
     vector<table_index> definitions_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.structs.begin(), symbol_table.structs.end());
-    definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(), symbol_table.functions.end());
+    definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(),
+                                symbol_table.functions.end());
     // then arange what is left according to scope_id descending
     std::sort(definitions_by_scope.begin(), definitions_by_scope.end(), [this](int a, int b) {
         return (symbol_table.entries.get(a).scope_id < symbol_table.entries.get(b).scope_id);
@@ -717,9 +720,3 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
         }
     }
 }
-
-
-
-
-
-
