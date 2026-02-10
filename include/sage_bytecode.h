@@ -87,28 +87,15 @@ enum SageOpCode {
     VOP_EXIT,   // _00 | exit
 };
 
-struct _double {
-    ui16 one;
-    ui16 two;
-};
-
-struct _triple {
-    ui8 one;
-    ui8 two;
-    ui8 three;
-};
-
 struct Instruction {
     SageOpCode opcode = SageOpCode::OP_NOP;
-    uint32_t operands = 0;
+    std::array<int, 3> operands = {0, 0, 0};
+    int operand_count = 0;
 
     Instruction();
-    Instruction(SageOpCode, uint32_t);
+    Instruction(SageOpCode, int);
     Instruction(SageOpCode, int, int);
     Instruction(SageOpCode, int, int, int);
-    Instruction(SageOpCode, int, int, int, int);
-
-    vector<int> unpack_instruction();
 };
 
 struct Command {
@@ -118,7 +105,7 @@ struct Command {
     // 1 - deref register
 
     Command();
-    Command(SageOpCode, uint32_t, AddressMode);
+    Command(SageOpCode, int, AddressMode);
     Command(SageOpCode, int, int, AddressMode);
     Command(SageOpCode, int, int, int, AddressMode);
 
@@ -126,11 +113,3 @@ struct Command {
 };
 
 typedef vector<Command> bytecode;
-
-/* packers */
-inline ui32 dpack(ui16 operand1, ui16 operand2);
-inline ui32 tpack(ui8 op1, ui8 op2, ui8 op3, ui8 op4 = 0);
-
-/* unpackers */
-inline _double dunpack(ui32 packed);
-inline _triple tunpack(ui32 packed);

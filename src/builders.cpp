@@ -466,23 +466,36 @@ void BytecodeBuilder::build_puts() {
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
-    // var_symbol in register ==> LOAD
+    // var_symbol in register ==> LOAD/MOVE
     // var_symbol on stack    ==> STORE
     bool is_float_operation = (var_symbol->type->identify() == FLOAT);
-    SageOpCode int_decision = var_symbol->spilled ? OP_STORE : OP_LOAD;
-    SageOpCode float_decision = var_symbol->spilled ? OP_FSTORE : OP_FLOAD;
-    SageOpCode store_instruction_opcode = is_float_operation ? float_decision : int_decision;
-    int storage_destination = var_symbol->spilled ? var_symbol->spill_offset : var_symbol->assigned_register;
-
-    //auto right_material = is_float_operation
-    //                          ? right_value.to_float_register_instruction(*this)
-    //                          : right_value.to_register_instruction(*this);
-    auto right_material = right_value.materialize_register(*this);
-    if (right_material == -1) {
-        builder.build_instruction(store_instruction_opcode, storage_destination, right_value.immediate_value, _10);
+    auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_id);
+    int storage_destination;
+    SageOpCode instruction_opcode;
+    switch (variable_result.state) {
+        case VisitorResultState::SPILLED: {
+            instruction_opcode = is_float_operation ? OP_FSTORE : OP_STORE;
+            storage_destination = var_symbol->spill_offset;
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            instruction_opcode = is_float_operation ? OP_FMOV : OP_MOV;
+            storage_destination = var_symbol->assigned_register;
+            break;
+        }
+        default:
+            ErrorLogger::get().log_internal_error_unsafe("builders.cpp", current_linenum,
+                                                         "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
+            return VisitorResult();
     }
 
-    builder.build_instruction(store_instruction_opcode, storage_destination, right_material, _11);
+    auto right_material = right_value.materialize_register(*this);
+    if (right_material == -1) {
+        builder.build_instruction(instruction_opcode, storage_destination, right_value.immediate_value, _00);
+        return VisitorResult();
+    }
+
+    builder.build_instruction(instruction_opcode, storage_destination, right_material, _01);
     return VisitorResult();
 }
 
@@ -521,7 +534,7 @@ bool SageCompiler::is_float_operation(VisitorResult &one, VisitorResult &two) {
 VisitorResult SageCompiler::build_operator(
     VisitorResult value1, VisitorResult value2, SageOpCode opcode, bool is_float_operation) {
     AddressMode mode = _11;
-    int result_register = is_float_operation ? get_volatile_float_register() : get_volatile_register() ;
+    int result_register = is_float_operation ? get_volatile_float_register() : get_volatile_register();
     int register1 = value1.materialize_register(*this);
     int register2 = value2.materialize_register(*this);
 
@@ -573,21 +586,8 @@ VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
     string reference_name = node_manager->get_identifier(reference_node);
     int scope_id = node_manager->get_scope_id(reference_node);
     auto symbol = symbol_table.lookup(reference_name, scope_id);
-
-    if (symbol->spilled) {
-        int volatile_reg;
-        if (symbol->type->identify() == FLOAT) {
-            volatile_reg = get_volatile_float_register();
-            builder.build_fload(volatile_reg, symbol->spill_offset);
-            symbol->assigned_register = volatile_reg;
-        } else {
-            volatile_reg = get_volatile_register();
-            builder.build_load(volatile_reg, symbol->spill_offset);
-            symbol->assigned_register = volatile_reg;
-        }
-    }
-
-    return VisitorResult(symbol_table.lookup_table_index(reference_name, scope_id));
+    VisitorResult load_result = VisitorResult(symbol_table, symbol->symbol_id);
+    return load_result;
 }
 
 
@@ -681,7 +681,8 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
     }
 }
 
-void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode) {
+void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type,
+                                         AddressMode offset_mode) {
     // generate instructions which stores this visitor result into an argument register
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
@@ -704,7 +705,8 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
             break;
         }
         case VisitorResultState::REGISTER: {
-            int type_state_combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->identify() == FLOAT;
+            int type_state_combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->
+                                         identify() == FLOAT;
             auto opcode = register_state_combination_map[type_state_combination];
             AddressMode argument_mode = _01;
 
@@ -756,7 +758,9 @@ int VisitorResult::materialize_register(SageCompiler &compiler) {
     auto *entry = compiler.symbol_table.lookup_by_index(symbol_table_index);
 
     auto opcode = entry->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
-    auto temporary_register = entry->type->identify() == FLOAT ? compiler.get_volatile_register() : compiler.get_volatile_float_register();
+    auto temporary_register = entry->type->identify() == FLOAT
+                                  ? compiler.get_volatile_register()
+                                  : compiler.get_volatile_float_register();
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {

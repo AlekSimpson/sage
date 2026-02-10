@@ -411,6 +411,10 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         symbol_table.function_visitor_state.top()->stack_return_pointer_counter += return_bytesize;
         builder.build_move_immediate(6, pointer);
         // if the function return is on the stack then we don't need to use the function return register
+        function_symbol->spilled = true;
+    }else {
+        function_symbol->spilled = false;
+        function_symbol->assigned_register = 6;
     }
 
     builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
