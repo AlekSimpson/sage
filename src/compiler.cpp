@@ -404,12 +404,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 
                 continue;
             }
-            case PN_NUMBER: {
-                //auto node_lexeme = node_manager->get_lexeme(current_node);
-                //SageValue integer_literal = SageValue(stoi(node_lexeme));
-                //symbol_table.declare_immediate(integer_literal, node_lexeme);
-                continue;
-            }
             default:
                 continue;
         }
@@ -624,9 +618,9 @@ void SageCompiler::resolve_definition_order(int target_scope) {
         fringe.push(identifier);
     }
 
-    if (sum_of_in_degrees == 0) {
-        return;
-    }
+    //if (sum_of_in_degrees == 0) {
+    //    return;
+    //}
 
     string current;
     set<string> visited;
@@ -686,7 +680,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
     for (int symbol_id: definitions_by_scope) {
-        if (current_scope != symbol_table.entries.get(symbol_id).scope_id) {
+        if (current_scope != symbol_table.entries.get(symbol_id).scope_id || symbol_id == SAGE_NULL_SYMBOL) {
             resolve_definition_order(current_scope);
             if (symbol_id == SAGE_NULL_SYMBOL) break;
 
