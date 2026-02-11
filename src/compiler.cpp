@@ -356,6 +356,30 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 fringe.push(node_manager->get_right(current_node));
                 continue;
             }
+            case PN_UNARY: {
+                auto branch = node_manager->get_branch(current_node);
+                if (branch == NULL_INDEX) continue;
+
+                auto unary_nodetype = node_manager->get_nodetype(current_node);
+                if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
+                    fringe.push(node_manager->get_branch(current_node));
+                    continue;
+                }
+
+                if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
+                    Token token = node_manager->get_token(branch);
+                    logger.log_error_unsafe(
+                        token,
+                        "Cannot use pointer operator on temporary value.",
+                        GENERAL);
+                    continue;
+                }
+
+                //symbol_table.must_be_spilled.insert();
+
+                fringe.push(node_manager->get_branch(current_node));
+                continue;
+            }
             case PN_FUNCCALL: {
                 fringe.push(node_manager->get_branch(current_node));
                 continue;
@@ -502,7 +526,7 @@ void SageCompiler::register_allocation() {
             current_scope = entry.scope_id;
         }
 
-        if (entry.type->identify() == FLOAT) {
+        if (entry.type->identify() == FLOAT || entry.type->is_pointer()) {
             symbol_table.entries.get(idx).spill(current_relative_stack_location);
             current_relative_stack_location += entry.type->size;
             continue;
@@ -510,7 +534,7 @@ void SageCompiler::register_allocation() {
 
         for (auto symbol: working_symbols) {
             working_symbol_entry = symbol_table.lookup(symbol, current_scope);
-            if (working_symbol_entry != nullptr) continue;
+            if (working_symbol_entry == nullptr) continue;
 
             working_symbols.erase(symbol);
             available_registers.insert(working_symbol_entry->assigned_register);

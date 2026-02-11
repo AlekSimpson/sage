@@ -108,10 +108,12 @@ public:
     set<table_index> literals; // used for strings and big literal values
     set<table_index> comptime_values;
     set<table_index> types;
+    //set<table_index> must_be_spilled;
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, table_index> scope_symbol_map;
     map<comptime_task_id, table_index> comptime_task_id_to_symbol_id;
+    map<string, SageType *> cached_type_identifiers;
 
     int temporary_counter_gen = 0;
     bool program_uses_main_function = false;
@@ -119,6 +121,7 @@ public:
     SageSymbolTable();
     SageSymbolTable(ScopeManager* scopeman, NodeManager *nm, int size);
 
+    SageType *resolve_type_identifier(string, int);
     SageType *resolve_variable_type(table_index);
     SageType *resolve_function_type(table_index);
     SageType *resolve_struct_type(table_index);

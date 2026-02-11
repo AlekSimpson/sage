@@ -16,6 +16,8 @@ enum CanonicalType {
     FLOAT,
     POINTER,
     ARRAY,
+    REFERENCE,
+    DYN_ARRAY,
     FUNC,
     CUSTOM,
     PENDING_COMPTIME
@@ -125,6 +127,41 @@ public:
     string to_string() override;
 };
 
+class SageDynamicArrayType : public SageType {
+public:
+    SageType *array_type;
+    int length = 0; // current max length
+    int capacity = 15; // current amount of slots used up
+
+    SageDynamicArrayType(SageType * basetype, int length);
+    SageDynamicArrayType(SageType * basetype);
+
+    CanonicalType identify() override;
+    bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
+    string to_string() override;
+};
+
+class SageReferenceType : public SageType {
+public:
+    SageType *pointer_type;
+    int window_size = 0;
+
+    SageReferenceType(SageType *);
+    SageReferenceType(SageType *, int window_size);
+
+    CanonicalType identify() override;
+    bool match(SageType *) override;
+    bool is_array() override;
+    bool is_pointer() override;
+    bool is_struct() override;
+    bool is_function() override;
+    string to_string() override;
+};
+
 union primitive_union {
     int int_value; // TODO: this also needs to have the other bit size types also
     float float_value;
@@ -137,6 +174,8 @@ private:
     static std::unordered_map<std::pair<CanonicalType, int>, std::unique_ptr<SageType> > builtin_types;
     static std::unordered_map<SageType *, std::unique_ptr<SageType> > pointer_types;
     static std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > array_types;
+    static std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > dyn_array_types;
+    static std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > reference_types;
     static std::unordered_map<string, std::unique_ptr<SageType> > struct_types;
     static std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >, std::unique_ptr<SageType> >
     function_types;
@@ -148,7 +187,11 @@ public:
     static SageType *get_float_type(int size);
     static SageType *get_integer_type(int size);
     static SageType *get_pointer_type(SageType *base_type);
+    static SageType *get_dyn_array_type(SageType *element_type);
+    static SageType *get_dyn_array_type(SageType *element_type, int starting_element_size); // initializes dyn array type with 1.7x mem based on starting_element_size
     static SageType *get_array_type(SageType *element_type, int size);
+    static SageType *get_reference_type(SageType *base_type);
+    static SageType *get_reference_type(SageType *base_type, int size);
     static SageType *get_function_type(std::vector<SageType *> parameter_tyeps, std::vector<SageType *> function_types);
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);
 

@@ -378,9 +378,6 @@ void SageSymbolTable::initialize() {
                                                                          }));
 
     // setup builtin functions
-    //declare_builtin_symbol("GLOBAL", TypeRegistery::get_function_type());
-    //function_visitor_state.push();
-
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),
         TypeRegistery::get_integer_type(8)
@@ -396,6 +393,77 @@ void SageSymbolTable::initialize() {
     declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, return_type));
 }
 
+SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int scope_id) {
+    if (cached_type_identifiers.find(type_identifier) != cached_type_identifiers.end()) {
+        return cached_type_identifiers.at(type_identifier);
+    }
+
+    auto type_search = lookup(type_identifier, scope_id);
+    if (type_search != nullptr) return type_search->type;
+
+    /*
+     * get identifier type keys
+     * type keys:
+     * - "*": pointer
+     * - "[]": array reference
+     * - "[..]": dynamic array
+     * - "[<digits>]": normal array
+     */
+
+    string base_type_identifier = "";
+    bool started_processing_type_modifiers = false;
+    SageType *current_type = nullptr;
+    auto get_current_type = [&]() -> SageType * {
+        if (current_type == nullptr) {
+            current_type = lookup(base_type_identifier, scope_id)->type;
+        }
+        return current_type;
+    };
+
+    bool processing_array_type = false;
+    int skip_until = -1;
+    string current_array_length_lexeme = "";
+    for (int i = 0; i < (int)type_identifier.size(); ++i) {
+        skip_until = i == skip_until ? -1 : skip_until;
+        if (i < skip_until) continue;
+
+        started_processing_type_modifiers = (type_identifier[i] == '*' || type_identifier[i] == '[') || started_processing_type_modifiers;
+        if (!started_processing_type_modifiers) {
+            base_type_identifier += type_identifier[i];
+            continue;
+        }
+
+        if (type_identifier[i] == '*') {
+            current_type = TR::get_pointer_type(get_current_type());
+        }else if (type_identifier[i] == '[') {
+            processing_array_type = true;
+            continue;
+        }
+
+        if (!processing_array_type) continue;
+
+        if (type_identifier[i] == '.') {
+            // dynamic array
+            current_type = TR::get_dyn_array_type(get_current_type());
+            skip_until = i + 3;
+            processing_array_type = false;
+        }else if (type_identifier[i] == ']' && current_array_length_lexeme.empty()) {
+            // array reference
+            current_type = TR::get_reference_type(get_current_type());
+            processing_array_type = false;
+        }else if (type_identifier[i] == ']' && !current_array_length_lexeme.empty()) {
+            current_type = TR::get_array_type(get_current_type(), stoi(current_array_length_lexeme));
+            current_array_length_lexeme.clear();
+            processing_array_type = false;
+        }else {
+            // digits, normal array
+            current_array_length_lexeme += type_identifier[i];
+        }
+    }
+
+    return current_type;
+}
+
 SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
     auto entry = entries.get(entry_index);
     if (entry.type_is_resolved()) {
@@ -408,16 +476,9 @@ SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
         type_ast_id = nm->get_middle(entry.definition_ast_index);
     }
 
-    auto scope_id = nm->get_scope_id(type_ast_id);
+    auto scope_id = entry.scope_id;
     auto identifier = nm->get_identifier(type_ast_id);
-    auto type_symbol = lookup(identifier, scope_id);
-    assert(type_symbol != nullptr);
-
-    if (!type_symbol->type_is_resolved()) {
-        return resolve_struct_type(type_symbol->symbol_id);
-    }
-
-    return type_symbol->type;
+    return resolve_type_identifier(identifier, scope_id);
 }
 
 SageType *SageSymbolTable::resolve_struct_type(table_index entry_index) {
@@ -429,17 +490,14 @@ SageType *SageSymbolTable::resolve_struct_type(table_index entry_index) {
 
     NodeIndex struct_signature = nm->get_right(struct_entry.definition_ast_index);
 
-    int scope_id = nm->get_scope_id(struct_entry.definition_ast_index);
+    int scope_id = struct_entry.scope_id;
     for (auto member_expression: nm->get_children(struct_signature)) {
         auto type_expression = nm->get_right(member_expression);
         if (nm->get_host_nodetype(member_expression) == PN_TRINARY) {
             type_expression = nm->get_middle(member_expression);
         }
         auto identifier = nm->get_identifier(type_expression);
-        auto type_symbol = lookup(identifier, scope_id);
-        assert(type_symbol != nullptr);
-
-        member_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+        member_types.push_back(resolve_type_identifier(identifier, scope_id));
     }
 
     return TypeRegistery::get_struct_type(struct_entry.identifier, member_types);
@@ -455,24 +513,19 @@ SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
 
     NodeIndex function_signature = nm->get_right(function_entry.definition_ast_index);
 
-    int scope_id = nm->get_scope_id(function_entry.definition_ast_index);
+    int scope_id = function_entry.scope_id;
+    string current_identifier;
     for (auto parameter_expression: nm->get_children(nm->get_left(function_signature))) {
         auto type_expression = nm->get_right(parameter_expression);
         if (nm->get_host_nodetype(parameter_expression) == PN_TRINARY) {
             type_expression = nm->get_middle(parameter_expression);
         }
-        auto identifier = nm->get_identifier(type_expression);
-        auto type_symbol = lookup(identifier, scope_id);
-        assert(type_symbol != nullptr);
-
-        parameter_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+        current_identifier = nm->get_identifier(type_expression);
+        parameter_types.push_back(resolve_type_identifier(current_identifier, scope_id));
     }
     for (auto return_type_expression: nm->get_children(nm->get_middle(function_signature))) {
-        auto identifier = nm->get_identifier(return_type_expression);
-        auto type_symbol = lookup(identifier, scope_id);
-        assert(type_symbol != nullptr);
-
-        return_types.push_back(resolve_struct_type(type_symbol->symbol_id));
+        current_identifier = nm->get_identifier(return_type_expression);
+        return_types.push_back(resolve_type_identifier(current_identifier, scope_id));
     }
 
     if (return_types.empty()) {

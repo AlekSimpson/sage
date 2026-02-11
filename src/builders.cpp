@@ -16,6 +16,8 @@
 std::unordered_map<std::pair<CanonicalType, int>, std::unique_ptr<SageType> > TypeRegistery::builtin_types;
 std::unordered_map<SageType *, std::unique_ptr<SageType> > TypeRegistery::pointer_types;
 std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > TypeRegistery::array_types;
+std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > TypeRegistery::dyn_array_types;
+std::unordered_map<std::pair<SageType *, int>, std::unique_ptr<SageType> > TypeRegistery::reference_types;
 std::unordered_map<std::pair<std::vector<SageType *>, std::vector<SageType *> >, std::unique_ptr<SageType> >
 TypeRegistery::function_types;
 std::unordered_map<std::string, std::unique_ptr<SageType> > TypeRegistery::struct_types;

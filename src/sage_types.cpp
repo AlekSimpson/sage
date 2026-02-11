@@ -43,8 +43,8 @@ string SageBuiltinType::to_string() {
 
 // pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
-    this->size = 4;
-    this->alignment = 4;
+    this->size = 8;
+    this->alignment = 8;
 }
 
 CanonicalType SagePointerType::identify() {
@@ -68,6 +68,51 @@ bool SagePointerType::is_function() {return false;}
 
 string SagePointerType::to_string() {
     return str(pointer_type->to_string(), "*");
+}
+
+// dynamic_array_type
+SageDynamicArrayType::SageDynamicArrayType(SageType *basetype) {
+    array_type = basetype;
+    length = 0;
+    capacity = 15;
+
+    size = capacity * basetype->size;
+    alignment = basetype->alignment;
+}
+
+SageDynamicArrayType::SageDynamicArrayType(SageType *basetype, int length): length(length), capacity(int(1.5 * (float)length)) {
+    array_type = basetype;
+
+    size = capacity * basetype->size;
+    alignment = basetype->alignment;
+}
+
+CanonicalType SageDynamicArrayType::identify() {
+    return DYN_ARRAY;
+}
+
+bool SageDynamicArrayType::match(SageType *other) {
+    return other->identify() == DYN_ARRAY && dynamic_cast<SageDynamicArrayType *>(other)->array_type->identify() == array_type->identify();
+}
+
+bool SageDynamicArrayType::is_array() {
+    return true;
+}
+
+bool SageDynamicArrayType::is_pointer() {
+    return false;
+}
+
+bool SageDynamicArrayType::is_struct() {
+    return false;
+}
+
+bool SageDynamicArrayType::is_function() {
+    return false;
+}
+
+string SageDynamicArrayType::to_string() {
+    return str(array_type->to_string(), "[..]");
 }
 
 // array_type
@@ -97,6 +142,54 @@ bool SageArrayType::is_function() {return false;}
 
 string SageArrayType::to_string() {
     return str(array_type->to_string(), "[", length, "]");
+}
+
+// reference_type
+SageReferenceType::SageReferenceType(SageType *base_type) {
+    pointer_type = TypeRegistery::get_pointer_type(base_type);
+
+    // references are "fat pointers" to an array
+    /*
+     *   reference :: struct {
+     *      array: void* // 8 bytes
+     *      window_size: int // 8 bytes
+     *   }
+     */
+    size = 16;
+    alignment = 16;
+}
+
+SageReferenceType::SageReferenceType(SageType *base_type, int size): window_size(size) {
+    pointer_type = TypeRegistery::get_pointer_type(base_type);
+}
+
+CanonicalType SageReferenceType::identify() {
+    return REFERENCE;
+}
+
+bool SageReferenceType::match(SageType *other_type) {
+    return other_type->identify() == REFERENCE && dynamic_cast<SageReferenceType *>(other_type)->pointer_type->match(pointer_type);
+}
+
+bool SageReferenceType::is_array() {
+    return true;
+}
+
+bool SageReferenceType::is_pointer() {
+    return true;
+}
+
+bool SageReferenceType::is_struct() {
+    return false;
+}
+
+bool SageReferenceType::is_function() {
+    return false;
+}
+
+string SageReferenceType::to_string() {
+    SagePointerType *pointer_type_casted = dynamic_cast<SagePointerType *>(pointer_type);
+    return str(pointer_type_casted->pointer_type->to_string(), "[]");
 }
 
 // function_type
@@ -371,6 +464,54 @@ SageType *TypeRegistery::get_array_type(SageType *element_type, int length) {
     auto type = std::make_unique<SageArrayType>(element_type, length);
     array_types[key] = std::move(type);
     return array_types[key].get();
+}
+
+SageType *TypeRegistery::get_dyn_array_type(SageType *element_type) {
+    auto key = std::make_pair(element_type, 0);
+    auto it = dyn_array_types.find(key);
+    if (it != dyn_array_types.end()) {
+        return it->second.get();
+    }
+
+    auto type = std::make_unique<SageDynamicArrayType>(element_type, 0);
+    dyn_array_types[key] = std::move(type);
+    return dyn_array_types[key].get();
+}
+
+SageType *TypeRegistery::get_dyn_array_type(SageType *element_type, int length) {
+    auto key = std::make_pair(element_type, length);
+    auto it = dyn_array_types.find(key);
+    if (it != dyn_array_types.end()) {
+        return it->second.get();
+    }
+
+    auto type = std::make_unique<SageDynamicArrayType>(element_type, length);
+    dyn_array_types[key] = std::move(type);
+    return dyn_array_types[key].get();
+}
+
+SageType *TypeRegistery::get_reference_type(SageType *base_type) {
+    auto key = std::make_pair(base_type, 0);
+    auto it = reference_types.find(key);
+    if (it != reference_types.end()) {
+        return it->second.get();
+    }
+
+    auto type = std::make_unique<SageArrayType>(base_type, 0);
+    reference_types[key] = std::move(type);
+    return reference_types[key].get();
+}
+
+SageType *TypeRegistery::get_reference_type(SageType *base_type, int size) {
+    auto key = std::make_pair(base_type, size);
+    auto it = reference_types.find(key);
+    if (it != reference_types.end()) {
+        return it->second.get();
+    }
+
+    auto type = std::make_unique<SageArrayType>(base_type, size);
+    reference_types[key] = std::move(type);
+    return reference_types[key].get();
 }
 
 SageType *TypeRegistery::get_struct_type(string name, std::vector<SageType *> member_types) {
