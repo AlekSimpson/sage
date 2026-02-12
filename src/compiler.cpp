@@ -311,19 +311,36 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                     new_variable_symbol = symbol_table.declare_variable(current_node, nullptr);
                 }
 
-                // if the right most child ast node is a run directive that means that this variable is going to be
-                // awaiting the compile time computed output of its child run directive
-                if (node_manager->get_nodetype(node_manager->get_right(current_node)) == PN_RUN_DIRECTIVE) {
-                    symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
-
-                    auto bodynode = node_manager->get_branch(current_node);
-                    for (auto child: node_manager->get_children(bodynode)) {
-                        fringe.push(child);
+                if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
+                    auto declaration_type_node = node_manager->get_right(current_node);
+                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
+                        string type_identifier = node_manager->get_identifier(declaration_type_node);
+                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find('*') != std::string::npos;
+                        continue;
                     }
-                    continue;
-                }
 
-                fringe.push(node_manager->get_right(current_node));
+                    fringe.push(declaration_type_node);
+                }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
+                    auto declaration_type_node = node_manager->get_middle(current_node);
+                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
+                        string type_identifier = node_manager->get_identifier(declaration_type_node);
+                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find('*') != std::string::npos;
+                    }
+
+                    // if the right most child ast node is a run directive that means that this variable is going to be
+                    // awaiting the compile time computed output of its child run directive
+                    if (node_manager->get_nodetype(node_manager->get_right(current_node)) == PN_RUN_DIRECTIVE) {
+                        symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
+
+                        auto bodynode = node_manager->get_branch(current_node);
+                        for (auto child: node_manager->get_children(bodynode)) {
+                            fringe.push(child);
+                        }
+                        continue;
+                    }
+
+                    fringe.push(node_manager->get_right(current_node));
+                }
                 continue;
             }
             case PN_FOR:
@@ -345,41 +362,47 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 }
                 continue;
             }
-            case PN_BLOCK: {
-                for (auto child: node_manager->get_children(current_node)) {
-                    fringe.push(child);
-                }
-                continue;
-            }
-            case PN_TRINARY:
-            case PN_BINARY: {
-                fringe.push(node_manager->get_right(current_node));
-                continue;
-            }
-            case PN_UNARY: {
-                auto branch = node_manager->get_branch(current_node);
-                if (branch == NULL_INDEX) continue;
+            //case PN_BLOCK: {
+            //    for (auto child: node_manager->get_children(current_node)) {
+            //        fringe.push(child);
+            //    }
+            //    continue;
+            //}
+            //case PN_TRINARY:
+            //case PN_BINARY: {
+            //    fringe.push(node_manager->get_right(current_node));
+            //    continue;
+            //}
+            //case PN_UNARY: {
+            //    auto branch = node_manager->get_branch(current_node);
+            //    if (branch == NULL_INDEX) continue;
 
-                auto unary_nodetype = node_manager->get_nodetype(current_node);
-                if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
-                    fringe.push(node_manager->get_branch(current_node));
-                    continue;
-                }
+            //    auto unary_nodetype = node_manager->get_nodetype(current_node);
+            //    if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
+            //        fringe.push(node_manager->get_branch(current_node));
+            //        continue;
+            //    }
 
-                if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
-                    Token token = node_manager->get_token(branch);
-                    logger.log_error_unsafe(
-                        token,
-                        "Cannot use pointer operator on temporary value.",
-                        GENERAL);
-                    continue;
-                }
+            //    if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
+            //        Token token = node_manager->get_token(branch);
+            //        logger.log_error_unsafe(
+            //            token,
+            //            "Cannot use pointer operator on temporary value.",
+            //            GENERAL);
+            //        continue;
+            //    }
 
-                //symbol_table.must_be_spilled.insert();
+            //    auto variable_reference_identifier = node_manager->get_identifier(branch);
+            //    auto scope_id = node_manager->get_scope_id(branch);
+            //    auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
+            //    if (search_entry != nullptr) {
+            //        search_entry->spilled = true;
+            //    }else {
+            //        symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
+            //    }
 
-                fringe.push(node_manager->get_branch(current_node));
-                continue;
-            }
+            //    continue;
+            //}
             case PN_FUNCCALL: {
                 fringe.push(node_manager->get_branch(current_node));
                 continue;
@@ -428,8 +451,54 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 
                 continue;
             }
-            default:
+            default: {
+                switch (node_manager->get_host_nodetype(current_node)) {
+                    case PN_BLOCK: {
+                        for (auto child: node_manager->get_children(current_node)) {
+                            fringe.push(child);
+                        }
+                        break;
+                    }
+                    case PN_TRINARY:
+                    case PN_BINARY: {
+                        fringe.push(node_manager->get_right(current_node));
+                        break;
+                    }
+                    case PN_UNARY: {
+                        auto branch = node_manager->get_branch(current_node);
+                        if (branch == NULL_INDEX) continue;
+
+                        auto unary_nodetype = node_manager->get_nodetype(current_node);
+                        if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
+                            fringe.push(node_manager->get_branch(current_node));
+                            continue;
+                        }
+
+                        if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
+                            Token token = node_manager->get_token(branch);
+                            logger.log_error_unsafe(
+                                token,
+                                "Cannot use pointer operator on temporary value.",
+                                GENERAL);
+                            continue;
+                        }
+
+                        auto variable_reference_identifier = node_manager->get_identifier(branch);
+                        auto scope_id = node_manager->get_scope_id(branch);
+                        auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
+                        if (search_entry != nullptr) {
+                            search_entry->spilled = true;
+                        }else {
+                            symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
+                        }
+
+                        continue;
+                    }
+                    default:
+                        break;
+                }
                 continue;
+            }
         }
     }
 
@@ -524,20 +593,20 @@ void SageCompiler::register_allocation() {
         if (current_scope != entry.scope_id) {
             current_relative_stack_location = 0;
             current_scope = entry.scope_id;
+
+            for (auto symbol: working_symbols) {
+                working_symbol_entry = symbol_table.lookup(symbol, current_scope);
+                if (working_symbol_entry == nullptr) continue;
+
+                working_symbols.erase(symbol);
+                available_registers.insert(working_symbol_entry->assigned_register);
+            }
         }
 
-        if (entry.type->identify() == FLOAT || entry.type->is_pointer()) {
+        if (entry.spilled || entry.type->identify() == FLOAT || entry.type->is_pointer()) {
             symbol_table.entries.get(idx).spill(current_relative_stack_location);
             current_relative_stack_location += entry.type->size;
             continue;
-        }
-
-        for (auto symbol: working_symbols) {
-            working_symbol_entry = symbol_table.lookup(symbol, current_scope);
-            if (working_symbol_entry == nullptr) continue;
-
-            working_symbols.erase(symbol);
-            available_registers.insert(working_symbol_entry->assigned_register);
         }
 
         if (available_registers.empty()) {
@@ -632,19 +701,13 @@ void SageCompiler::resolve_definition_order(int target_scope) {
     vector<NodeIndex> result_order;
     stack<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
-    int sum_of_in_degrees = 0;
     for (const auto &[identifier, in_degree]: in_degree_map) {
         auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
         identifier_to_ast[identifier] = ast_id;
-        sum_of_in_degrees += in_degree;
 
         if (in_degree != 0) { continue; }
         fringe.push(identifier);
     }
-
-    //if (sum_of_in_degrees == 0) {
-    //    return;
-    //}
 
     string current;
     set<string> visited;

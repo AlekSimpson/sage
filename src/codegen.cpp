@@ -100,11 +100,9 @@ VisitorResult SageCompiler::visit_keyword(NodeIndex node) {
 }
 
 VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
-    // NOTE: in the future to support heap memory reassignment we should maybe have something in the symbol table that indicates whether a value lives on the heap or not
-    // so that we can inform this code section with what IR generation to use
-
     NodeIndex LHS = node_manager->get_left(node);
-    if (node_manager->get_nodetype(LHS) != PN_FIELD_ACCESS && node_manager->get_nodetype(LHS) != PN_IDENTIFIER) {
+    auto lhs_nodetype = node_manager->get_nodetype(LHS);
+    if (lhs_nodetype != PN_FIELD_ACCESS && lhs_nodetype != PN_IDENTIFIER && lhs_nodetype != PN_VAR_REF) {
         Token token = node_manager->get_token(node);
         logger.log_error_unsafe(token, sen("Can only assign values to structure members or to variables."), SYNTAX);
     }

@@ -216,6 +216,10 @@ table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetyp
     entry.definition_ast_index = ast_id;
     entry.symbol_id = new_index;
 
+    if (identifiers_that_must_be_spilled.find(name) != identifiers_that_must_be_spilled.end()) {
+        entry.spilled = true;
+    }
+
     scope_symbol_map[{scope_id, name}] = new_index;
     scope_manager->register_symbol_in_scope(scope_id, new_index);
 
@@ -262,6 +266,10 @@ table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuet
     entry.definition_ast_index = ast_id;
     entry.symbol_id = new_index;
 
+    if (identifiers_that_must_be_spilled.find(name) != identifiers_that_must_be_spilled.end()) {
+        entry.spilled = true;
+    }
+
     variables.insert(new_index);
     scope_symbol_map[{scope_id, name}] = new_index;
     scope_manager->register_symbol_in_scope(scope_id, new_index);
@@ -276,8 +284,6 @@ table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *value
     auto symbol_check = lookup(name, scope_id);
     if (symbol_check != nullptr) return symbol_check->symbol_id;
 
-    // TODO: handle auto function spilling when there are more than 6 parameters
-
     table_index new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
     entry.type = valuetype;
@@ -286,6 +292,12 @@ table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *value
     entry.assigned_register = parameter_register_assignment;
     entry.definition_ast_index = ast_id;
     entry.symbol_id = new_index;
+
+    // TODO: handle auto function spilling when there are more than 6 parameters
+
+    if (identifiers_that_must_be_spilled.find(name) != identifiers_that_must_be_spilled.end()) {
+        entry.spilled = true;
+    }
 
     parameters.insert(new_index);
     scope_symbol_map[{scope_id, name}] = new_index;
@@ -478,6 +490,8 @@ SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
 
     auto scope_id = entry.scope_id;
     auto identifier = nm->get_identifier(type_ast_id);
+
+
     return resolve_type_identifier(identifier, scope_id);
 }
 

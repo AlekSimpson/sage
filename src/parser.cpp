@@ -791,7 +791,7 @@ NodeIndex SageParser::parse_expression() {
 
         return parse_operator(first_primary, TT_EQUALITY);
     }
-    return parse_operator(parse_postfix_operator(), TT_EQUALITY);
+    return parse_operator(parse_unary_operator(), TT_EQUALITY);
 }
 
 bool is_operator(Token op) {

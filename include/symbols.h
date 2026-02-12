@@ -99,6 +99,7 @@ public:
     NodeManager *nm;
     ScopeManager *scope_manager;
     stack<FunctionVisit *> function_visitor_state;
+    set<string> identifiers_that_must_be_spilled;
     set<table_index> builtins;
     set<table_index> variables;
     set<table_index> structs;
@@ -108,7 +109,6 @@ public:
     set<table_index> literals; // used for strings and big literal values
     set<table_index> comptime_values;
     set<table_index> types;
-    //set<table_index> must_be_spilled;
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, table_index> scope_symbol_map;
