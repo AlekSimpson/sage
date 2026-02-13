@@ -13,12 +13,12 @@ public:
   SageLexer *lexer;
   Token *current_token;
   NodeIndex node_cache;
-  vector<Token> errors; // TODO: integrate this with error logger
   string sourcename;
   NodeManager *node_manager;
   ScopeManager *scope_manager;
   int symbol_count;
-
+  stack<string> function_parsing_tracker;
+  map<string, int> function_to_max_return_count;
   bool fragment_mode = false;
   int insertion_scope_id = 0;
 
@@ -57,7 +57,6 @@ private:
   NodeIndex parse_unary_operator();
   NodeIndex parse_postfix_operator();
   NodeIndex parse_primary();
-  //NodeIndex parse_struct_field_access();
 
   // util methods
   bool match_types(TokenType type_a, TokenType type_b);

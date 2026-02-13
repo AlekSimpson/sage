@@ -25,7 +25,6 @@ SageParser::SageParser(ScopeManager *scope_manager, NodeManager *node_manager) {
     this->node_manager = node_manager;
     current_token = nullptr;
     node_cache = NULL_INDEX;
-    errors = vector<Token>();
     symbol_count = 0;
 }
 
@@ -39,7 +38,6 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
     istringstream charbuffer(source);
     this->sourcename = fragment_name;
     symbol_count = 0;
-    errors = vector<Token>();
     fragment_mode = true;
     lexer = new SageLexer(&charbuffer, sourcename);
 
@@ -59,14 +57,6 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
 
     NodeIndex program_root = parse_statements();
 
-    if (errors.size() != 0) {
-        for (Token err: errors) {
-            printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
-        }
-
-        return NULL_INDEX;
-    }
-
     // Global scope doesn't need to be exited
 
     return program_root;
@@ -76,7 +66,6 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
     ifstream charbuffer(filename);
     this->sourcename = filename;
     symbol_count = 0;
-    errors = vector<Token>();
     fragment_mode = false;
     lexer = new SageLexer(&charbuffer, filename);
     advance();
@@ -97,14 +86,6 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 
     NodeIndex program_root = parse_statements();
 
-    if (errors.size() != 0) {
-        for (Token err: errors) {
-            printf("[%s:%d] %s", err.filename.c_str(), err.linenum, err.lexeme.c_str());
-        }
-
-        return NULL_INDEX;
-    }
-
     // Global scope doesn't need to be exited
 
     return program_root;
@@ -113,7 +94,7 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 NodeIndex SageParser::parse_statements() {
     NodeIndex list_node = node_manager->create_block();
 
-    while (errors.empty()) {
+    while (!ErrorLogger::get().has_errors()) {
         while (match_types(current_token->token_type, TT_NEWLINE)) {
             advance();
         }
@@ -325,6 +306,7 @@ NodeIndex SageParser::parse_keyword_statement() {
 
     switch (lexeme_map[current_token->lexeme]) {
         case 1: {
+            function_to_max_return_count[function_parsing_tracker.top()]++;
             return_token.fill_with(*current_token);
             auto lookahead = peek();
             if (match_types(lookahead.token_type, TT_NEWLINE)) {
@@ -519,7 +501,12 @@ NodeIndex SageParser::parse_construct() {
 
         case TT_LPAREN:
             // its a function
+            if (function_to_max_return_count.find(name_identifier_token.lexeme) == function_to_max_return_count.end()) {
+                function_to_max_return_count[name_identifier_token.lexeme] = 0;
+            }
+            function_parsing_tracker.push(name_identifier_token.lexeme);
             binding_node = parse_function();
+            function_parsing_tracker.pop();
             nodetype = PN_FUNCDEF;
             break;
 

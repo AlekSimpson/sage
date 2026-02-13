@@ -215,7 +215,6 @@ public:
     SageValue(float);
     SageValue(char);
     SageValue(bool);
-    SageValue(uint64_t register_value);
     ~SageValue();
 
     int load();

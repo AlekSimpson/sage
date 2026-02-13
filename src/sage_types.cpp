@@ -1,7 +1,5 @@
 #include "../include/sage_types.h"
-#include "../include/registers.h"
 #include <error_logger.h>
-#include <cstdint>
 
 // builtin_type
 SageBuiltinType::SageBuiltinType(CanonicalType type, int size, int alignment) {
@@ -324,12 +322,6 @@ SageValue::SageValue(float _value) : valuetype(TypeRegistery::get_float_type(8))
 }
 
 // Constructor from register
-SageValue::SageValue(ui64 register_value) {
-    nullvalue = false;
-    value.int_value = unpack_int(register_value);
-    valuetype = TypeRegistery::get_integer_type(4);
-}
-
 SageValue::SageValue() {
 }
 

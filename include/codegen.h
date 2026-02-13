@@ -61,47 +61,56 @@ bool check_filename_valid(const string &filename);
 
 class SageCompiler;
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_INT_REGISTER, TEMP_FLOAT_REGISTER, LIST };
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_REGISTER, LIST };
+
+using TR = TypeRegistery;
 
 struct VisitorResult {
+  SageType *result_type;
   SageValue immediate_value = SageValue();
   vector<VisitorResult> list_results;
-  int temporary_int_register = -1;
-  int temporary_float_register = -1;
+  int temporary_result_register = -1;
   table_index symbol_table_index = SAGE_NULL_SYMBOL;
   VisitorResultState state = VisitorResultState::VALUE;
 
-  VisitorResult() {};
-  VisitorResult(int value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {}
+  VisitorResult(): result_type(TR::get_byte_type(VOID)) {};
+  VisitorResult(int value, SageType *type, bool is_temporary_register=false) {
+    if (is_temporary_register) {
+      temporary_result_register = value;
+      state = VisitorResultState::TEMP_REGISTER;
+    }else {
+      immediate_value = SageValue(value);
+      state = VisitorResultState::IMMEDIATE;
+    }
+    result_type = type;
+  }
+  VisitorResult(int value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
+    result_type = TR::get_integer_type(8);
+  }
+  VisitorResult(float value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
+    result_type = TR::get_float_type(8);
+  }
   VisitorResult(SageSymbolTable &table, table_index symbol_index) : symbol_table_index(symbol_index) {
-    if (table.lookup_by_index(symbol_index)->spilled) {
+    auto search = table.lookup_by_index(symbol_index);
+    if (search->spilled) {
       state = VisitorResultState::SPILLED;
     }else if (table.lookup_by_index(symbol_index)->assigned_register != -1) {
       state = VisitorResultState::REGISTER;
     }else {
       state = VisitorResultState::VALUE;
     }
-  }
-  VisitorResult(int temp_register, bool is_float) {
-    if (is_float) {
-      temporary_float_register = temp_register;
-      state = VisitorResultState::TEMP_FLOAT_REGISTER;
-    }else {
-      temporary_int_register = temp_register;
-      state = VisitorResultState::TEMP_INT_REGISTER;
-    }
+    result_type = search->type;
   }
 
   void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
   void to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode = _00);
   pair<int, bool> materialize_register(SageCompiler &compiler);
 
-  bool is_temporary() { return temporary_int_register != -1 || temporary_float_register != -1; }
-  bool is_immediate() { return !immediate_value.is_null(); }
+  bool is_temporary() { return temporary_result_register != -1; }
+  bool is_immediate_float() { return !immediate_value.is_null() && immediate_value.valuetype->identify() == FLOAT; }
+  bool is_immediate_int() { return !immediate_value.is_null() && immediate_value.valuetype->identify() == INT; }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
 };
-
-using TR = TypeRegistery;
 
 // TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
@@ -124,9 +133,7 @@ public:
 
   CodegenMode codegen_mode;
   const int VOLATILE_REGISTER_SIZE = 10;
-  const int VOLATILE_FLOAT_REGISTER_SIZE = 29;
   int volatile_index = 0;
-  int volatile_float_index = 0;
 
   SageCompiler(CompilerOptions options);
   ~SageCompiler();
@@ -136,7 +143,6 @@ public:
   bool generating_compile_time_bytecode();
   void register_allocation();
   int get_volatile_register();
-  int get_volatile_float_register();
   void scan_all_program_symbols(NodeIndex root);
   void perform_type_resolution();
   void forward_declaration_resolution(int program_root);
@@ -157,7 +163,7 @@ public:
   VisitorResult build_and(VisitorResult, VisitorResult);
   VisitorResult build_or(VisitorResult, VisitorResult);
   VisitorResult build_load(NodeIndex);
-  VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode, bool is_float_operation);
+  VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode);
 
   /* visitors */
   VisitorResult visit(NodeIndex);

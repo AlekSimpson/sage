@@ -1,7 +1,7 @@
 
 
 
-byte: i8 = 0
+byte: i8 = 7
 int32_value: i32 = 9
 int64_value: i64 = 23000
 

@@ -193,6 +193,13 @@ string Command::print(const map<int, string> *label_names) {
             string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
+        case OP_MEMCPY: {
+            string operand_string_1 = "8";
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[0])) : to_string(operands[0]);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            // TODO: string operand_string_3 = to_string(operands[3]);
+            return sen("memcpy", operand_string_1, operand_string_2, operand_string_3);
+        }
         default:
             return sen("Unknown bytecode", instruction.opcode);
     }

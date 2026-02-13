@@ -206,7 +206,6 @@ void SageCompiler::compile_file(string mainfile) {
         if (logger.has_errors()) {
             logger.report_errors();
         }
-        printf("compilation successful.\n");
         return;
     }
 
@@ -239,13 +238,6 @@ void SageCompiler::compile_file(string mainfile) {
     if (logger.has_errors()) {
         logger.report_errors();
     }
-    printf("compilation successful.\n");
-}
-
-std::array<uint8_t, sizeof(double)> double_to_bytes(double value) {
-    std::array<uint8_t, sizeof(double)> bytes;
-    std::memcpy(bytes.data(), &value, sizeof(double));
-    return bytes;
 }
 
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
@@ -281,6 +273,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 symbol_table.functions.insert(table_idx);
                 string identifier = node_manager->get_identifier(current_node);
 
+                symbol_table.entries.get_pointer(table_idx)->function_info.max_return_count = parser.
+                        function_to_max_return_count[identifier];
+
                 auto signature_trinary = node_manager->get_right(current_node);
 
                 auto paramnode = node_manager->get_left(signature_trinary);
@@ -313,18 +308,22 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
 
                 if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
                     auto declaration_type_node = node_manager->get_right(current_node);
-                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
+                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) ==
+                        PN_TYPE) {
                         string type_identifier = node_manager->get_identifier(declaration_type_node);
-                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find('*') != std::string::npos;
+                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled =
+                                type_identifier.find('*') != std::string::npos;
                         continue;
                     }
 
                     fringe.push(declaration_type_node);
-                }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
+                } else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
                     auto declaration_type_node = node_manager->get_middle(current_node);
-                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
+                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) ==
+                        PN_TYPE) {
                         string type_identifier = node_manager->get_identifier(declaration_type_node);
-                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find('*') != std::string::npos;
+                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled =
+                                type_identifier.find('*') != std::string::npos;
                     }
 
                     // if the right most child ast node is a run directive that means that this variable is going to be
@@ -362,47 +361,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 }
                 continue;
             }
-            //case PN_BLOCK: {
-            //    for (auto child: node_manager->get_children(current_node)) {
-            //        fringe.push(child);
-            //    }
-            //    continue;
-            //}
-            //case PN_TRINARY:
-            //case PN_BINARY: {
-            //    fringe.push(node_manager->get_right(current_node));
-            //    continue;
-            //}
-            //case PN_UNARY: {
-            //    auto branch = node_manager->get_branch(current_node);
-            //    if (branch == NULL_INDEX) continue;
-
-            //    auto unary_nodetype = node_manager->get_nodetype(current_node);
-            //    if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
-            //        fringe.push(node_manager->get_branch(current_node));
-            //        continue;
-            //    }
-
-            //    if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
-            //        Token token = node_manager->get_token(branch);
-            //        logger.log_error_unsafe(
-            //            token,
-            //            "Cannot use pointer operator on temporary value.",
-            //            GENERAL);
-            //        continue;
-            //    }
-
-            //    auto variable_reference_identifier = node_manager->get_identifier(branch);
-            //    auto scope_id = node_manager->get_scope_id(branch);
-            //    auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
-            //    if (search_entry != nullptr) {
-            //        search_entry->spilled = true;
-            //    }else {
-            //        symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
-            //    }
-
-            //    continue;
-            //}
             case PN_FUNCCALL: {
                 fringe.push(node_manager->get_branch(current_node));
                 continue;
@@ -431,23 +389,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 for (int i = 0; i < (int) node_lexeme.size(); ++i) {
                     static_program_memory[index].push_back(static_cast<uint8_t>(node_lexeme[i]));
                 }
-
-                continue;
-            }
-            case PN_FLOAT: {
-                auto *float_type = TypeRegistery::get_builtin_type(FLOAT, 8);
-                auto index = symbol_table.declare_literal(current_node, SageValue());
-                //symbol_table.declare_literal(current_node, SageValue());
-                symbol_table.entries.get_pointer(index)->type = float_type;
-
-                string node_lexeme = node_manager->get_lexeme(current_node);
-                double raw_float_value = stof(node_lexeme);
-                auto bytes = double_to_bytes(raw_float_value);
-
-                static_program_memory_insertion_order.push_back(index);
-                static_program_memory[index] = vector<uint8_t>();
-                static_program_memory[index].reserve(8);
-                static_program_memory[index].insert(static_program_memory[index].begin(), bytes.begin(), bytes.end());
 
                 continue;
             }
@@ -488,7 +429,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                         auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
                         if (search_entry != nullptr) {
                             search_entry->spilled = true;
-                        }else {
+                        } else {
                             symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
                         }
 
@@ -603,7 +544,7 @@ void SageCompiler::register_allocation() {
             }
         }
 
-        if (entry.spilled || entry.type->identify() == FLOAT || entry.type->is_pointer()) {
+        if (entry.spilled || entry.type->size > 8 || entry.type->is_pointer()) {
             symbol_table.entries.get(idx).spill(current_relative_stack_location);
             current_relative_stack_location += entry.type->size;
             continue;
@@ -626,12 +567,6 @@ void SageCompiler::register_allocation() {
 int SageCompiler::get_volatile_register() {
     int _register = 10 + (volatile_index % VOLATILE_REGISTER_SIZE);
     volatile_index++;
-    return _register;
-}
-
-int SageCompiler::get_volatile_float_register() {
-    int _register = 70 + (volatile_float_index % VOLATILE_FLOAT_REGISTER_SIZE);
-    volatile_float_index++;
     return _register;
 }
 

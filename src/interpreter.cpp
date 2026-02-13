@@ -3,9 +3,9 @@
 
 #include <bytecode_builder.h>
 #include <codegen.h>
+#include <cstring>
 
 #include "../include/sage_types.h"
-#include "../include/registers.h"
 #include "../include/error_logger.h"
 
 
@@ -55,14 +55,14 @@ size_t SageInterpreter::allocate_on_heap(size_t bytes) {
 
 size_t SageInterpreter::allocate_on_stack(size_t bytes) {
     size_t start_address = stack_pointer();
-    set_register(STACK_POINTER, start_address - bytes);
+    registers[STACK_POINTER] = start_address - bytes;
     return start_address;
 }
 
 void SageInterpreter::push_stack_scope(int func_id) {
     // make new current stack frame
     int program_return_address = program_pointer + 1;
-    set_register(STACK_POINTER, stack_pointer() - 1);
+    registers[STACK_POINTER] = stack_pointer() - 1;
     int start_stack_address = stack_pointer();
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer,
@@ -73,81 +73,77 @@ void SageInterpreter::push_stack_scope(int func_id) {
 }
 
 void SageInterpreter::pop_stack_scope() {
-    set_register(STACK_POINTER, frame_pointer->stack_pointer + 1);
+    registers[STACK_POINTER] = frame_pointer->stack_pointer + 1;
     StackFrame *previous = frame_pointer->previous_frame;
     delete frame_pointer;
     frame_pointer = previous;
 }
 
 inline int SageInterpreter::stack_pointer() {
-    return unpack_int(registers[STACK_POINTER]);
-}
-
-int SageInterpreter::read_register(int _register) {
-    return unpack_int(registers[_register]);
+    return registers[STACK_POINTER];
 }
 
 SageValue SageInterpreter::get_return_value() const {
     // TODO: float return? other return types? function / type returns?
-    return unpack_int(registers[6]);
+    return SageValue((int)registers[6]);
 }
 
 void SageInterpreter::load_program(bytecode _program) {
     program = _program;
 }
 
-void SageInterpreter::set_register(int _register, int value) {
-    registers[_register] = pack_int(value);
+double SageInterpreter::read_float_register(int reg) {
+    double return_value;
+    std::memcpy(&return_value, &registers[reg], sizeof(double));
+    return return_value;
 }
 
-void SageInterpreter::set_float_register(int _register, double value) {
-    floating_point_registers[_register] = value;
+void SageInterpreter::set_float_register(int reg, double value) {
+    std::memcpy(&registers[reg], &value, sizeof(double));
 }
 
 inline void SageInterpreter::execute_add(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_ADD reg, op, op
-    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
-    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
-    set_register(operands[0], operand1 + operand2);
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 + operand2;
 }
 
-inline void SageInterpreter::execute_float_add(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_add(std::array<int, 3> &operands) {
     // _xx | OP_FADD reg, op, op
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
-    floating_point_registers[operands[0]] = operand1 + operand2;
+    double operand1 = read_float_register(operands[1]);
+    double operand2 = read_float_register(operands[2]);
+    set_float_register(operands[0], operand1 + operand2);
 }
 
 inline void SageInterpreter::execute_sub(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_SUB reg, op, op
-    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
-    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
-    set_register(operands[0], operand1 - operand2);
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 - operand2;
 }
 
-inline void SageInterpreter::execute_float_sub(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_sub(std::array<int, 3> &operands) {
     // _xx | OP_FSUB reg, op, op
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
-    floating_point_registers[operands[0]] = operand1 - operand2;
+    double operand1 = read_float_register(operands[1]);
+    double operand2 = read_float_register(operands[2]);
+    set_float_register(operands[0], operand1 - operand2);
 }
 
 inline void SageInterpreter::execute_mul(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_MUL reg, op, op
 
-    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
-    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
-
-    set_register(operands[0], operand1 * operand2);
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 * operand2;
 }
 
-inline void SageInterpreter::execute_float_mul(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_mul(std::array<int, 3> &operands) {
     // _xx | OP_FMUL reg, op, op
 
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
-
-    floating_point_registers[operands[0]] = operand1 * operand2;
+    double operand1 = read_float_register(operands[1]);
+    double operand2 = read_float_register(operands[2]);
+    set_float_register(operands[0], operand1 * operand2);
 }
 
 inline void SageInterpreter::execute_div(std::array<int, 3> &operands, AddressMode &mode) {
@@ -160,12 +156,12 @@ inline void SageInterpreter::execute_div(std::array<int, 3> &operands, AddressMo
         return;
     }
 
-    int operand1 = mode[0] == 1 ? read_register(operands[1]) : operands[1];
-    int operand2 = mode[1] == 1 ? read_register(operands[2]) : operands[2];
-    set_register(operands[0], operand1 / operand2);
+    int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[operands[0]] = operand1 / operand2;
 }
 
-inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands) {
     // _xx | OP_FDIV reg, op, op
     if (operands[2] == 0) {
         ErrorLogger::get().log_internal_error_safe(
@@ -175,57 +171,74 @@ inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands, Add
         return;
     }
 
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[2]] : operands[2];
-    floating_point_registers[operands[0]] = operand1 / operand2;
+    double operand1 = read_float_register(operands[1]);
+    double operand2 = read_float_register(operands[2]);
+    set_float_register(operands[0], operand1 / operand2);
 }
 
 inline void SageInterpreter::execute_load(std::array<int, 3> &operands) {
     // _00 | load reg, ($fp - offset)
     int load_address = frame_pointer->stack_pointer - operands[1];
-    set_register(operands[0], memory[load_address]);
+    registers[operands[0]] = memory[load_address];
 }
 
 inline void SageInterpreter::execute_float_load(std::array<int, 3> &operands) {
     // _00 | fload reg, ($fp - offset)
     int load_address = frame_pointer->stack_pointer - operands[1];
-    floating_point_registers[operands[0]] = memory[load_address];
+    array<uint8_t, 8> stack_memory;
+    for (int i = 0; i < 8; ++i) {
+        stack_memory[i] = memory[load_address + i];
+    }
+    double float_stack_value;
+    std::memcpy(&float_stack_value, stack_memory.data(), sizeof(double));
+    set_float_register(operands[0], float_stack_value);
 }
 
 inline void SageInterpreter::execute_store(std::array<int, 3> &operands, AddressMode &mode) {
     // _0x | store ($fp - offset), op
-    int offset = mode[0] == 1 ? read_register(operands[0]) : operands[0];
+    int offset = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int store_address = frame_pointer->stack_pointer - offset;
-    int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    memory[store_address] = operand1;
+    int64_t operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    std::array<uint8_t, 8> int_bytes;
+    memcpy(int_bytes.data(), &operand1, sizeof(int64_t));
+    for (int address = store_address; address < address-8; --address) {
+        memory[address] = int_bytes[address];
+    }
 }
 
-inline void SageInterpreter::execute_float_store(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_store(std::array<int, 3> &operands) {
     // _0x | fstore ($fp - offset), op
     int offset = operands[0];
     int store_address = frame_pointer->stack_pointer - offset;
-    int operand1 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    memory[store_address] = operand1;
+    double operand1 = read_float_register(operands[1]);
+    std::array<uint8_t, 8> float_bytes;
+    memcpy(float_bytes.data(), &operand1, sizeof(double));
+    for (int address = store_address; address < address-8; --address) {
+        memory[address] = float_bytes[address];
+    }
 }
 
 void SageInterpreter::execute_stack_allocate(int bytes) {
     // _00 | alloc size    | size in bytes
-    set_register(STACK_POINTER, stack_pointer() - bytes);
+    registers[STACK_POINTER] = stack_pointer() - bytes;
 }
 
 inline void SageInterpreter::execute_move(std::array<int, 3> &operands, AddressMode &mode) {
     // _0x | mov reg, op
-    set_register(operands[0], mode[1] == 1 ? read_register(operands[1]) : operands[1]);
+    registers[operands[0]] = mode[1] == 1 ? registers[operands[1]] : operands[1];
 }
 
 inline void SageInterpreter::execute_int_to_float_move(std::array<int, 3> &operands) {
     // _01 | itfmov freg, ireg
-    set_float_register(operands[0], (double)read_register(operands[1]));
+    set_float_register(operands[0], (double)registers[operands[1]]);
 }
 
 inline void SageInterpreter::execute_float_move(std::array<int, 3> &operands, AddressMode &mode) {
     // _0x | fmov reg, op
-    set_float_register(operands[0], mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1]);
+    double default_value;
+    std::memcpy(&default_value, &operands[1], sizeof(double));
+    double value = mode[1] == 1 ? read_float_register(operands[1]) : default_value;
+    set_float_register(operands[0], value);
 }
 
 inline void SageInterpreter::execute_call(std::array<int, 3> &operands) {
@@ -246,69 +259,91 @@ inline void SageInterpreter::execute_return() {
 
 inline void SageInterpreter::execute_equality_comparison(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_EQ op, op
-    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
-    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
-    set_register(21, operand0 == operand1);
+    int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    registers[21] = operand0 == operand1;
 }
 
 inline void SageInterpreter::execute_less_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_LT op, op
-    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
-    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
-    set_register(21, operand0 < operand1);
+    int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    registers[21] = operand0 < operand1;
 }
 
 inline void SageInterpreter::execute_greater_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | gt op, op
-    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
-    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
-    set_register(21, operand0 > operand1);
+    int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    registers[21] = operand0 > operand1;
 }
 
 inline void SageInterpreter::execute_and(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_AND op, op
-    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
-    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
-    set_register(21, operand0 == 1 && operand1 == 0);
+    int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    registers[21] = operand0 == 1 && operand1 == 0;
 }
 
 inline void SageInterpreter::execute_or(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | OP_OR op, op
-    int operand0 = mode[0] == 1 ? read_register(operands[0]) : operands[0];
-    int operand1 = mode[1] == 1 ? read_register(operands[1]) : operands[1];
-    set_register(21, operand0 == 1 || operand1 == 1);
+    int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    registers[21] = operand0 == 1 || operand1 == 1;
 }
 
 inline void SageInterpreter::execute_not(std::array<int, 3> &operands) {
     // _00 | OP_NOT reg
-    set_register(21, !read_register(operands[0]));
+    registers[21] = !operands[0];
 }
 
 inline void SageInterpreter::execute_float_equality_comparison(std::array<int, 3> &operands, AddressMode &mode) {
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    set_register(21, operand1 == operand2);
+    int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
+    int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
+    registers[21] = operand1 == operand2;
 }
 
 inline void SageInterpreter::execute_float_less_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    set_register(21, operand1 < operand2);
+    int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
+    int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
+    registers[21] = operand1 < operand2;
 }
 
 inline void SageInterpreter::execute_float_greater_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
-    int operand1 = mode[0] == 1 ? floating_point_registers[operands[0]] : operands[0];
-    int operand2 = mode[1] == 1 ? floating_point_registers[operands[1]] : operands[1];
-    set_register(21, operand1 > operand2);
+    int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
+    int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
+    registers[21] = operand1 > operand2;
+}
+
+void SageInterpreter::execute_pointer_reference(std::array<int, 3> &operands) {
+    int destination_register = operands[0];
+
+}
+
+void SageInterpreter::execute_pointer_dereference(std::array<int, 3> &operands) {
+
+}
+
+void SageInterpreter::execute_mem_copy(std::array<int, 3> &operands, AddressMode &mode) {
+    //int destination_offset = mode[0] == 1 ? registers[operands[0]] : operands[0];
+    //int source_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    //int byte_amount = 8; // TODO: fix mem_cpy calls to include byte amount parameter
+
+    //int destination_pointer = frame_pointer->stack_pointer - destination_offset;
+    //int source_pointer = frame_pointer->stack_pointer - source_offset;
+
+    //for (int i = 0; i < byte_amount; --i) {
+    //    memory[destination_pointer + i] = memory[source_pointer + i];
+    //}
 }
 
 inline void SageInterpreter::execute_system_call() {
-    SVM_SYSCALL callcode = (SVM_SYSCALL)read_register(22);
+    SVM_SYSCALL callcode = (SVM_SYSCALL)registers[22];
 
     switch (callcode) {
         case SYS_WRITE: {
-            int static_pointer = read_register(1);
-            int character_count = read_register(2);
+            int static_pointer = registers[1];
+            int character_count = registers[2];
             string characters;
             for (int i = 0; i < character_count; i++) {
                 characters += (char)memory[static_pointer];
@@ -316,17 +351,17 @@ inline void SageInterpreter::execute_system_call() {
             }
             const char *buffer = characters.c_str();
             sage_write(
-                read_register(0),
+                registers[0],
                 buffer,
                 character_count);
             break;
         }
         case SYS_WRITE_INT: {
-            string text = to_string(read_register(1));
+            string text = to_string(registers[1]);
             sage_write(
-                read_register(0),
+                registers[0],
                 text.c_str(),
-                read_register(2));
+                registers[2]);
             break;
         }
         default:
@@ -338,7 +373,6 @@ void SageInterpreter::execute() {
     if (frame_pointer == nullptr) return;
 
     program_pointer = proc_line_locations[get_procedure_frame_id("GLOBAL")];
-    registers[STACK_POINTER] = 0;
 
     Command current_command;
     vm_running = true;
@@ -355,16 +389,16 @@ void SageInterpreter::execute() {
         auto &operands = current_command.instruction.operands;
         switch (current_command.instruction.opcode) {
             case OP_FADD:
-                execute_float_add(operands, current_command.address_mode);
+                execute_float_add(operands);
                 break;
             case OP_FSUB:
-                execute_float_sub(operands, current_command.address_mode);
+                execute_float_sub(operands);
                 break;
             case OP_FMUL:
-                execute_float_mul(operands, current_command.address_mode);
+                execute_float_mul(operands);
                 break;
             case OP_FDIV:
-                execute_float_div(operands, current_command.address_mode);
+                execute_float_div(operands);
                 break;
             case OP_ADD:
                 execute_add(operands, current_command.address_mode);
@@ -391,7 +425,7 @@ void SageInterpreter::execute() {
                 execute_store(operands, current_command.address_mode);
                 break;
             case OP_FSTORE:
-                execute_float_store(operands, current_command.address_mode);
+                execute_float_store(operands);
                 break;
             case OP_MOV:
                 execute_move(operands, current_command.address_mode);
@@ -399,6 +433,9 @@ void SageInterpreter::execute() {
             case OP_FMOV:
                 execute_float_move(operands, current_command.address_mode);
                 break;
+            //case OP_MEMCPY:
+            //    execute_mem_copy(operands, current_command.address_mode);
+            //    break;
             case OP_ITF_MOV:
                 execute_int_to_float_move(operands);
                 break;
@@ -444,8 +481,10 @@ void SageInterpreter::execute() {
                 execute_float_greater_than_comparison(operands, current_command.address_mode);
                 break;
             case OP_DEREF:
+                execute_pointer_dereference(operands);
                 break;
             case OP_REF:
+                execute_pointer_reference(operands);
                 break;
             case OP_SYSCALL:
                 execute_system_call();
@@ -502,7 +541,7 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<ta
     }
     heap_pointer = static_working_pointer;
     static_memory_end_pointer = static_working_pointer - 1;
-    registers[23] = memory.size()-1; // stack begins are memory max and "grows up"
+    registers[STACK_POINTER] = memory.size()-1; // stack begins are memory max and "grows up"
 
     proc_line_locations = procedure_line_locations;
     vm_running = false;

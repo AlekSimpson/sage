@@ -204,15 +204,15 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     bool is_program_exit = symbol_table.program_uses_main_function ? is_main : is_global;
 
     SageOpCode opcode = OP_RET;
-    if (is_program_exit) {
-        opcode = VOP_EXIT;
-    }
-
     auto branch_id = node_manager->get_branch(node);
     if (branch_id == NULL_INDEX) {
         builder.build_instruction(opcode, 0, _00);
-        // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
-        builder.exit_frame();
+        if (is_program_exit) {
+            builder.build_instruction(VOP_EXIT, 0, _00);
+        }
+        if (function_entry->function_info.return_statement_count == function_entry->function_info.max_return_count) {
+            builder.exit_frame();
+        }
         return VisitorResult();
     }
 
@@ -226,8 +226,12 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     }
 
     builder.build_instruction(opcode, 0, _00);
-    // FIX: if a function has multiple return statements in it this will exit on the first one that is built and our frame logic will bug out
-    builder.exit_frame();
+    if (is_program_exit) {
+        builder.build_instruction(VOP_EXIT, 0, _00);
+    }
+    if (function_entry->function_info.return_statement_count == function_entry->function_info.max_return_count) {
+        builder.exit_frame();
+    }
     return VisitorResult(symbol_table, function_entry->symbol_id);
 }
 
@@ -274,9 +278,10 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             return VisitorResult(stoi(node_manager->get_lexeme(node)));
         }
         case PN_FLOAT: {
-            auto identifier = node_manager->get_identifier(node);
-            table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
-            return VisitorResult(symbol_table, symbol_index);
+            return VisitorResult(stof(node_manager->get_lexeme(node)));
+            //auto identifier = node_manager->get_identifier(node);
+            //table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
+            //return VisitorResult(symbol_table, symbol_index);
         }
         case PN_BOOL: {
             auto identifier = node_manager->get_identifier(node);
@@ -292,11 +297,11 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         }
         case PN_FIELD_ACCESS: {
             // TODO:
+            break;
         }
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
             auto visit_result = visit_literal(node_manager->get_branch(node));
-            assertm(!visit_result.is_immediate(), "visit_result is an immediate, in pointer dereference visit.");
             auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
             assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
 
@@ -310,21 +315,18 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
                 return VisitorResult();
             }
 
-            // generate bytecode instruction to read value p on the stack and then read the value on the stack: stack[p]
             int temporary_register = get_volatile_register();
-            builder.build_move_register(temporary_register, 23);
-            builder.build_instruction(OP_DEREF, temporary_register, symbol->spill_offset, _10);
-            return VisitorResult(temporary_register, false);
+            builder.build_instruction(OP_DEREF, temporary_register, symbol->spill_offset, _00);
+            return VisitorResult(temporary_register, symbol->type, true);
         }
         case PN_POINTER_REFERENCE: {
             auto visit_result = visit_literal(node_manager->get_branch(node));
-            assertm(!visit_result.is_immediate(), "visit_result is an immediate, in pointer dereference visit.");
             auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
             assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
 
             int temporary_register = get_volatile_register();
             builder.build_instruction(OP_REF, temporary_register, symbol->spill_offset, _00);
-            return VisitorResult(temporary_register, false);
+            return VisitorResult(temporary_register, symbol->type, true);
         }
         case PN_NOT:
             break;
@@ -378,28 +380,20 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         return VisitorResult();
     }
 
-    int argument_int_register_address = 0;
-    int argument_float_register_address = 0;
-    int current_argument_count = 0;
+    int argument_register_address = 0;
     vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->type)->parameter_types;
     for (VisitorResult arg_result: args) {
         int possible_literal_memory_pointer = get_literal_static_pointer(arg_result.symbol_table_index);
         if (possible_literal_memory_pointer != -1) {
-            builder.build_move_immediate(argument_int_register_address, possible_literal_memory_pointer);
-            argument_int_register_address++;
-            current_argument_count++;
+            builder.build_move_immediate(argument_register_address, possible_literal_memory_pointer);
+            argument_register_address++;
             continue;
         }
 
-        int &register_address = defined_parameter_types[current_argument_count]->identify() == FLOAT
-                                    ? argument_float_register_address
-                                    : argument_int_register_address;
-
         arg_result.to_register_instruction(
-            *this, register_address, defined_parameter_types[current_argument_count]);
+            *this, argument_register_address, defined_parameter_types[argument_register_address]);
 
-        register_address++;
-        current_argument_count++;
+        argument_register_address++;
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_id)) {
@@ -417,7 +411,8 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
 
     builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
 
-    return VisitorResult(symbol_table, function_symbol->symbol_id);
+    auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->type)->return_type[0];
+    return VisitorResult(6, return_type, true);
 }
 
 VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {

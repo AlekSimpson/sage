@@ -7,6 +7,8 @@
 #include "../include/codegen.h"
 #include "../include/symbols.h"
 
+#include <boost/function/function_template.hpp>
+
 #include "../include/node_manager.h"
 #include "../include/sage_types.h"
 
@@ -403,6 +405,10 @@ void SageSymbolTable::initialize() {
     };
     declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, return_type));
     declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, return_type));
+    int index = declare_builtin_symbol("global", TR::get_function_type(return_type, return_type));
+    auto *entry = lookup_by_index(index);
+    entry->function_info = FunctionVisit(index);
+    function_visitor_state.push(&entry->function_info);
 }
 
 SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int scope_id) {

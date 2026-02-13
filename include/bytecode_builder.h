@@ -60,6 +60,7 @@ struct BytecodeBuilder {
     void build_store_register(int offset, int sage_register);
     void build_fstore_register(int offset, int float_register);
 
+    void build_fmove_immediate(int destination_register, double immediate_value);
     void build_fmove_register(int destination_register, int source_register);
 
     void build_move_immediate(int sage_register, int immediate);

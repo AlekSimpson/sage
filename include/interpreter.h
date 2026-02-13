@@ -10,8 +10,6 @@
 #define SYSCALL_REG 22
 #define STACK_POINTER 23
 
-#define ui64 uint64_t
-
 enum SVM_SYSCALL {
     SYS_WRITE = 0,
     SYS_WRITE_INT,
@@ -56,8 +54,7 @@ public:
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
 
-    ui64 registers[125];
-    double floating_point_registers[100];
+    int64_t registers[125];
 
     bytecode program;
     map<int, int> proc_line_locations;
@@ -65,7 +62,7 @@ public:
     StackFrame *frame_pointer; // keeps track of current frame
 
     // memory layout:
-    // |--------|
+    // |--------| <-- array start
     // | static |
     // |--------|
     // | heap   | (grows down)
@@ -73,7 +70,7 @@ public:
     // | free   |
     // |--------|
     // | stack  | (stack grows up)
-    // |--------|
+    // |--------| <-- array end
     vector<uint8_t> memory;
     const size_t static_start_pointer = 0;
     size_t static_memory_end_pointer;
@@ -95,9 +92,8 @@ public:
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
     inline int stack_pointer();
-    void set_register(int _register, int value);
-    void set_float_register(int _register, double value);
-    int read_register(int _register);
+    double read_float_register(int reg);
+    void set_float_register(int reg, double value);
 
     void open(const map<int, int> &, map<table_index, vector<uint8_t>> &static_section_components);
     void close();
@@ -110,15 +106,15 @@ public:
     inline void execute_sub(std::array<int, 3> &, AddressMode &);
     inline void execute_mul(std::array<int, 3> &, AddressMode &);
     inline void execute_div(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_add(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_sub(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_mul(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_div(std::array<int, 3> &, AddressMode &);
+    inline void execute_float_add(std::array<int, 3> &);
+    inline void execute_float_sub(std::array<int, 3> &);
+    inline void execute_float_mul(std::array<int, 3> &);
+    inline void execute_float_div(std::array<int, 3> &);
     inline void execute_stack_allocate(int operand);
     inline void execute_load(std::array<int, 3> &);
     inline void execute_float_load(std::array<int, 3> &);
     inline void execute_store(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_float_store(std::array<int, 3> &, AddressMode &mode);
+    inline void execute_float_store(std::array<int, 3> &);
     inline void execute_move(std::array<int, 3> &, AddressMode &mode);
     inline void execute_int_to_float_move(std::array<int, 3> &operands);
     inline void execute_float_move(std::array<int, 3> &, AddressMode &mode);
@@ -134,4 +130,7 @@ public:
     inline void execute_float_greater_than_comparison(std::array<int, 3> &, AddressMode &mode);
     inline void execute_not(std::array<int, 3> &);
     inline void execute_system_call();
+    inline void execute_pointer_reference(std::array<int, 3> &);
+    inline void execute_pointer_dereference(std::array<int, 3> &);
+    inline void execute_mem_copy(std::array<int, 3> &, AddressMode &);
 };

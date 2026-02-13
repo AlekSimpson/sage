@@ -364,6 +364,22 @@ void BytecodeBuilder::build_fstore_register(int offset, int float_register) {
     increment_total_instruction_count(1);
 }
 
+void BytecodeBuilder::build_fmove_immediate(int destination_register, double immediate_value) {
+    int double_bitcast_value;
+    std::memcpy(&double_bitcast_value, &immediate_value, sizeof(double_bitcast_value));
+
+    auto &procedures = get_active_procedures();
+    auto &procedure_stack = get_active_procedure_stack();
+
+    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
+        OP_FMOV,
+        destination_register,
+        double_bitcast_value,
+        _00
+    ));
+    increment_total_instruction_count(1);
+}
+
 void BytecodeBuilder::build_fmove_register(int destination_register, int source_register) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
@@ -470,31 +486,20 @@ void BytecodeBuilder::build_puts() {
 VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
     // var_symbol in register ==> LOAD/MOVE
     // var_symbol on stack    ==> STORE
-    bool is_float_operation = (var_symbol->type->identify() == FLOAT);
     auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_id);
-    int storage_destination;
-    SageOpCode instruction_opcode;
     switch (variable_result.state) {
         case VisitorResultState::SPILLED: {
-            instruction_opcode = is_float_operation ? OP_FSTORE : OP_STORE;
-            storage_destination = var_symbol->spill_offset;
+            right_value.to_stack_instruction(*this, var_symbol->spill_offset, var_symbol->type);
             break;
         }
         case VisitorResultState::REGISTER: {
-            instruction_opcode = is_float_operation ? OP_FMOV : OP_MOV;
-            storage_destination = var_symbol->assigned_register;
+            right_value.to_register_instruction(*this, var_symbol->assigned_register, var_symbol->type);
             break;
         }
         default:
             ErrorLogger::get().log_internal_error_unsafe("builders.cpp", current_linenum,
                                                          "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
-            return VisitorResult();
     }
-
-    auto right_material = right_value.materialize_register(*this);
-    AddressMode mode = right_material.second ? _00 : _01;
-
-    builder.build_instruction(instruction_opcode, storage_destination, right_material.first, mode);
     return VisitorResult();
 }
 
@@ -514,26 +519,13 @@ VisitorResult SageCompiler::build_alloca(symbol_entry *var_symbol) {
 }
 
 bool SageCompiler::is_float_operation(VisitorResult &one, VisitorResult &two) {
-    if (one.is_immediate() && one.immediate_value.valuetype->identify() == FLOAT) return true;
-    if (two.is_immediate() && two.immediate_value.valuetype->identify() == FLOAT) return true;
-
-    if (one.symbol_table_index != SAGE_NULL_SYMBOL) {
-        auto *entry = symbol_table.lookup_by_index(one.symbol_table_index);
-        if (entry && entry->type->identify() == FLOAT) return true;
-    }
-
-    if (two.symbol_table_index != SAGE_NULL_SYMBOL) {
-        auto *entry = symbol_table.lookup_by_index(two.symbol_table_index);
-        if (entry && entry->type->identify() == FLOAT) return true;
-    }
-
-    return false;
+    return one.result_type->identify() == FLOAT || two.result_type->identify() == FLOAT;
 }
 
 VisitorResult SageCompiler::build_operator(
-    VisitorResult value1, VisitorResult value2, SageOpCode opcode, bool is_float_operation) {
+    VisitorResult value1, VisitorResult value2, SageOpCode opcode) {
     AddressMode mode = _11;
-    int result_register = is_float_operation ? get_volatile_float_register() : get_volatile_register();
+    int result_register = get_volatile_register();
     auto material_result1 = value1.materialize_register(*this);
     int register1 = material_result1.first;
     bool one_is_immediate = material_result1.second;
@@ -554,36 +546,42 @@ VisitorResult SageCompiler::build_operator(
         mode = _10;
     }
 
+    SageType *temporary_result_type = value1.result_type;
+    if (value1.result_type->identify() == FLOAT || value2.result_type->identify() == FLOAT) {
+        int bytesize = std::max(value1.result_type->size, value2.result_type->size);
+        temporary_result_type = TR::get_float_type(bytesize);
+    }
+
     builder.build_instruction(opcode, result_register, register1, register2, mode);
-    return VisitorResult(result_register, is_float_operation);
+    return VisitorResult(result_register, temporary_result_type, true);
 }
 
 VisitorResult SageCompiler::build_add(VisitorResult value1, VisitorResult value2) {
     bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FADD : OP_ADD, is_float);
+    return build_operator(value1, value2, is_float ? OP_FADD : OP_ADD);
 }
 
 VisitorResult SageCompiler::build_sub(VisitorResult value1, VisitorResult value2) {
     bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FSUB : OP_SUB, is_float);
+    return build_operator(value1, value2, is_float ? OP_FSUB : OP_SUB);
 }
 
 VisitorResult SageCompiler::build_mul(VisitorResult value1, VisitorResult value2) {
     bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FMUL : OP_MUL, is_float);
+    return build_operator(value1, value2, is_float ? OP_FMUL : OP_MUL);
 }
 
 VisitorResult SageCompiler::build_div(VisitorResult value1, VisitorResult value2) {
     bool is_float = is_float_operation(value1, value2);
-    return build_operator(value1, value2, is_float ? OP_FDIV : OP_DIV, is_float);
+    return build_operator(value1, value2, is_float ? OP_FDIV : OP_DIV);
 }
 
 VisitorResult SageCompiler::build_and(VisitorResult value1, VisitorResult value2) {
-    return build_operator(value1, value2, OP_AND, false);
+    return build_operator(value1, value2, OP_AND);
 }
 
 VisitorResult SageCompiler::build_or(VisitorResult value1, VisitorResult value2) {
-    return build_operator(value1, value2, OP_OR, false);
+    return build_operator(value1, value2, OP_OR);
 }
 
 VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
@@ -604,9 +602,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
             if (argument_type->identify() == FLOAT) {
-                int temporary_register = compiler.get_volatile_register();
-                builder.build_move_immediate(temporary_register, immediate_value);
-                builder.build_int_to_float_move_register(argument_register, temporary_register);
+                builder.build_fmove_immediate(argument_register, immediate_value);
             } else {
                 builder.build_move_immediate(argument_register, immediate_value);
             }
@@ -674,12 +670,9 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
             }
             break;
         }
-        case VisitorResultState::TEMP_INT_REGISTER: {
-            builder.build_move_register(argument_register, temporary_int_register);
-            break;
-        }
-        case VisitorResultState::TEMP_FLOAT_REGISTER: {
-            builder.build_fmove_register(argument_register, temporary_float_register);
+        case VisitorResultState::TEMP_REGISTER: {
+            auto opcode = result_type->identify() == FLOAT ? OP_FMOV : OP_MOV;
+            builder.build_instruction(opcode, argument_register, temporary_result_register, _01);
             break;
         }
         case VisitorResultState::LIST: {
@@ -705,7 +698,14 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
-            builder.build_instruction(OP_STORE, offset, immediate_value, offset_mode);
+            int temporary_register = immediate_value; // if its not a float then we can just directly store the immediate int value
+            auto opcode = OP_STORE;
+            if (result_type->identify() == FLOAT) {
+                temporary_register = compiler.get_volatile_register();
+                builder.build_fmove_immediate(temporary_register, immediate_value);
+                opcode = OP_FSTORE;
+            }
+            builder.build_instruction(opcode, offset, temporary_register, offset_mode);
             break;
         }
         case VisitorResultState::SPILLED: {
@@ -730,12 +730,10 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
             builder.build_instruction(OP_MEMCPY, offset, static_pointer, offset_mode);
             break;
         }
-        case VisitorResultState::TEMP_INT_REGISTER: {
-            builder.build_instruction(OP_STORE, offset, temporary_int_register, offset_mode);
-            break;
-        }
-        case VisitorResultState::TEMP_FLOAT_REGISTER: {
-            builder.build_instruction(OP_FSTORE, offset, temporary_float_register, offset_mode);
+        case VisitorResultState::TEMP_REGISTER: {
+            auto opcode = result_type->identify() == FLOAT ? OP_FSTORE : OP_STORE;
+            AddressMode argument_mode = _01;
+            builder.build_instruction(opcode, offset, temporary_result_register, offset_mode + argument_mode);
             break;
         }
         case VisitorResultState::LIST: {
@@ -750,35 +748,35 @@ pair<int, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
     auto *entry = compiler.symbol_table.lookup_by_index(symbol_table_index);
 
     auto opcode = entry->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
-    int temporary_register = entry->type->identify() == FLOAT
-                                  ? compiler.get_volatile_register()
-                                  : compiler.get_volatile_float_register();
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
+            if (result_type->identify() == FLOAT) {
+                int output_register = compiler.get_volatile_register();
+                builder.build_fmove_immediate(output_register, entry->value);
+                return make_pair<int, bool>(std::move(output_register), false);
+            }
             return make_pair<int, bool>(immediate_value, true);
         }
         case VisitorResultState::SPILLED: {
-            builder.build_instruction(opcode, temporary_register, entry->spill_offset, _00);
-            return make_pair<int, bool>(std::move(temporary_register), false);
+            int output_register = compiler.get_volatile_register();
+            builder.build_instruction(opcode, output_register, entry->spill_offset, _00);
+            return make_pair<int, bool>(std::move(output_register), false);
         }
         case VisitorResultState::REGISTER: {
             return make_pair<int, bool>(std::move(entry->assigned_register), false);
         }
         case VisitorResultState::VALUE: {
+            int output_register = compiler.get_volatile_register();
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
             if (entry->type->is_array() || entry->type->is_pointer() || entry->type->is_struct()) {
                 return make_pair<int, bool>(std::move(static_pointer), true);
-                break;
             }
-            builder.build_instruction(opcode, temporary_register, static_pointer, _00);
-            return make_pair<int, bool>(std::move(temporary_register), false);
+            builder.build_instruction(opcode, output_register, static_pointer, _00);
+            return make_pair<int, bool>(std::move(output_register), false);
         }
-        case VisitorResultState::TEMP_INT_REGISTER: {
-            return make_pair<int, bool>(std::move(temporary_int_register), false);
-        }
-        case VisitorResultState::TEMP_FLOAT_REGISTER: {
-            return make_pair<int, bool>(std::move(temporary_float_register), false);
+        case VisitorResultState::TEMP_REGISTER: {
+            return make_pair<int, bool>(std::move(temporary_result_register), false);
         }
         case VisitorResultState::LIST: {
             // TODO:

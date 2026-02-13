@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
 #include <stack>
 #include <set>
 #include <map>
@@ -17,9 +16,10 @@ struct FunctionVisit {
     table_index symbol_index;
     int return_statement_count = 0;
     int stack_return_pointer_counter = 0;
+    int max_return_count = 0;
 
     FunctionVisit(): symbol_index(-1) {};
-    FunctionVisit(table_index index) : symbol_index(index) {};
+    FunctionVisit(table_index index) : symbol_index(index){};
     bool has_returned() const { return return_statement_count > 0; }
 };
 

@@ -39,7 +39,7 @@ enum SageOpCode {
     OP_FMUL,    // _xx | fmul freg, op, op
     OP_FDIV,    // _xx | fdiv freg, op, op
 
-    OP_MEMCPY,  // _xx | memcpy ($fp - dest_offset), ($fp - src_offset), bytesize
+    OP_MEMCPY,  // _xx | memcpy bytes, ($fp - op), ($fp - op)
     OP_ALLOC,   // _00 | alloc bytesize
     OP_FLOAD,   // _00 | load freg, ($fp - offset)
                 // build_fload(register, offset)
@@ -50,7 +50,7 @@ enum SageOpCode {
                 // build_store_register(offset, register)
     OP_FSTORE,  // _0x | fstore ($fp - offset), op
                 // build_fstore_register(offset, register)
-    OP_REF,     // _10 | ref ptr_dest_reg ($fp - offset)
+    OP_REF,     // _00 | ref ptr_dest_reg ($fp - offset)
     OP_DEREF,   // _00 | deref dest_pointer ($fp - src_offset)
 
     OP_ITF_MOV, // _01 | itfmov freg, ireg
