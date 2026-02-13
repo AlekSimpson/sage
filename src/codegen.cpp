@@ -184,8 +184,8 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         symbol_entry *var_symbol = symbol_table.lookup(variable_name, scope_id);
 
         auto rightnode = node_manager->get_right(node);
-        auto rhs = visit_expression(rightnode);
         build_alloca(var_symbol);
+        auto rhs = visit_expression(rightnode);
         return build_store(rhs, var_symbol);
     }
 

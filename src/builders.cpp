@@ -709,7 +709,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
             break;
         }
         case VisitorResultState::SPILLED: {
-            builder.build_instruction(OP_MEMCPY, offset, entry->spill_offset, offset_mode);
+            builder.build_instruction(OP_MEMCPY, entry->type->size, offset, entry->spill_offset, offset_mode);
             break;
         }
         case VisitorResultState::REGISTER: {
@@ -727,7 +727,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
                 builder.build_instruction(OP_STORE, offset, entry->value, offset_mode);
                 break;
             }
-            builder.build_instruction(OP_MEMCPY, offset, static_pointer, offset_mode);
+            builder.build_instruction(OP_MEMCPY, entry->type->size, offset, static_pointer, offset_mode);
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
