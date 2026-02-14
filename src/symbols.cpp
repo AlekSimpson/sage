@@ -7,154 +7,90 @@
 #include "../include/codegen.h"
 #include "../include/symbols.h"
 
-#include <boost/function/function_template.hpp>
+//#include <boost/function/function_template.hpp>
 
 #include "../include/node_manager.h"
 #include "../include/sage_types.h"
 
 using namespace std;
 
-bool symbol_entry::type_is_resolved() {
-    return type != nullptr;
+bool SymbolEntry::type_is_resolved() {
+    return datatype != nullptr;
 }
 
-void symbol_entry::spill(int offset) {
+void SymbolEntry::spill(int offset) {
     spilled = true;
-    spill_offset = offset;
+    stack_offset = offset;
 }
 
-bool symbol_entry::needs_comptime_resolution() {
-    return type->match(TypeRegistery::get_pending_comptime_type());
+bool SymbolEntry::needs_comptime_resolution() {
+    return datatype->match(TypeRegistery::get_pending_comptime_type());
 }
 
-symbol_entry::symbol_entry() : function_info(FunctionVisit()),
-                               value(SageValue()),
-                               type(nullptr),
-                               identifier(""),
-                               assigned_register(-1),
-                               spill_offset(0),
-                               scope_id(-1),
-                               spilled(false) {
-}
-
-symbol_entry::symbol_entry(SageValue sval, string ident) : value(sval),
-                                                           type(sval.valuetype),
-                                                           identifier(ident),
-                                                           assigned_register(-1),
-                                                           spill_offset(0),
-                                                           scope_id(-1),
-                                                           spilled(false) {
-}
-
-SageSymbolTable::SageSymbolTable() {
-    this->function_visitor_state = stack<FunctionVisit *>();
-    this->scope_manager = nullptr;
-}
+SageSymbolTable::SageSymbolTable(): scope_manager(nullptr), function_processing_context(stack<SymbolIndex>()) {}
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
     : entries(SymbolArena(initial_size + 1)), nm(nm), scope_manager(scopeman) {
-    this->function_visitor_state = stack<FunctionVisit *>();
+    this->function_processing_context = stack<SymbolIndex>();
     this->scope_manager = scopeman;
 
-    declare_builtin_symbol("__SAGE__NULL__SYMBOL__", TypeRegistery::get_byte_type(VOID));
+    declare_null_symbol();
 }
 
-void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager, NodeIndex ast_node, table_index i) {
-    comptime_values.insert(i);
-    auto &entry = entries.get(i);
-    entry.is_comptime_constant = true;
+bool SageSymbolTable::is_comptime_value(SymbolEntry *search_entry) {
+    return comptime_values.find(search_entry->symbol_index) != comptime_values.end();
+}
+
+void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager, NodeIndex ast_node, SymbolIndex index) {
+    comptime_values.insert(index);
+    auto &entry = entries.get(index);
     entry.task_id = comptime_manager.add_task(ast_node);
-    entry.type = TypeRegistery::get_pending_comptime_type();
-    comptime_task_id_to_symbol_id[entry.task_id] = i;
+    entry.datatype = TypeRegistery::get_pending_comptime_type();
+    comptime_task_id_to_symbol_id[entry.task_id] = index;
+}
+
+void SageSymbolTable::declare_null_symbol() {
+    SymbolIndex new_index = entries.allocate_symbol();
+    auto &entry = entries.get(new_index);
+    entry.datatype = TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0));
+    entry.name = NULL_SYMBOL_NAME;
+    entry.scope_id = -1;
+    entry.symbol_index = SAGE_NULL_SYMBOL;
+
+    builtins.insert(new_index);
+    scope_symbol_map[{0, NULL_SYMBOL_NAME}] = new_index;
+    scope_manager->register_symbol_in_current_scope(new_index);
 }
 
 void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
-    table_index new_index = entries.allocate_symbol();
+    SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
-    entry.identifier = name;
+    entry.datatype = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
+    entry.name = name;
     entry.definition_ast_index = -1;
     entry.scope_id = 0;
-    entry.symbol_id = new_index;
+    entry.symbol_index = new_index;
 
+    builtins.insert(new_index);
     types.insert(new_index);
-    builtins.insert(new_index);
     scope_symbol_map[{0, name}] = new_index;
     scope_manager->register_symbol_in_current_scope(new_index);
 }
 
-table_index SageSymbolTable::declare_builtin_symbol(const string &name, SageType *type) {
-    table_index new_index = entries.allocate_symbol();
-    auto &entry = entries.get(new_index);
-    entry.type = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
-    entry.assigned_register = -1;
-    entry.identifier = name;
-    entry.scope_id = 0;
-    entry.symbol_id = new_index;
-
-    builtins.insert(new_index);
-    scope_symbol_map[{0, name}] = new_index;
-    scope_manager->register_symbol_in_current_scope(new_index);
-    return new_index;
-}
-
-table_index SageSymbolTable::declare_immediate(SageValue value, string lexeme) {
-    auto search = lookup(lexeme, 0);
-    if (search != nullptr) return search->symbol_id;
-
-    table_index new_index = entries.allocate_symbol();
-    auto &entry = entries.get(new_index);
-    entry.value = value;
-    entry.type = value.valuetype;
-    entry.identifier = lexeme;
-    entry.scope_id = 0;
-    entry.definition_ast_index = -1;
-    entry.symbol_id = new_index;
-
-    return new_index;
-}
-
-table_index SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
+SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
 
     auto it = scope_symbol_map.find({current_scope, name});
     if (it == scope_symbol_map.end()) {
-        table_index new_index = entries.allocate_symbol();
+        SymbolIndex new_index = entries.allocate_symbol();
         auto &entry = entries.get(new_index);
-        entry.value = value;
-        entry.type = value.valuetype;
-        entry.identifier = name;
+        entry.data = value;
+        entry.datatype = value.type;
+        entry.name = name;
         entry.scope_id = current_scope;
         entry.definition_ast_index = ast_id;
-        entry.symbol_id = new_index;
-
-        literals.insert(new_index);
-        scope_symbol_map[{current_scope, name}] = new_index;
-        scope_manager->register_symbol_in_current_scope(new_index);
-
-        return new_index;
-    }
-
-    return (table_index) it->second;
-}
-
-table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value) {
-    int current_scope = nm->get_scope_id(ast_id);
-    string name = nm->get_identifier(ast_id);
-
-    auto it = scope_symbol_map.find({current_scope, name});
-    if (it == scope_symbol_map.end()) {
-        table_index new_index = entries.allocate_symbol();
-        auto &entry = entries.get(new_index);
-        entry.value = value;
-        entry.type = value.valuetype;
-        entry.identifier = name;
-        entry.scope_id = current_scope;
-        entry.definition_ast_index = ast_id;
-        entry.symbol_id = new_index;
-
-        constants.insert(new_index);
+        entry.symbol_index = new_index;
 
         scope_symbol_map[{current_scope, name}] = new_index;
         scope_manager->register_symbol_in_current_scope(new_index);
@@ -162,40 +98,22 @@ table_index SageSymbolTable::declare_constant(NodeIndex ast_id, SageValue value)
         return new_index;
     }
 
-    return (table_index) it->second;
+    return it->second;
 }
 
-table_index SageSymbolTable::declare_temporary(int register_alloc) {
-    auto name = str("temp", temporary_counter_gen);
-    temporary_counter_gen++;
-
-    table_index new_index = entries.allocate_symbol();
-    auto &entry = entries.get(new_index);
-    entry.type = TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0));
-    entry.assigned_register = register_alloc;
-    entry.identifier = name;
-    entry.scope_id = -1;
-    entry.symbol_id = new_index;
-
-    scope_symbol_map[{-1, name}] = new_index;
-    scope_manager->register_symbol_in_current_scope(new_index);
-
-    return new_index;
-}
-
-table_index SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
+SymbolIndex SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *type) {
     string name = nm->get_identifier(ast_id);
     int scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return symbol_check->symbol_id;
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
 
-    table_index new_index = entries.allocate_symbol();
+    SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type = type;
-    entry.identifier = name;
+    entry.datatype = type;
+    entry.name = name;
     entry.scope_id = scope_id;
     entry.definition_ast_index = ast_id;
-    entry.symbol_id = new_index;
+    entry.symbol_index = new_index;
 
     types.insert(new_index);
     scope_symbol_map[{scope_id, name}] = new_index;
@@ -204,44 +122,20 @@ table_index SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *typ
     return new_index;
 }
 
-table_index SageSymbolTable::declare_symbol(NodeIndex ast_id, SageType *valuetype) {
+SymbolIndex SageSymbolTable::declare_function(NodeIndex ast_id, SageType *function_type) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return symbol_check->symbol_id;
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
 
-    table_index new_index = entries.allocate_symbol();
+    SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type = valuetype;
-    entry.identifier = name;
+
+    entry.datatype = function_type;
+    entry.name = name;
     entry.scope_id = scope_id;
     entry.definition_ast_index = ast_id;
-    entry.symbol_id = new_index;
-
-    if (identifiers_that_must_be_spilled.find(name) != identifiers_that_must_be_spilled.end()) {
-        entry.spilled = true;
-    }
-
-    scope_symbol_map[{scope_id, name}] = new_index;
-    scope_manager->register_symbol_in_scope(scope_id, new_index);
-
-    return new_index;
-}
-
-table_index SageSymbolTable::declare_function(NodeIndex ast_id, SageType *function_type) {
-    auto name = nm->get_identifier(ast_id);
-    auto scope_id = nm->get_scope_id(ast_id);
-    auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return symbol_check->symbol_id;
-
-    table_index new_index = entries.allocate_symbol();
-    auto &entry = entries.get(new_index);
-    entry.function_info = FunctionVisit(new_index);
-    entry.type = function_type;
-    entry.identifier = name;
-    entry.scope_id = scope_id;
-    entry.definition_ast_index = ast_id;
-    entry.symbol_id = new_index;
+    entry.symbol_index = new_index;
 
     if (name == "main") {
         program_uses_main_function = true;
@@ -254,19 +148,41 @@ table_index SageSymbolTable::declare_function(NodeIndex ast_id, SageType *functi
     return new_index;
 }
 
-table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuetype) {
+SymbolIndex SageSymbolTable::declare_builtin_function(const string &name, SageType *function_type) {
+    SymbolIndex new_index = entries.allocate_symbol();
+    auto &entry = entries.get(new_index);
+
+    entry.datatype = function_type;
+    entry.name = name;
+    entry.scope_id = 0;
+    entry.definition_ast_index = -1;
+    entry.symbol_index = new_index;
+
+    if (name == "main") {
+        program_uses_main_function = true;
+    }
+
+    functions.insert(new_index);
+    builtins.insert(new_index);
+    scope_symbol_map[{entry.scope_id, name}] = new_index;
+    scope_manager->register_symbol_in_scope(entry.scope_id, new_index);
+
+    return new_index;
+}
+
+SymbolIndex SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuetype) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return symbol_check->symbol_id;
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
 
-    table_index new_index = entries.allocate_symbol();
+    SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type = valuetype;
-    entry.identifier = name;
+    entry.datatype = valuetype;
+    entry.name = name;
     entry.scope_id = scope_id;
     entry.definition_ast_index = ast_id;
-    entry.symbol_id = new_index;
+    entry.symbol_index = new_index;
 
     if (identifiers_that_must_be_spilled.find(name) != identifiers_that_must_be_spilled.end()) {
         entry.spilled = true;
@@ -279,21 +195,21 @@ table_index SageSymbolTable::declare_variable(NodeIndex ast_id, SageType *valuet
     return new_index;
 }
 
-table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype,
+SymbolIndex SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *valuetype,
                                                int parameter_register_assignment) {
     auto name = nm->get_identifier(ast_id);
     auto scope_id = nm->get_scope_id(ast_id);
     auto symbol_check = lookup(name, scope_id);
-    if (symbol_check != nullptr) return symbol_check->symbol_id;
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
 
-    table_index new_index = entries.allocate_symbol();
+    SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type = valuetype;
-    entry.identifier = name;
+    entry.datatype = valuetype;
+    entry.name = name;
     entry.scope_id = scope_id;
     entry.assigned_register = parameter_register_assignment;
     entry.definition_ast_index = ast_id;
-    entry.symbol_id = new_index;
+    entry.symbol_index = new_index;
 
     // TODO: handle auto function spilling when there are more than 6 parameters
 
@@ -301,22 +217,21 @@ table_index SageSymbolTable::declare_parameter(NodeIndex ast_id, SageType *value
         entry.spilled = true;
     }
 
-    parameters.insert(new_index);
     scope_symbol_map[{scope_id, name}] = new_index;
     scope_manager->register_symbol_in_scope(scope_id, new_index);
 
     return new_index;
 }
 
-const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
+const SymbolEntry *SageSymbolTable::global_lookup(const string &name) {
     int ptr_b = entries.size - 1;
 
     for (int ptr_a = 0; ptr_a < entries.size - 1; ++ptr_a) {
-        if (entries.data[ptr_a].identifier == name) {
+        if (entries.data[ptr_a].name == name) {
             return entries.get_pointer(ptr_a);
         }
 
-        if (entries.data[ptr_b].identifier == name) {
+        if (entries.data[ptr_b].name == name) {
             return entries.get_pointer(ptr_b);
         }
         ptr_b--;
@@ -325,7 +240,7 @@ const symbol_entry *SageSymbolTable::global_lookup(const string &name) {
     return nullptr;
 }
 
-table_index SageSymbolTable::lookup_table_index(const string &name, int scope_id) {
+SymbolIndex SageSymbolTable::lookup_table_index(const string &name, int scope_id) {
     // search starting from the given scope, then chain through parent scopes
     if (!scope_manager) return SAGE_NULL_SYMBOL;
 
@@ -343,13 +258,12 @@ table_index SageSymbolTable::lookup_table_index(const string &name, int scope_id
     return SAGE_NULL_SYMBOL;
 }
 
-symbol_entry *SageSymbolTable::lookup_by_index(table_index entry_index) {
-    if (entry_index < (table_index) entries.CAPACITY) return entries.get_pointer(entry_index);
-
+SymbolEntry *SageSymbolTable::lookup_by_index(SymbolIndex entry_index) {
+    if (entry_index < entries.CAPACITY) return entries.get_pointer(entry_index);
     return nullptr;
 }
 
-symbol_entry *SageSymbolTable::lookup(const string &name, int scope_id) {
+SymbolEntry *SageSymbolTable::lookup(const string &name, int scope_id) {
     // search starting from the given scope, then chain through parent scopes
     if (!scope_manager) return nullptr;
 
@@ -365,8 +279,8 @@ symbol_entry *SageSymbolTable::lookup(const string &name, int scope_id) {
     return nullptr;
 }
 
-bool SageSymbolTable::is_visible(table_index symbol_index, int from_scope_id) {
-    if (symbol_index >= (table_index) entries.CAPACITY || scope_manager == nullptr) return false;
+bool SageSymbolTable::is_visible(SymbolIndex symbol_index, int from_scope_id) {
+    if (symbol_index >= entries.CAPACITY || scope_manager == nullptr) return false;
 
     int symbol_scope = entries.get(symbol_index).scope_id;
     return scope_manager->is_ancestor_of(symbol_scope, from_scope_id);
@@ -403,12 +317,13 @@ void SageSymbolTable::initialize() {
     vector<SageType *> return_type = {
         TypeRegistery::get_byte_type(VOID),
     };
-    declare_builtin_symbol("puti", TypeRegistery::get_function_type(puti_params, return_type));
-    declare_builtin_symbol("puts", TypeRegistery::get_function_type(puts_params, return_type));
-    int index = declare_builtin_symbol("global", TR::get_function_type(return_type, return_type));
-    auto *entry = lookup_by_index(index);
-    entry->function_info = FunctionVisit(index);
-    function_visitor_state.push(&entry->function_info);
+    declare_builtin_function("puti", TypeRegistery::get_function_type(puti_params, return_type));
+    declare_builtin_function("puts", TypeRegistery::get_function_type(puts_params, return_type));
+    declare_builtin_function(GLOBAL_NAME, TR::get_function_type(return_type, return_type));
+    //int index = declare_builtin_symbol("global", TR::get_function_type(return_type, return_type));
+    //auto *entry = lookup_by_index(index);
+    //entry->function_info = FunctionVisit(index);
+    //function_visitor_state.push(&entry->function_info);
 }
 
 SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int scope_id) {
@@ -417,7 +332,7 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
     }
 
     auto type_search = lookup(type_identifier, scope_id);
-    if (type_search != nullptr) return type_search->type;
+    if (type_search != nullptr) return type_search->datatype;
 
     /*
      * get identifier type keys
@@ -433,7 +348,7 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
     SageType *current_type = nullptr;
     auto get_current_type = [&]() -> SageType * {
         if (current_type == nullptr) {
-            current_type = lookup(base_type_identifier, scope_id)->type;
+            current_type = lookup(base_type_identifier, scope_id)->datatype;
         }
         return current_type;
     };
@@ -482,10 +397,10 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
     return current_type;
 }
 
-SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
+SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
     auto entry = entries.get(entry_index);
     if (entry.type_is_resolved()) {
-        return entry.type;
+        return entry.datatype;
     }
 
     auto hosttype = nm->get_host_nodetype(entry.definition_ast_index);
@@ -501,11 +416,11 @@ SageType *SageSymbolTable::resolve_variable_type(table_index entry_index) {
     return resolve_type_identifier(identifier, scope_id);
 }
 
-SageType *SageSymbolTable::resolve_struct_type(table_index entry_index) {
+SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
     vector<SageType *> member_types;
     auto struct_entry = entries.get(entry_index);
     if (struct_entry.type_is_resolved()) {
-        return struct_entry.type;
+        return struct_entry.datatype;
     }
 
     NodeIndex struct_signature = nm->get_right(struct_entry.definition_ast_index);
@@ -520,15 +435,15 @@ SageType *SageSymbolTable::resolve_struct_type(table_index entry_index) {
         member_types.push_back(resolve_type_identifier(identifier, scope_id));
     }
 
-    return TypeRegistery::get_struct_type(struct_entry.identifier, member_types);
+    return TypeRegistery::get_struct_type(struct_entry.name, member_types);
 }
 
-SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
+SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
     vector<SageType *> parameter_types;
     vector<SageType *> return_types;
     auto function_entry = entries.get(entry_index);
     if (function_entry.type_is_resolved()) {
-        return function_entry.type;
+        return function_entry.datatype;
     }
 
     NodeIndex function_signature = nm->get_right(function_entry.definition_ast_index);
@@ -556,7 +471,7 @@ SageType *SageSymbolTable::resolve_function_type(table_index entry_index) {
 }
 
 
-table_index SymbolArena::allocate_symbol() {
+SymbolIndex SymbolArena::allocate_symbol() {
     assertm(size < CAPACITY && size + 1 < CAPACITY, "ATTEMPTED TO ALLOCATE WHEN ARENA IS FULL.");
 
     int new_id = size;
@@ -564,20 +479,20 @@ table_index SymbolArena::allocate_symbol() {
     return new_id;
 }
 
-symbol_entry &SymbolArena::get(table_index index) {
+SymbolEntry &SymbolArena::get(SymbolIndex index) {
     assertm((int)index < CAPACITY, "Out of bounds arena access.");
     return data[index];
 }
 
-symbol_entry *SymbolArena::get_pointer(table_index index) {
+SymbolEntry *SymbolArena::get_pointer(SymbolIndex index) {
     assertm((int)index < CAPACITY, "Out of bounds arena access.");
     return &data[index];
 }
 
 
-int SageSymbolTable::get_result_total_byte_size(table_index symbol_index) {
+int SageSymbolTable::get_result_total_byte_size(SymbolIndex symbol_index) {
     auto *entry = lookup_by_index(symbol_index);
-    auto *function_type = static_cast<SageFunctionType *>(entry->type);
+    auto *function_type = static_cast<SageFunctionType *>(entry->datatype);
     int bytesize = 0;
     for (auto *type: function_type->return_type) {
         bytesize += type->size;
@@ -585,13 +500,26 @@ int SageSymbolTable::get_result_total_byte_size(table_index symbol_index) {
     return bytesize;
 }
 
-int SageSymbolTable::get_amount_of_elements_being_returned(table_index symbol_index) {
+int SageSymbolTable::get_amount_of_elements_being_returned(SymbolIndex symbol_index) {
     auto *entry = lookup_by_index(symbol_index);
-    auto *function_type = static_cast<SageFunctionType *>(entry->type);
+    auto *function_type = static_cast<SageFunctionType *>(entry->datatype);
     return function_type->return_type.size();
 }
 
-bool SageSymbolTable::needs_return_stack_pointer(table_index index) {
+bool SageSymbolTable::needs_return_stack_pointer(SymbolIndex index) {
     int bytesize = get_result_total_byte_size(index);
     return bytesize > 8;
+}
+
+SymbolEntry &SageSymbolTable::function_being_processed() {
+    return entries.get(function_processing_context.top());
+}
+
+void SageSymbolTable::push_function_processing_context(SymbolIndex new_processing_context) {
+    function_processing_context.push(new_processing_context);
+}
+
+
+void SageSymbolTable::pop_function_processing_context() {
+    function_processing_context.pop();
 }

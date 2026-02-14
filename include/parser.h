@@ -39,7 +39,7 @@ private:
   NodeIndex parse_statement();
   NodeIndex parse_run_directive();
   NodeIndex parse_value_dec();
-  NodeIndex parse_value_dec_list();
+  NodeIndex parse_value_dec_list(bool for_struct = false);
   NodeIndex parse_assign();
   NodeIndex parse_keyword_statement();
   NodeIndex parse_if_statement();

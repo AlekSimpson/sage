@@ -1,9 +1,7 @@
 #pragma once
 
 #include <vector>
-#include <memory>
 #include <unordered_map>
-#include <cstdint>
 #include <string>
 
 using namespace std;
@@ -38,7 +36,7 @@ public:
     virtual bool is_struct() = 0;
     virtual bool is_function() = 0;
     virtual string to_string() = 0;
-    // TODO: virtual SageValue get_default_value() = 0;
+    virtual SageValue get_default_value() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -54,6 +52,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SagePointerType : public SageType {
@@ -69,6 +68,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SageArrayType : public SageType {
@@ -85,6 +85,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SageFunctionType : public SageType {
@@ -104,6 +105,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SageStructType : public SageType {
@@ -125,6 +127,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SageDynamicArrayType : public SageType {
@@ -143,6 +146,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    SageValue get_default_value() override;
 };
 
 class SageReferenceType : public SageType {
@@ -160,13 +164,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
-};
-
-union primitive_union {
-    int int_value; // TODO: this also needs to have the other bit size types also
-    float float_value;
-    char char_value;
-    bool bool_value;
+    SageValue get_default_value() override;
 };
 
 class TypeRegistery {
@@ -202,38 +200,6 @@ public:
     static bool is_bool_type(SageType *type);
     static bool is_char_type(SageType *type);
     static bool is_null_type(SageType *type);
-};
-
-class SageValue {
-public:
-    primitive_union value;
-    SageType *valuetype = TypeRegistery::get_byte_type(VOID);
-    bool nullvalue = true;
-
-    SageValue();
-    SageValue(int);
-    SageValue(float);
-    SageValue(char);
-    SageValue(bool);
-    ~SageValue();
-
-    int load();
-
-    bool is_null();
-
-    bool equals(const SageValue &other);
-
-    operator int() { return load(); }
-
-    // Convenience getters with automatic conversion
-    int32_t as_i32() const { return value.int_value; }
-    int64_t as_i64() const { return value.int_value; }
-    uint64_t as_u64() const { return value.int_value; }
-    uint32_t as_u32() const { return value.int_value; }
-    float as_float() const { return value.float_value; }
-    double as_float64() const { return value.float_value; }
-    bool as_bool() const { return value.bool_value; }
-    char as_char() const { return value.char_value; }
 };
 
 namespace std {

@@ -84,9 +84,6 @@ public:
     SageInterpreter(SageSymbolTable *table);
 
     // virtual memory operations
-    uint8_t *memory_read_bytes(uint8_t address);
-    void stack_write_i32(size_t addr, int32_t val);
-    int32_t stack_read_i32(size_t addr);
     size_t allocate_on_heap(size_t bytes);
     size_t allocate_on_stack(size_t bytes);
     void push_stack_scope(int func_id);
@@ -95,7 +92,7 @@ public:
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 
-    void open(const map<int, int> &, map<table_index, vector<uint8_t>> &static_section_components);
+    void open(const map<int, int> &, map<SymbolIndex, vector<uint8_t>> &static_section_components);
     void close();
     void load_program(bytecode program);
     void execute();

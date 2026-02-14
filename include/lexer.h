@@ -11,7 +11,6 @@ class SageLexer {
 public:
     Token last_token;
     stack<Token> peeked_tokens;
-    //ifstream char_buffer;
     istream *char_buffer;
     Token *current_token;
     string sourcename;

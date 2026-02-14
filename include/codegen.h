@@ -9,6 +9,7 @@
 #include "bytecode_builder.h"
 #include "comptime_manager.h"
 #include "sage_bytecode.h"
+#include "sage_value.h"
 
 #define assertm(condition, message) assert((condition) && (message))
 
@@ -70,7 +71,7 @@ struct VisitorResult {
   SageValue immediate_value = SageValue();
   vector<VisitorResult> list_results;
   int temporary_result_register = -1;
-  table_index symbol_table_index = SAGE_NULL_SYMBOL;
+  SymbolIndex symbol_table_index = SAGE_NULL_SYMBOL;
   VisitorResultState state = VisitorResultState::VALUE;
 
   VisitorResult(): result_type(TR::get_byte_type(VOID)) {};
@@ -90,7 +91,7 @@ struct VisitorResult {
   VisitorResult(float value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
     result_type = TR::get_float_type(8);
   }
-  VisitorResult(SageSymbolTable &table, table_index symbol_index) : symbol_table_index(symbol_index) {
+  VisitorResult(SageSymbolTable &table, SymbolIndex symbol_index) : symbol_table_index(symbol_index) {
     auto search = table.lookup_by_index(symbol_index);
     if (search->spilled) {
       state = VisitorResultState::SPILLED;
@@ -99,7 +100,7 @@ struct VisitorResult {
     }else {
       state = VisitorResultState::VALUE;
     }
-    result_type = search->type;
+    result_type = search->datatype;
   }
 
   void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
@@ -107,8 +108,8 @@ struct VisitorResult {
   pair<int, bool> materialize_register(SageCompiler &compiler);
 
   bool is_temporary() { return temporary_result_register != -1; }
-  bool is_immediate_float() { return !immediate_value.is_null() && immediate_value.valuetype->identify() == FLOAT; }
-  bool is_immediate_int() { return !immediate_value.is_null() && immediate_value.valuetype->identify() == INT; }
+  bool is_immediate_float() { return !immediate_value.is_null() && immediate_value.type->identify() == FLOAT; }
+  bool is_immediate_int() { return !immediate_value.is_null() && immediate_value.type->identify() == INT; }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
 };
 
@@ -125,11 +126,12 @@ public:
   BytecodeBuilder builder;
   ComptimeManager comptime_manager;
 
-  set<string> previously_processed; // for forward decl auto resolution
+  // for forward decl auto resolution
+  set<string> previously_processed;
   map<string, set<string>> definition_dependencies;
   map<string, int> in_degree_map; // TODO: rename, this is not a very good name
-  map<table_index, vector<uint8_t>> static_program_memory;
-  vector<table_index> static_program_memory_insertion_order;
+
+  vector<SymbolIndex> static_program_memory_insertion_order;
 
   CodegenMode codegen_mode;
   const int VOLATILE_REGISTER_SIZE = 10;
@@ -150,12 +152,12 @@ public:
   void resolve_definition_order(int target_scope);
   void process_escape_sequences(string &str);
   bool is_float_operation(VisitorResult &one, VisitorResult &two);
-  int get_literal_static_pointer(table_index literal_symbol_table_index);
+  int get_literal_static_pointer(SymbolIndex literal_symbol_table_index);
 
   /* builders */
-  VisitorResult build_store(VisitorResult rhs, symbol_entry *var_symbol);
+  VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
   VisitorResult build_function_with_block(string);
-  VisitorResult build_alloca(symbol_entry *var_symbol);
+  VisitorResult build_alloca(SymbolEntry *var_symbol);
   VisitorResult build_add(VisitorResult, VisitorResult);
   VisitorResult build_sub(VisitorResult, VisitorResult);
   VisitorResult build_div(VisitorResult, VisitorResult);

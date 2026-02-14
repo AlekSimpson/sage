@@ -4,6 +4,7 @@
 #include <bytecode_builder.h>
 #include <codegen.h>
 #include <cstring>
+#include <sage_value.h>
 
 #include "../include/sage_types.h"
 #include "../include/error_logger.h"
@@ -27,24 +28,6 @@ SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
 
 SageInterpreter::SageInterpreter(SageSymbolTable *table)
 : symbol_table(table), frame_pointer(nullptr) {
-}
-
-uint8_t *SageInterpreter::memory_read_bytes(uint8_t address) {
-    return &memory[address];
-}
-
-void SageInterpreter::stack_write_i32(size_t addr, int32_t val) {
-    memory[addr + 0] = (val >> 0)  & 0xFF;
-    memory[addr + 1] = (val >> 8)  & 0xFF;
-    memory[addr + 2] = (val >> 16) & 0xFF;
-    memory[addr + 3] = (val >> 24) & 0xFF;
-}
-
-int32_t SageInterpreter::stack_read_i32(size_t addr) {
-    return memory[addr - 0]    |
-       (memory[addr - 1] << 8) |
-       (memory[addr - 2] << 16)|
-       (memory[addr - 3] << 24);
 }
 
 size_t SageInterpreter::allocate_on_heap(size_t bytes) {
@@ -372,7 +355,7 @@ inline void SageInterpreter::execute_system_call() {
 void SageInterpreter::execute() {
     if (frame_pointer == nullptr) return;
 
-    program_pointer = proc_line_locations[get_procedure_frame_id("GLOBAL")];
+    program_pointer = proc_line_locations[get_procedure_frame_id(GLOBAL_NAME)];
 
     Command current_command;
     vm_running = true;
@@ -511,7 +494,7 @@ void SageInterpreter::execute() {
     }
 }
 
-void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<table_index, vector<uint8_t>> &static_section_components) {
+void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<SymbolIndex, vector<uint8_t>> &static_section_components) {
     const int megabyte = 1024 * 1024;
     memory.resize(megabyte);
 
@@ -521,14 +504,14 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<ta
             procedure_line_locations,
             -1,
             memory.size()-1,
-            proc_line_locations[get_procedure_frame_id("GLOBAL")]
+            proc_line_locations[get_procedure_frame_id(GLOBAL_NAME)]
         );
     }
 
     size_t static_working_pointer = static_start_pointer;
     for (const auto &[static_symbol_index, symbol_memory_chunk]: static_section_components) {
         auto *symbol_entry = symbol_table->lookup_by_index(static_symbol_index);
-        if (symbol_entry->type->identify() != ARRAY && symbol_entry->type->identify() != FLOAT) {
+        if (symbol_entry->datatype->identify() != ARRAY && symbol_entry->datatype->identify() != FLOAT) {
             ErrorLogger::get().log_internal_error_safe("interpreter.cpp", current_linenum, "Unsupported static member found.");
             continue;
         }

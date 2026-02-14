@@ -222,7 +222,7 @@ NodeIndex SageParser::parse_value_dec() {
     return node_manager->create_binary(token, nodetype, name_identifier_node, type_identifier_node);
 }
 
-NodeIndex SageParser::parse_value_dec_list() {
+NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
     if (match_types(current_token->token_type, TT_RPAREN)) {
         Token token = Token(TT_COMPILER_CREATED, "empty parameter list", current_token->linenum);
         return node_manager->create_block(token, PN_PARAM_LIST);
@@ -264,7 +264,11 @@ NodeIndex SageParser::parse_value_dec_list() {
             break;
         }
 
-        consume(TT_COMMA, "Expected comma symbol after value declaration list.");
+        if (!for_struct) {
+            consume(TT_COMMA, "Expected comma symbol after value declaration list.");
+        }else {
+            consume(TT_NEWLINE, "Expected struct members to be separated by newline characters.");
+        }
         list_token_lexeme += node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
 
