@@ -382,7 +382,7 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
             processing_array_type = false;
         }else if (type_identifier[i] == ']' && current_array_length_lexeme.empty()) {
             // array reference
-            current_type = TR::get_reference_type(get_current_type());
+            current_type = TR::get_reference_type(get_current_type(), get_current_type()->size);
             processing_array_type = false;
         }else if (type_identifier[i] == ']' && !current_array_length_lexeme.empty()) {
             current_type = TR::get_array_type(get_current_type(), stoi(current_array_length_lexeme));

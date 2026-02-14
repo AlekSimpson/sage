@@ -1,7 +1,6 @@
+#include <cstring>
+#include <cassert>
 #include "../include/sage_value.h"
-
-#include <boost/mpl/aux_/na_fwd.hpp>
-
 #include "../include/error_logger.h"
 
 SageValue::SageValue(char value) : type(TypeRegistery::get_byte_type(CHAR)), nullvalue(false) {
@@ -39,9 +38,10 @@ SageValue::SageValue(SageType *custom_type) : type(custom_type), nullvalue(false
         pointer += default_value.type->size;
     }
 }
-SageValue::SageValue(SageType *custom_type, Byte* init_data) : type(custom_type), nullvalue(false) {
+SageValue::SageValue(SageType *custom_type, ByteVector init_data) : type(custom_type), nullvalue(false) {
+    assert(custom_type->size == init_data.size());
     byte_data = new Byte[custom_type->size];
-    std::memcpy(byte_data, init_data, custom_type->size);
+    std::memcpy(byte_data, init_data.data(), custom_type->size);
 }
 
 SageValue::SageValue(): nullvalue(true) {}

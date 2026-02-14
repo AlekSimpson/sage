@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 #include <unordered_map>
 #include <string>
 
@@ -188,7 +189,6 @@ public:
     static SageType *get_dyn_array_type(SageType *element_type);
     static SageType *get_dyn_array_type(SageType *element_type, int starting_element_size); // initializes dyn array type with 1.7x mem based on starting_element_size
     static SageType *get_array_type(SageType *element_type, int size);
-    static SageType *get_reference_type(SageType *base_type);
     static SageType *get_reference_type(SageType *base_type, int size);
     static SageType *get_function_type(std::vector<SageType *> parameter_tyeps, std::vector<SageType *> function_types);
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include "sage_types.h"
 
 typedef vector<uint8_t> ByteVector;
@@ -7,7 +8,7 @@ typedef uint8_t Byte;
 
 class SageValue {
 public:
-    Byte* byte_data = nullptr;
+    Byte* byte_data = new Byte[0];
     SageType *type = TypeRegistery::get_byte_type(VOID);
     bool nullvalue;
 
@@ -19,7 +20,7 @@ public:
     SageValue(char);
     SageValue(bool);
     SageValue(SageType * complex_type);
-    SageValue(SageType * complex_type, Byte* init_data);
+    SageValue(SageType * complex_type, ByteVector init_data);
     ~SageValue();
 
     bool is_null();

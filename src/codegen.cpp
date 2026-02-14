@@ -177,6 +177,9 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         string variable_name = node_manager->get_lexeme(lhs);
         SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
 
+        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
+        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
+
         return build_alloca(var_symbol);
     }
 
@@ -190,6 +193,11 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         auto rightnode = node_manager->get_right(node);
         build_alloca(var_symbol);
         auto rhs = visit_expression(rightnode);
+
+        // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
+        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
+        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
+
         return build_store(rhs, var_symbol);
     }
 

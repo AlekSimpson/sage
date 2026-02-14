@@ -509,18 +509,10 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, vector
     }
 
     size_t static_working_pointer = static_start_pointer;
-    for (const auto &[static_symbol_index, symbol_memory_chunk]: static_section_components) {
-        auto *symbol_entry = symbol_table->lookup_by_index(static_symbol_index);
-        if (symbol_entry->datatype->identify() != ARRAY && symbol_entry->datatype->identify() != FLOAT) {
-            ErrorLogger::get().log_internal_error_safe("interpreter.cpp", current_linenum, "Unsupported static member found.");
-            continue;
-        }
-
-        symbol_entry->static_stack_pointer = static_working_pointer;
-        for (int i = 0; i < (int)symbol_memory_chunk.size(); ++i) {
-            memory[static_working_pointer] = symbol_memory_chunk[i];
-            static_working_pointer++;
-        }
+    for (auto index: static_memory_insertion_order) {
+        auto data_value = symbol_table->lookup_by_index(index)->data;
+        std::memcpy(&memory[static_working_pointer], &data_value, sizeof(data_value));
+        static_working_pointer+=data_value.type->size;
     }
     heap_pointer = static_working_pointer;
     static_memory_end_pointer = static_working_pointer - 1;

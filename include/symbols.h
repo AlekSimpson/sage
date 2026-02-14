@@ -16,6 +16,27 @@
 #define NULL_SYMBOL_NAME "__SAGE_NULL_SYMBOL__"
 #define GLOBAL_NAME "___SAGE__GLOBAL__FUNCTION___3827"
 
+struct FieldMember {
+    string name;
+    string type_identifier;
+
+    struct FieldMemberHash {
+        size_t operator()(const FieldMember& member) const {
+            size_t hash1 = std::hash<string>{}(member.name);
+            size_t hash2 = std::hash<string>{}(member.type_identifier);
+            return hash1 ^ (hash2 << 1);
+        }
+    };
+};
+
+struct SageNamespace {
+    unordered_map<FieldMember, int, FieldMember::FieldMemberHash> field_member_offsets;
+
+    bool field_is_a_member(string search_field);
+    void inject_namespace(SageNamespace &other);
+    void add_field_member();
+};
+
 struct SymbolEntry {
     string name = "";
     SageValue data = SageValue();
@@ -33,10 +54,9 @@ struct SymbolEntry {
     int stack_offset = 0;
     int static_stack_pointer = -1;
 
-    comptime_task_id task_id;
+    ComptimeTaskId task_id;
 
     SymbolEntry()  {};
-    SymbolEntry(SymbolIndex index);
     SymbolEntry(SageValue value, string identifier) : name(identifier), data(value) {}
     bool has_returned() const { return return_statement_count > 0; }
 
@@ -108,7 +128,7 @@ public:
 
     // (scope_id, name) -> entry index for fast lookup
     map<pair<int, string>, SymbolIndex> scope_symbol_map;
-    map<comptime_task_id, SymbolIndex> comptime_task_id_to_symbol_id;
+    map<ComptimeTaskId, SymbolIndex> comptime_task_id_to_symbol_id;
     map<string, SageType *> cached_type_identifiers;
 
     int temporary_counter_gen = 0;

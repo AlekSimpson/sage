@@ -70,7 +70,7 @@ void SageCompiler::compile_file(string mainfile) {
         logger.report_errors();
         return;
     }
-    comptime_manager.static_program_memory = static_program_memory;
+    comptime_manager.ordered_static_program_memory_elements = static_program_memory_insertion_order;
 
     perform_type_resolution();
     if (logger.has_errors()) {
@@ -198,7 +198,7 @@ void SageCompiler::compile_file(string mainfile) {
 
     if (options.compilation_target == SAGE_VM) {
         auto interpreter = SageInterpreter(&symbol_table);
-        interpreter.open(procedure_to_instruction_index, static_program_memory);
+        interpreter.open(procedure_to_instruction_index, static_program_memory_insertion_order);
         interpreter.load_program(runtime_code);
         interpreter.execute();
         interpreter.close();
@@ -209,31 +209,31 @@ void SageCompiler::compile_file(string mainfile) {
         return;
     }
 
-    switch (options.compilation_target) {
-        case X86:
-            // TODO: target_llvm_x86(runtime_code, options.output_file);
-            break;
-        case X86_64:
-            // TODO: target_llvm_x86_64(runtime_code, options.output_file);
-            break;
-        case ARM32:
-            // TODO: target_llvm_arm32(runtime_code, options.output_file);
-            break;
-        case ARM64:
-            // TODO: target_llvm_arm64(runtime_code, options.output_file);
-            break;
-        case AARCH64_64:
-            // TODO: target_llvm_aarch64_64(runtime_code, options.output_file);
-            break;
-        case RISCV:
-            // TODO: target_llvm_riscv(runtime_code, options.output_file);
-            break;
-        case WEBASM:
-            // TODO: target_llvm_webasm(runtime_code, options.output_file);
-            break;
-        default:
-            break;
-    }
+    // switch (options.compilation_target) {
+    //     case X86:
+    //         // TODO: target_llvm_x86(runtime_code, options.output_file);
+    //         break;
+    //     case X86_64:
+    //         // TODO: target_llvm_x86_64(runtime_code, options.output_file);
+    //         break;
+    //     case ARM32:
+    //         // TODO: target_llvm_arm32(runtime_code, options.output_file);
+    //         break;
+    //     case ARM64:
+    //         // TODO: target_llvm_arm64(runtime_code, options.output_file);
+    //         break;
+    //     case AARCH64_64:
+    //         // TODO: target_llvm_aarch64_64(runtime_code, options.output_file);
+    //         break;
+    //     case RISCV:
+    //         // TODO: target_llvm_riscv(runtime_code, options.output_file);
+    //         break;
+    //     case WEBASM:
+    //         // TODO: target_llvm_webasm(runtime_code, options.output_file);
+    //         break;
+    //     default:
+    //         break;
+    // }
 
     if (logger.has_errors()) {
         logger.report_errors();
@@ -381,8 +381,11 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 vector<SageType *> string_member_types = {TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)};
                 auto *string_type = TR::get_struct_type("string", string_member_types);
 
-                Byte string_bytes[node_lexeme.size()];
-                std::memcpy(string_bytes, node_lexeme.c_str(), node_lexeme.size());
+                ByteVector string_bytes;
+                int64_t string_length = node_lexeme.size();
+                string_bytes.reserve(string_length + 8);
+                std::memcpy(string_bytes.data(), node_lexeme.c_str(), node_lexeme.size());
+                std::memcpy(string_bytes.data() + string_length, &string_length, sizeof(int64_t));
                 SageValue string_value = SageValue(string_type, string_bytes);
                 auto index = symbol_table.declare_literal(current_node, string_value);
 
@@ -541,7 +544,7 @@ void SageCompiler::register_allocation() {
             }
         }
 
-        if (entry.spilled || entry.datatype->size > 8 || entry.datatype->is_pointer()) {
+        if (entry.spilled || entry.datatype->size > 8 || entry.datatype->is_pointer() || entry.datatype->is_struct()) {
             symbol_table.entries.get(index).spill(current_relative_stack_location);
             current_relative_stack_location += entry.datatype->size;
             continue;

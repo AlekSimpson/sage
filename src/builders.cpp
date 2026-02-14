@@ -4,7 +4,6 @@
 
 #include "../include/platform.h"
 #include <cstring>
-#include <boost/preprocessor/arithmetic/add.hpp>
 
 #include "../include/bytecode_builder.h"
 #include "../include/symbols.h"
