@@ -338,21 +338,20 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
 }
 
 int SageCompiler::get_literal_static_pointer(SymbolIndex literal_symbol_table_index) {
-    auto static_stack_pointer = symbol_table.entries.get(literal_symbol_table_index).static_stack_pointer;
+    auto *target_entry = symbol_table.lookup_by_index(literal_symbol_table_index);
+    auto static_stack_pointer = target_entry->static_stack_pointer;
     if (static_stack_pointer != -1) return static_stack_pointer;
 
-    auto it = static_program_memory.find(literal_symbol_table_index);
-    if (it != static_program_memory.end()) {
-        int static_pointer = 0;
-        for (int insertion_order_index = 0; insertion_order_index < (int) static_program_memory_insertion_order.size();
-             ++insertion_order_index) {
-            if (static_program_memory_insertion_order[insertion_order_index] == literal_symbol_table_index) {
-                symbol_table.entries.get_pointer(literal_symbol_table_index)->static_stack_pointer = static_pointer;
-                return static_pointer;
-            }
-            static_pointer += (int) static_program_memory[static_program_memory_insertion_order[insertion_order_index]].
-                    size();
+    int bytes_passed = 0;
+    SymbolEntry *current_entry;
+    for (auto index: static_program_memory_insertion_order) {
+        current_entry = symbol_table.lookup_by_index(index);
+        if (index == literal_symbol_table_index) {
+            target_entry->static_stack_pointer = bytes_passed;
+            return bytes_passed;
         }
+
+        bytes_passed += current_entry->datatype->size;
     }
     return -1;
 }

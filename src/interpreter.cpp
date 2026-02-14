@@ -494,7 +494,7 @@ void SageInterpreter::execute() {
     }
 }
 
-void SageInterpreter::open(const map<int, int> &procedure_line_locations, map<SymbolIndex, vector<uint8_t>> &static_section_components) {
+void SageInterpreter::open(const map<int, int> &procedure_line_locations, vector<SymbolIndex> &static_memory_insertion_order) {
     const int megabyte = 1024 * 1024;
     memory.resize(megabyte);
 

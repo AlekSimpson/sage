@@ -92,7 +92,7 @@ public:
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 
-    void open(const map<int, int> &, map<SymbolIndex, vector<uint8_t>> &static_section_components);
+    void open(const map<int, int> &, vector<SymbolIndex> &static_memory_insertion_order);
     void close();
     void load_program(bytecode program);
     void execute();
