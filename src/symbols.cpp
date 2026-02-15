@@ -65,7 +65,8 @@ void SageSymbolTable::declare_null_symbol() {
 void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
     SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.datatype = type == nullptr ? TypeRegistery::get_pointer_type(TypeRegistery::get_builtin_type(VOID, 0)) : type;
+    entry.type_namespace = new SageNamespace();
+    entry.datatype = type;
     entry.name = name;
     entry.definition_ast_index = -1;
     entry.scope_id = 0;
@@ -109,6 +110,7 @@ SymbolIndex SageSymbolTable::declare_type_symbol(NodeIndex ast_id, SageType *typ
 
     SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
+    entry.type_namespace = new SageNamespace();
     entry.datatype = type;
     entry.name = name;
     entry.scope_id = scope_id;

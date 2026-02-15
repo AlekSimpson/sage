@@ -243,7 +243,6 @@ void SageCompiler::compile_file(string mainfile) {
 void SageCompiler::scan_all_program_symbols(NodeIndex root) {
     NodeIndex current_node;
 
-    map<string, int> function_max_parameters_mapping;
     map<string, int> function_parameter_register_generator;
     map<string, string> parameter_name_to_parent_function;
     set<string> scanned_literals;
@@ -259,36 +258,43 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
         auto nodetype = node_manager->get_nodetype(current_node);
         switch (nodetype) {
             case PN_STRUCT: {
-                SymbolIndex table_idx = symbol_table.declare_type_symbol(current_node, nullptr);
-                symbol_table.types.insert(table_idx);
+                SymbolIndex table_index = symbol_table.declare_type_symbol(current_node, nullptr);
+                auto *table_entry = symbol_table.lookup_by_index(table_index);
+                symbol_table.types.insert(table_index);
 
                 auto bodynode = node_manager->reach_right(current_node, 2);
                 for (auto child: node_manager->get_children(bodynode)) {
+                    string variable_identifier = node_manager->get_identifier(child);
+                    string type_identifier = node_manager->get_identifier(node_manager->get_right(child));
+                    table_entry->type_namespace->add_field_member(variable_identifier, type_identifier);
+
                     fringe.push(child);
                 }
                 continue;
             }
             case PN_FUNCDEF: {
-                auto table_idx = symbol_table.declare_function(current_node, nullptr);
-                symbol_table.functions.insert(table_idx);
+                auto table_index = symbol_table.declare_function(current_node, nullptr);
+                symbol_table.functions.insert(table_index);
                 string identifier = node_manager->get_identifier(current_node);
 
-                symbol_table.entries.get_pointer(table_idx)->max_return_count = parser.
+                symbol_table.entries.get_pointer(table_index)->max_return_count = parser.
                         function_to_max_return_count[identifier];
 
                 auto signature_trinary = node_manager->get_right(current_node);
-
-                auto paramnode = node_manager->get_left(signature_trinary);
+                auto parameters_node = node_manager->get_left(signature_trinary);
                 auto bodynode = node_manager->reach_right(current_node, 2);
-                function_max_parameters_mapping[identifier] = node_manager->get_children(paramnode).size();
+
                 function_parameter_register_generator[identifier] = 0;
                 string child_ident;
-                for (auto child: node_manager->get_children(paramnode)) {
+                for (auto child: node_manager->get_children(parameters_node)) {
                     child_ident = node_manager->get_identifier(child);
                     fringe.push(child);
                     parameter_name_to_parent_function[child_ident] = identifier;
                 }
-                fringe.push(node_manager->get_middle(signature_trinary)); // scan the return type
+
+                // scan the return type
+                fringe.push(node_manager->get_middle(signature_trinary));
+
                 for (auto child: node_manager->get_children(bodynode)) {
                     fringe.push(child);
                 }

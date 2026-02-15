@@ -31,13 +31,19 @@ struct FieldMember {
 
 struct SageNamespace {
     unordered_map<FieldMember, int, FieldMember::FieldMemberHash> field_member_offsets;
+    unordered_map<FieldMember, SymbolIndex, FieldMember::FieldMemberHash> struct_methods;
 
-    bool field_is_a_member(string search_field);
+    bool field_is_a_method(string function_name, string function_type_string);
+    bool field_is_a_member(string search_name, string search_type_identifier);
+
+    void add_method(string search, string function_type);
+    void add_field_member(string name, string type_identifier);
+
     void inject_namespace(SageNamespace &other);
-    void add_field_member();
 };
 
 struct SymbolEntry {
+    SageNamespace *type_namespace = nullptr;
     string name = "";
     SageValue data = SageValue();
     SageType *datatype = nullptr;
@@ -57,9 +63,15 @@ struct SymbolEntry {
     ComptimeTaskId task_id;
 
     SymbolEntry()  {};
+    ~SymbolEntry() {
+        if (type_namespace != nullptr) {
+            delete type_namespace;
+        }
+    };
     SymbolEntry(SageValue value, string identifier) : name(identifier), data(value) {}
-    bool has_returned() const { return return_statement_count > 0; }
 
+    SageNamespace *get_namespace();
+    bool has_returned() const { return return_statement_count > 0; }
     bool type_is_resolved();
     bool needs_comptime_resolution();
     void spill(int offset);
