@@ -161,7 +161,6 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
 }
 
 VisitorResult SageCompiler::visit_struct(NodeIndex node) {
-
     return VisitorResult();
 }
 
@@ -233,7 +232,7 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     if (symbol_table.needs_return_stack_pointer(function_entry->symbol_index)) {
         return_value.to_stack_instruction(*this, 6, return_types[0], _10);
         function_entry->spilled = true;
-    }else {
+    } else {
         return_value.to_register_instruction(*this, 6, return_types[0]);
     }
 
@@ -263,6 +262,32 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
     return visit_literal(node);
 }
 
+VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
+    assert(node_manager->get_host_nodetype(node) == PN_BINARY);
+
+    int final_offset_register = get_volatile_register();
+    int temporary_register = get_volatile_register();
+    builder.build_move_immediate(final_offset_register, 0);
+
+    int scope_id = node_manager->get_scope_id(node);
+    NodeIndex current_operator_node = node;
+    NodeIndex current_lhs;
+    while (node_manager->get_host_nodetype(current_operator_node) == PN_BINARY) {
+        current_lhs = node_manager->get_left(node);
+        auto *struct_instance_entry = symbol_table.lookup(
+            node_manager->get_identifier(current_lhs),
+            scope_id
+        );
+
+        builder.build_move_immediate(temporary_register, struct_instance_entry->stack_offset);
+        builder.build_instruction(OP_ADD, final_offset_register,
+                                          final_offset_register,
+                                          struct_instance_entry->stack_offset, _10);
+        current_operator_node = node_manager->get_right(current_operator_node);
+    }
+
+    return VisitorResult(final_offset_register, , true);
+}
 
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
@@ -306,6 +331,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         }
         case PN_FIELD_ACCESS: {
             // TODO:
+            auto access_result = visit_struct_field_access(node);
+
             break;
         }
         case PN_POINTER_DEREFERENCE: {
@@ -412,7 +439,7 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         builder.build_move_immediate(6, pointer);
         // if the function return is on the stack then we don't need to use the function return register
         function_symbol->spilled = true;
-    }else {
+    } else {
         function_symbol->spilled = false;
         function_symbol->assigned_register = 6;
     }

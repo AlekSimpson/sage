@@ -841,7 +841,7 @@ NodeIndex SageParser::parse_postfix_operator() {
             postfix_token,
             PN_FIELD_ACCESS,
             current_postfix_target_node,
-            parse_primary()
+            parse_postfix_operator()
         );
 
         has_a_postfix_operator = true;

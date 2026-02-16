@@ -41,6 +41,10 @@ string SageBuiltinType::to_string() {
     }
 }
 
+string SageBuiltinType::get_base_type_string() {
+    return to_string();
+}
+
 SageValue SageBuiltinType::get_default_value() {
     switch (canonical_type) {
         case BOOL:
@@ -84,6 +88,10 @@ bool SagePointerType::is_function() {return false;}
 
 string SagePointerType::to_string() {
     return str(pointer_type->to_string(), "*");
+}
+
+string SagePointerType::get_base_type_string() {
+    return pointer_type->to_string();
 }
 
 SageValue SagePointerType::get_default_value() {
@@ -135,6 +143,10 @@ string SageDynamicArrayType::to_string() {
     return str(array_type->to_string(), "[..]");
 }
 
+string SageDynamicArrayType::get_base_type_string() {
+    return array_type->to_string();
+}
+
 SageValue SageDynamicArrayType::get_default_value() {
     ByteVector bytes;
     bytes.reserve(this->size);
@@ -171,6 +183,10 @@ bool SageArrayType::is_function() {return false;}
 
 string SageArrayType::to_string() {
     return str(array_type->to_string(), "[", length, "]");
+}
+
+string SageArrayType::get_base_type_string() {
+    return array_type->to_string();
 }
 
 SageValue SageArrayType::get_default_value() {
@@ -228,6 +244,10 @@ bool SageReferenceType::is_function() {
 string SageReferenceType::to_string() {
     SagePointerType *pointer_type_casted = dynamic_cast<SagePointerType *>(pointer_type);
     return str(pointer_type_casted->pointer_type->to_string(), "[]");
+}
+
+string SageReferenceType::get_base_type_string() {
+    return pointer_type->to_string();
 }
 
 SageValue SageReferenceType::get_default_value() {
@@ -310,6 +330,10 @@ string SageFunctionType::to_string() {
     return value;
 }
 
+string SageFunctionType::get_base_type_string() {
+    return "";
+}
+
 SageValue SageFunctionType::get_default_value() {
     return SageValue(TypeRegistery::get_function_type(this->parameter_types, this->return_type));
 }
@@ -351,6 +375,10 @@ bool SageStructType::is_struct() {return true;}
 bool SageStructType::is_function() {return false;}
 
 string SageStructType::to_string() {
+    return name;
+}
+
+string SageStructType::get_base_type_string() {
     return name;
 }
 

@@ -37,6 +37,7 @@ public:
     virtual bool is_struct() = 0;
     virtual bool is_function() = 0;
     virtual string to_string() = 0;
+    virtual string get_base_type_string() = 0;
     virtual SageValue get_default_value() = 0;
 };
 
@@ -53,6 +54,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -69,6 +71,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -86,6 +89,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -106,6 +110,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -128,6 +133,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -147,6 +153,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 
@@ -165,6 +172,7 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
     SageValue get_default_value() override;
 };
 

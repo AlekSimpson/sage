@@ -27,7 +27,8 @@ bool SymbolEntry::needs_comptime_resolution() {
     return datatype->match(TypeRegistery::get_pending_comptime_type());
 }
 
-SageSymbolTable::SageSymbolTable(): scope_manager(nullptr), function_processing_context(stack<SymbolIndex>()) {}
+SageSymbolTable::SageSymbolTable() : scope_manager(nullptr), function_processing_context(stack<SymbolIndex>()) {
+}
 
 SageSymbolTable::SageSymbolTable(ScopeManager *scopeman, NodeManager *nm, int initial_size)
     : entries(SymbolArena(initial_size + 1)), nm(nm), scope_manager(scopeman) {
@@ -41,7 +42,8 @@ bool SageSymbolTable::is_comptime_value(SymbolEntry *search_entry) {
     return comptime_values.find(search_entry->symbol_index) != comptime_values.end();
 }
 
-void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager, NodeIndex ast_node, SymbolIndex index) {
+void SageSymbolTable::register_comptime_value(ComptimeManager &comptime_manager, NodeIndex ast_node,
+                                              SymbolIndex index) {
     comptime_values.insert(index);
     auto &entry = entries.get(index);
     entry.task_id = comptime_manager.add_task(ast_node);
@@ -358,11 +360,12 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
     bool processing_array_type = false;
     int skip_until = -1;
     string current_array_length_lexeme = "";
-    for (int i = 0; i < (int)type_identifier.size(); ++i) {
+    for (int i = 0; i < (int) type_identifier.size(); ++i) {
         skip_until = i == skip_until ? -1 : skip_until;
         if (i < skip_until) continue;
 
-        started_processing_type_modifiers = (type_identifier[i] == '*' || type_identifier[i] == '[') || started_processing_type_modifiers;
+        started_processing_type_modifiers = (type_identifier[i] == '*' || type_identifier[i] == '[') ||
+                                            started_processing_type_modifiers;
         if (!started_processing_type_modifiers) {
             base_type_identifier += type_identifier[i];
             continue;
@@ -370,7 +373,7 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
 
         if (type_identifier[i] == '*') {
             current_type = TR::get_pointer_type(get_current_type());
-        }else if (type_identifier[i] == '[') {
+        } else if (type_identifier[i] == '[') {
             processing_array_type = true;
             continue;
         }
@@ -382,15 +385,15 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
             current_type = TR::get_dyn_array_type(get_current_type());
             skip_until = i + 3;
             processing_array_type = false;
-        }else if (type_identifier[i] == ']' && current_array_length_lexeme.empty()) {
+        } else if (type_identifier[i] == ']' && current_array_length_lexeme.empty()) {
             // array reference
             current_type = TR::get_reference_type(get_current_type(), get_current_type()->size);
             processing_array_type = false;
-        }else if (type_identifier[i] == ']' && !current_array_length_lexeme.empty()) {
+        } else if (type_identifier[i] == ']' && !current_array_length_lexeme.empty()) {
             current_type = TR::get_array_type(get_current_type(), stoi(current_array_length_lexeme));
             current_array_length_lexeme.clear();
             processing_array_type = false;
-        }else {
+        } else {
             // digits, normal array
             current_array_length_lexeme += type_identifier[i];
         }
@@ -435,6 +438,10 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
         }
         auto identifier = nm->get_identifier(type_expression);
         member_types.push_back(resolve_type_identifier(identifier, scope_id));
+        struct_entry.type_namespace->add_field_member(
+            identifier,
+            member_types[member_types.size() - 1]
+        );
     }
 
     return TypeRegistery::get_struct_type(struct_entry.name, member_types);
@@ -469,28 +476,24 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
         return_types.push_back(TypeRegistery::get_byte_type(VOID));
     }
 
+    SageType *first_parameter = nullptr;
+    if (!parameter_types.empty()) {
+        first_parameter = parameter_types[0];
+        if (first_parameter->identify() == FUNC || first_parameter->identify() == REFERENCE || first_parameter->
+            identify() == ARRAY || first_parameter->identify() == DYN_ARRAY) {
+            return TypeRegistery::get_function_type(parameter_types, return_types);
+        }
+
+        string base_type_name = first_parameter->get_base_type_string();
+        auto *type_entry = lookup(base_type_name, function_entry.scope_id);
+        assert(type_entry != nullptr);
+        type_entry->type_namespace->add_method(function_entry.name,
+                                               static_cast<SageFunctionType *>(function_entry.datatype),
+                                               entry_index);
+    }
+
     return TypeRegistery::get_function_type(parameter_types, return_types);
 }
-
-
-SymbolIndex SymbolArena::allocate_symbol() {
-    assertm(size < CAPACITY && size + 1 < CAPACITY, "ATTEMPTED TO ALLOCATE WHEN ARENA IS FULL.");
-
-    int new_id = size;
-    size++;
-    return new_id;
-}
-
-SymbolEntry &SymbolArena::get(SymbolIndex index) {
-    assertm((int)index < CAPACITY, "Out of bounds arena access.");
-    return data[index];
-}
-
-SymbolEntry *SymbolArena::get_pointer(SymbolIndex index) {
-    assertm((int)index < CAPACITY, "Out of bounds arena access.");
-    return &data[index];
-}
-
 
 int SageSymbolTable::get_result_total_byte_size(SymbolIndex symbol_index) {
     auto *entry = lookup_by_index(symbol_index);
@@ -525,3 +528,49 @@ void SageSymbolTable::push_function_processing_context(SymbolIndex new_processin
 void SageSymbolTable::pop_function_processing_context() {
     function_processing_context.pop();
 }
+
+
+
+
+
+
+void SageNamespace::add_method(string name, SageFunctionType *type, SymbolIndex index) {
+    auto member = FieldMember(name, type);
+    struct_methods[member] = index;
+}
+
+void SageNamespace::add_field_member(string name, SageType *type) {
+    auto member = FieldMember(name, type);
+    field_member_offsets[member] = next_offset;
+    next_offset += type->size;
+}
+
+
+
+
+
+
+
+
+
+
+SymbolIndex SymbolArena::allocate_symbol() {
+    assertm(size < CAPACITY && size + 1 < CAPACITY, "ATTEMPTED TO ALLOCATE WHEN ARENA IS FULL.");
+
+    int new_id = size;
+    size++;
+    return new_id;
+}
+
+SymbolEntry &SymbolArena::get(SymbolIndex index) {
+    assertm((int)index < CAPACITY, "Out of bounds arena access.");
+    return data[index];
+}
+
+SymbolEntry *SymbolArena::get_pointer(SymbolIndex index) {
+    assertm((int)index < CAPACITY, "Out of bounds arena access.");
+    return &data[index];
+}
+
+
+

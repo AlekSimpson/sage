@@ -170,6 +170,7 @@ public:
   /* visitors */
   VisitorResult visit(NodeIndex);
 
+  VisitorResult visit_struct_field_access(NodeIndex);
   VisitorResult visit_statement(NodeIndex);
   VisitorResult visit_keyword(NodeIndex);
   VisitorResult visit_function_definition(NodeIndex);

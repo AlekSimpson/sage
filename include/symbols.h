@@ -18,12 +18,18 @@
 
 struct FieldMember {
     string name;
-    string type_identifier;
+    SageType *type;
+
+    FieldMember(string name, SageType *type): name(name), type(type) {}
+
+    bool operator==(const FieldMember& other) const {
+        return name == other.name && type == other.type;  // or whatever fields define equality
+    }
 
     struct FieldMemberHash {
         size_t operator()(const FieldMember& member) const {
             size_t hash1 = std::hash<string>{}(member.name);
-            size_t hash2 = std::hash<string>{}(member.type_identifier);
+            size_t hash2 = std::hash<string>{}(member.type->to_string());
             return hash1 ^ (hash2 << 1);
         }
     };
@@ -32,14 +38,10 @@ struct FieldMember {
 struct SageNamespace {
     unordered_map<FieldMember, int, FieldMember::FieldMemberHash> field_member_offsets;
     unordered_map<FieldMember, SymbolIndex, FieldMember::FieldMemberHash> struct_methods;
+    int next_offset = 0;
 
-    bool field_is_a_method(string function_name, string function_type_string);
-    bool field_is_a_member(string search_name, string search_type_identifier);
-
-    void add_method(string search, string function_type);
-    void add_field_member(string name, string type_identifier);
-
-    void inject_namespace(SageNamespace &other);
+    void add_method(string name, SageFunctionType *function_type, SymbolIndex index);
+    void add_field_member(string name, SageType *type);
 };
 
 struct SymbolEntry {

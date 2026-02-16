@@ -259,15 +259,10 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
         switch (nodetype) {
             case PN_STRUCT: {
                 SymbolIndex table_index = symbol_table.declare_type_symbol(current_node, nullptr);
-                auto *table_entry = symbol_table.lookup_by_index(table_index);
                 symbol_table.types.insert(table_index);
 
                 auto bodynode = node_manager->reach_right(current_node, 2);
                 for (auto child: node_manager->get_children(bodynode)) {
-                    string variable_identifier = node_manager->get_identifier(child);
-                    string type_identifier = node_manager->get_identifier(node_manager->get_right(child));
-                    table_entry->type_namespace->add_field_member(variable_identifier, type_identifier);
-
                     fringe.push(child);
                 }
                 continue;
