@@ -75,6 +75,16 @@ struct VisitorResult {
   VisitorResultState state = VisitorResultState::VALUE;
 
   VisitorResult(): result_type(TR::get_byte_type(VOID)) {};
+  VisitorResult(int value, SageType *type, SymbolIndex index, bool is_temporary_register=false): symbol_table_index(index) {
+    if (is_temporary_register) {
+      temporary_result_register = value;
+      state = VisitorResultState::TEMP_REGISTER;
+    }else {
+      immediate_value = SageValue(value);
+      state = VisitorResultState::IMMEDIATE;
+    }
+    result_type = type;
+  }
   VisitorResult(int value, SageType *type, bool is_temporary_register=false) {
     if (is_temporary_register) {
       temporary_result_register = value;
@@ -104,13 +114,24 @@ struct VisitorResult {
   }
 
   void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
-  void to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type, AddressMode offset_mode = _00);
+  void to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
   pair<int, bool> materialize_register(SageCompiler &compiler);
 
   bool is_temporary() { return temporary_result_register != -1; }
   bool is_immediate_float() { return !immediate_value.is_null() && immediate_value.type->identify() == FLOAT; }
   bool is_immediate_int() { return !immediate_value.is_null() && immediate_value.type->identify() == INT; }
   bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
+};
+
+struct FieldAccessTreeIterator {
+  NodeIndex current_root;
+  NodeManager* node_manager;
+
+  FieldAccessTreeIterator(NodeIndex current_root, NodeManager* nm)
+      : current_root(current_root), node_manager(nm) {}
+
+  NodeIndex next();
+  bool has_next();
 };
 
 // TODO: create robust debug settings for debugging the compiler
@@ -164,8 +185,8 @@ public:
   VisitorResult build_mul(VisitorResult, VisitorResult);
   VisitorResult build_and(VisitorResult, VisitorResult);
   VisitorResult build_or(VisitorResult, VisitorResult);
-  VisitorResult build_load(NodeIndex);
   VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode);
+  VisitorResult build_dereference_instructions(VisitorResult &, Token);
 
   /* visitors */
   VisitorResult visit(NodeIndex);
@@ -184,6 +205,6 @@ public:
 
   VisitorResult visit_expression(NodeIndex);
   VisitorResult visit_literal(NodeIndex);
-  VisitorResult visit_function_call(NodeIndex);
+  VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);
   VisitorResult visit_binary_operator(NodeIndex);
 };

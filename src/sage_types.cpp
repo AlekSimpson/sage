@@ -61,6 +61,10 @@ SageValue SageBuiltinType::get_default_value() {
     }
 }
 
+bool SageBuiltinType::is_callable() {
+    return false;
+}
+
 // pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
     this->size = 8;
@@ -96,6 +100,10 @@ string SagePointerType::get_base_type_string() {
 
 SageValue SagePointerType::get_default_value() {
     return SageValue(TypeRegistery::get_builtin_type(INT, 8), ByteVector({0,0,0,0,0,0,0,0}));
+}
+
+bool SagePointerType::is_callable() {
+    return true;
 }
 
 // dynamic_array_type
@@ -156,6 +164,10 @@ SageValue SageDynamicArrayType::get_default_value() {
     return SageValue(TypeRegistery::get_dyn_array_type(this->array_type, this->size), bytes);
 }
 
+bool SageDynamicArrayType::is_callable() {
+    return true;
+}
+
 // array_type
 SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
     this->size = length * element_type->size;
@@ -196,6 +208,10 @@ SageValue SageArrayType::get_default_value() {
         bytes[i] = 0;
     }
     return SageValue(TypeRegistery::get_array_type(this->array_type, this->size), bytes);
+}
+
+bool SageArrayType::is_callable() {
+    return true;
 }
 
 // reference_type
@@ -257,6 +273,10 @@ SageValue SageReferenceType::get_default_value() {
     default_bytes.insert(default_bytes.begin(), size_bytes.begin(), size_bytes.end());
 
     return SageValue(TypeRegistery::get_reference_type(pointer_type, this->window_size), default_bytes);
+}
+
+bool SageReferenceType::is_callable() {
+    return true;
 }
 
 // function_type
@@ -338,6 +358,10 @@ SageValue SageFunctionType::get_default_value() {
     return SageValue(TypeRegistery::get_function_type(this->parameter_types, this->return_type));
 }
 
+bool SageFunctionType::is_callable() {
+    return false;
+}
+
 // struct_type
 SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
     member_types(member_types) {
@@ -391,6 +415,10 @@ SageValue SageStructType::get_default_value() {
         std::memcpy(struct_default_bytes.data() + byte_pointer, default_type_value.byte_data, default_type_value.type->size);
     }
     return SageValue(TypeRegistery::get_struct_type(name, member_types), struct_default_bytes);
+}
+
+bool SageStructType::is_callable() {
+    return true;
 }
 
 /// Type Registery

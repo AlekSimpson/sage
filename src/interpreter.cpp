@@ -159,46 +159,23 @@ inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands) {
     set_float_register(operands[0], operand1 / operand2);
 }
 
-inline void SageInterpreter::execute_load(std::array<int, 3> &operands) {
-    // _00 | load reg, ($fp - offset)
-    int load_address = frame_pointer->stack_pointer - operands[1];
-    registers[operands[0]] = memory[load_address];
-}
-
-inline void SageInterpreter::execute_float_load(std::array<int, 3> &operands) {
-    // _00 | fload reg, ($fp - offset)
-    int load_address = frame_pointer->stack_pointer - operands[1];
-    array<uint8_t, 8> stack_memory;
-    for (int i = 0; i < 8; ++i) {
-        stack_memory[i] = memory[load_address + i];
-    }
-    double float_stack_value;
-    std::memcpy(&float_stack_value, stack_memory.data(), sizeof(double));
-    set_float_register(operands[0], float_stack_value);
+inline void SageInterpreter::execute_load(std::array<int, 3> &operands, AddressMode &mode) {
+    // _0x | load bytes, reg, ($fp - offset)
+    int bytes = operands[0];
+    int offset = mode[2] == 1 ? registers[operands[2]] : operands[2];
+    int load_address = frame_pointer->stack_pointer - offset;
+    std::memcpy(&registers[operands[1]], &memory[load_address], bytes);
 }
 
 inline void SageInterpreter::execute_store(std::array<int, 3> &operands, AddressMode &mode) {
-    // _0x | store ($fp - offset), op
-    int offset = mode[0] == 1 ? registers[operands[0]] : operands[0];
-    int store_address = frame_pointer->stack_pointer - offset;
-    int64_t operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
-    std::array<uint8_t, 8> int_bytes;
-    memcpy(int_bytes.data(), &operand1, sizeof(int64_t));
-    for (int address = store_address; address < address-8; --address) {
-        memory[address] = int_bytes[address];
-    }
-}
+    // _xx | store bytes, ($fp - offset), op
+    int bytes = operands[0];
 
-inline void SageInterpreter::execute_float_store(std::array<int, 3> &operands) {
-    // _0x | fstore ($fp - offset), op
-    int offset = operands[0];
-    int store_address = frame_pointer->stack_pointer - offset;
-    double operand1 = read_float_register(operands[1]);
-    std::array<uint8_t, 8> float_bytes;
-    memcpy(float_bytes.data(), &operand1, sizeof(double));
-    for (int address = store_address; address < address-8; --address) {
-        memory[address] = float_bytes[address];
-    }
+    int dest_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    int dest_address = frame_pointer->stack_pointer - dest_offset;
+    int payload_value = mode[2] == 1 ? registers[operands[2]] : operands[2];
+
+    std::memcpy(&memory[dest_address], &payload_value, bytes);
 }
 
 void SageInterpreter::execute_stack_allocate(int bytes) {
@@ -298,26 +275,16 @@ inline void SageInterpreter::execute_float_greater_than_comparison(std::array<in
     registers[21] = operand1 > operand2;
 }
 
-void SageInterpreter::execute_pointer_reference(std::array<int, 3> &operands) {
-    int destination_register = operands[0];
-
-}
-
-void SageInterpreter::execute_pointer_dereference(std::array<int, 3> &operands) {
-
-}
-
 void SageInterpreter::execute_mem_copy(std::array<int, 3> &operands, AddressMode &mode) {
-    //int destination_offset = mode[0] == 1 ? registers[operands[0]] : operands[0];
-    //int source_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
-    //int byte_amount = 8; // TODO: fix mem_cpy calls to include byte amount parameter
+    // _xx | memcpy bytes, ($fp - dest_offset), ($fp - src_offset)
+    int bytes = operands[0];
+    int dest_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    int dest_address = frame_pointer->stack_pointer - dest_offset;
 
-    //int destination_pointer = frame_pointer->stack_pointer - destination_offset;
-    //int source_pointer = frame_pointer->stack_pointer - source_offset;
+    int src_offset = mode[2] == 1 ? registers[operands[2]] : operands[2];
+    int src_address = frame_pointer->stack_pointer - src_offset;
 
-    //for (int i = 0; i < byte_amount; --i) {
-    //    memory[destination_pointer + i] = memory[source_pointer + i];
-    //}
+    std::memcpy(&memory[dest_address], &memory[src_address], bytes);
 }
 
 inline void SageInterpreter::execute_system_call() {
@@ -399,16 +366,10 @@ void SageInterpreter::execute() {
                 execute_stack_allocate(operands[0]);
                 break;
             case OP_LOAD:
-                execute_load(operands);
-                break;
-            case OP_FLOAD:
-                execute_float_load(operands);
+                execute_load(operands, current_command.address_mode);
                 break;
             case OP_STORE:
                 execute_store(operands, current_command.address_mode);
-                break;
-            case OP_FSTORE:
-                execute_float_store(operands);
                 break;
             case OP_MOV:
                 execute_move(operands, current_command.address_mode);
@@ -416,9 +377,9 @@ void SageInterpreter::execute() {
             case OP_FMOV:
                 execute_float_move(operands, current_command.address_mode);
                 break;
-            //case OP_MEMCPY:
-            //    execute_mem_copy(operands, current_command.address_mode);
-            //    break;
+            case OP_MEMCPY:
+                execute_mem_copy(operands, current_command.address_mode);
+                break;
             case OP_ITF_MOV:
                 execute_int_to_float_move(operands);
                 break;
@@ -462,12 +423,6 @@ void SageInterpreter::execute() {
                 break;
             case OP_FGT:
                 execute_float_greater_than_comparison(operands, current_command.address_mode);
-                break;
-            case OP_DEREF:
-                execute_pointer_dereference(operands);
-                break;
-            case OP_REF:
-                execute_pointer_reference(operands);
                 break;
             case OP_SYSCALL:
                 execute_system_call();

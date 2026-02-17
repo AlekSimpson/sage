@@ -39,7 +39,7 @@ SageValue::SageValue(SageType *custom_type) : type(custom_type), nullvalue(false
     }
 }
 SageValue::SageValue(SageType *custom_type, ByteVector init_data) : type(custom_type), nullvalue(false) {
-    assert(custom_type->size == init_data.size());
+    assert(custom_type->size == (int)init_data.size());
     byte_data = new Byte[custom_type->size];
     std::memcpy(byte_data, init_data.data(), custom_type->size);
 }

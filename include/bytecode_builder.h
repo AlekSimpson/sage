@@ -54,11 +54,9 @@ struct BytecodeBuilder {
 
     void build_int_to_float_move_register(int dest_float_register, int src_int_register);
 
-    void build_fload(int sage_float_register, int offset);
-    void build_load(int sage_register, int offset);
-    void build_store_immediate(int offset, int immediate);
-    void build_store_register(int offset, int sage_register);
-    void build_fstore_register(int offset, int float_register);
+    void build_load(int sage_register, int offset, int bytes);
+    void build_store_immediate(int offset, int immediate, int bytes);
+    void build_store_register(int offset, int sage_register, int bytes);
 
     void build_fmove_immediate(int destination_register, double immediate_value);
     void build_fmove_register(int destination_register, int source_register);

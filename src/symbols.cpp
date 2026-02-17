@@ -27,6 +27,10 @@ bool SymbolEntry::needs_comptime_resolution() {
     return datatype->match(TypeRegistery::get_pending_comptime_type());
 }
 
+SageNamespace *SymbolEntry::get_namespace() {
+    return type_namespace;
+}
+
 SageSymbolTable::SageSymbolTable() : scope_manager(nullptr), function_processing_context(stack<SymbolIndex>()) {
 }
 
@@ -545,13 +549,20 @@ void SageNamespace::add_field_member(string name, SageType *type) {
     next_offset += type->size;
 }
 
+bool SageNamespace::is_field_member(string name, SageType *type) {
+    auto member = FieldMember(name, type);
+    return field_member_offsets.find(member) != field_member_offsets.end();
+}
 
+bool SageNamespace::is_method(string name, SageType *type) {
+    auto member = FieldMember(name, type);
+    return struct_methods.find(member) != struct_methods.end();
+}
 
-
-
-
-
-
+int SageNamespace::get_member_offset(string name, SageType *type) {
+    auto member = FieldMember(name, type);
+    return field_member_offsets[member];
+}
 
 
 SymbolIndex SymbolArena::allocate_symbol() {

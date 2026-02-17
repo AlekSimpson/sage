@@ -40,6 +40,11 @@ struct SageNamespace {
     unordered_map<FieldMember, SymbolIndex, FieldMember::FieldMemberHash> struct_methods;
     int next_offset = 0;
 
+    bool is_field_member(string name, SageType *type);
+    bool is_method(string name, SageType *type);
+
+    int get_member_offset(string name, SageType *type);
+
     void add_method(string name, SageFunctionType *function_type, SymbolIndex index);
     void add_field_member(string name, SageType *type);
 };

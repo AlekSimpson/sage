@@ -298,25 +298,13 @@ void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand, 
     comptime_total_instructions++;
 }
 
-void BytecodeBuilder::build_fload(int float_register, int offset) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
-        OP_FLOAD,
-        float_register,
-        offset,
-        _00
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_load(int sage_register, int offset) {
+void BytecodeBuilder::build_load(int sage_register, int offset, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_LOAD,
+        bytes,
         sage_register,
         offset,
         _00
@@ -324,12 +312,13 @@ void BytecodeBuilder::build_load(int sage_register, int offset) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_store_immediate(int offset, int immediate) {
+void BytecodeBuilder::build_store_immediate(int offset, int immediate, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_STORE,
+        bytes,
         offset,
         immediate,
         _00
@@ -337,27 +326,15 @@ void BytecodeBuilder::build_store_immediate(int offset, int immediate) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_store_register(int offset, int sage_register) {
+void BytecodeBuilder::build_store_register(int offset, int sage_register, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_STORE,
+        bytes,
         offset,
         sage_register,
-        _01
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_fstore_register(int offset, int float_register) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
-        OP_FSTORE,
-        offset,
-        float_register,
         _01
     ));
     increment_total_instruction_count(1);
@@ -488,7 +465,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, SymbolEntry *
     auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_index);
     switch (variable_result.state) {
         case VisitorResultState::SPILLED: {
-            right_value.to_stack_instruction(*this, var_symbol->stack_offset, var_symbol->datatype);
+            right_value.to_stack_instruction(*this, var_symbol->stack_offset);
             break;
         }
         case VisitorResultState::REGISTER: {
@@ -583,15 +560,6 @@ VisitorResult SageCompiler::build_or(VisitorResult value1, VisitorResult value2)
     return build_operator(value1, value2, OP_OR);
 }
 
-VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
-    string reference_name = node_manager->get_identifier(reference_node);
-    int scope_id = node_manager->get_scope_id(reference_node);
-    auto symbol = symbol_table.lookup(reference_name, scope_id);
-    VisitorResult load_result = VisitorResult(symbol_table, symbol->symbol_index);
-    return load_result;
-}
-
-
 void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument_register,
                                             SageType *argument_type) {
     // generate instructions which stores this visitor result into an argument register
@@ -609,13 +577,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
         }
         case VisitorResultState::SPILLED: {
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-            if (argument_type->identify() == FLOAT) {
-                // moving value from stack into float register
-                builder.build_fload(argument_register, entry->stack_offset);
-            } else {
-                // moving value from stack into normal register
-                builder.build_load(argument_register, entry->stack_offset);
-            }
+            builder.build_load(argument_register, entry->stack_offset, entry->datatype->size);
             break;
         }
         case VisitorResultState::REGISTER: {
@@ -658,14 +620,14 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     builder.build_int_to_float_move_register(argument_register, temporary_register);
                     break;
                 }
-                builder.build_fload(argument_register, static_pointer);
+                builder.build_load(argument_register, static_pointer, entry->datatype->size);
             } else {
                 // we are either moving a static literal or an immediate value into a register
                 if (static_pointer == -1) {
                     builder.build_move_immediate(argument_register, entry->data);
                     break;
                 }
-                builder.build_load(argument_register, static_pointer);
+                builder.build_load(argument_register, static_pointer, entry->datatype->size);
             }
             break;
         }
@@ -681,30 +643,20 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
     }
 }
 
-void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type,
-                                         AddressMode offset_mode) {
+void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode) {
     // generate instructions which stores this visitor result into an argument register
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
     auto *entry = symbol_table.lookup_by_index(symbol_table_index);
 
-    map<int, SageOpCode> register_state_combination_map = {
-        {0, OP_STORE},
-        {1, OP_FSTORE},
-        {2, OP_STORE},
-        {3, OP_FSTORE}
-    };
-
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
             int temporary_register = immediate_value; // if its not a float then we can just directly store the immediate int value
-            auto opcode = OP_STORE;
             if (result_type->identify() == FLOAT) {
                 temporary_register = compiler.get_volatile_register();
                 builder.build_fmove_immediate(temporary_register, immediate_value);
-                opcode = OP_FSTORE;
             }
-            builder.build_instruction(opcode, offset, temporary_register, offset_mode);
+            builder.build_instruction(OP_STORE, offset, temporary_register, offset_mode);
             break;
         }
         case VisitorResultState::SPILLED: {
@@ -712,12 +664,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
             break;
         }
         case VisitorResultState::REGISTER: {
-            int type_state_combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->datatype->
-                                         identify() == FLOAT;
-            auto opcode = register_state_combination_map[type_state_combination];
-            AddressMode argument_mode = _01;
-
-            builder.build_instruction(opcode, offset, entry->assigned_register, offset_mode + argument_mode);
+            builder.build_instruction(OP_STORE, offset, entry->assigned_register, offset_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
@@ -730,9 +677,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            auto opcode = result_type->identify() == FLOAT ? OP_FSTORE : OP_STORE;
-            AddressMode argument_mode = _01;
-            builder.build_instruction(opcode, offset, temporary_result_register, offset_mode + argument_mode);
+            builder.build_instruction(OP_STORE, offset, temporary_result_register, offset_mode + _01);
             break;
         }
         case VisitorResultState::LIST: {
@@ -745,8 +690,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
 pair<int, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
     auto &builder = compiler.builder;
     auto *entry = compiler.symbol_table.lookup_by_index(symbol_table_index);
-
-    auto opcode = entry->datatype->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
+    auto opcode = OP_LOAD;
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {

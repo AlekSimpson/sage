@@ -18,6 +18,13 @@
 
 using namespace std;
 
+NodeIndex FieldAccessTreeIterator::next() {
+    
+}
+
+bool FieldAccessTreeIterator::has_next() {
+}
+
 SageCompiler::SageCompiler(CompilerOptions options)
     : options(options),
       node_manager(new NodeManager()),

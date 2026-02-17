@@ -108,10 +108,8 @@ public:
     inline void execute_float_mul(std::array<int, 3> &);
     inline void execute_float_div(std::array<int, 3> &);
     inline void execute_stack_allocate(int operand);
-    inline void execute_load(std::array<int, 3> &);
-    inline void execute_float_load(std::array<int, 3> &);
+    inline void execute_load(std::array<int, 3> &, AddressMode &);
     inline void execute_store(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_float_store(std::array<int, 3> &);
     inline void execute_move(std::array<int, 3> &, AddressMode &mode);
     inline void execute_int_to_float_move(std::array<int, 3> &operands);
     inline void execute_float_move(std::array<int, 3> &, AddressMode &mode);
@@ -127,7 +125,5 @@ public:
     inline void execute_float_greater_than_comparison(std::array<int, 3> &, AddressMode &mode);
     inline void execute_not(std::array<int, 3> &);
     inline void execute_system_call();
-    inline void execute_pointer_reference(std::array<int, 3> &);
-    inline void execute_pointer_dereference(std::array<int, 3> &);
     inline void execute_mem_copy(std::array<int, 3> &, AddressMode &);
 };

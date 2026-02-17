@@ -39,6 +39,7 @@ public:
     virtual string to_string() = 0;
     virtual string get_base_type_string() = 0;
     virtual SageValue get_default_value() = 0;
+    virtual bool is_callable() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -56,6 +57,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SagePointerType : public SageType {
@@ -73,6 +75,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageArrayType : public SageType {
@@ -91,6 +94,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageFunctionType : public SageType {
@@ -112,6 +116,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageStructType : public SageType {
@@ -135,6 +140,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageDynamicArrayType : public SageType {
@@ -155,6 +161,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageReferenceType : public SageType {
@@ -174,6 +181,7 @@ public:
     string to_string() override;
     string get_base_type_string() override;
     SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class TypeRegistery {

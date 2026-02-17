@@ -62,12 +62,8 @@ string Command::print(const map<int, string> *label_names) {
         {OP_FMUL, "FMUL"},
         {OP_FDIV, "FDIV"},
         {OP_ALLOC, "ALLOC"},
-        {OP_FLOAD, "FLOAD"},
-        {OP_FSTORE, "FSTORE"},
         {OP_FMOV, "FMOV"},
         {OP_ITF_MOV, "ITFMOV"},
-        {OP_REF, "REF"},
-        {OP_DEREF, "DEREF"}
     };
 
     if (instruction.opcode == OP_RET ||
@@ -129,18 +125,6 @@ string Command::print(const map<int, string> *label_names) {
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
-        case OP_DEREF: {
-            // two operands
-            string operand_string_1 = to_string(operands[0]);
-            string operand_string_2 = to_string(operands[1]);
-            return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
-        }
-        case OP_REF: {
-            // two operands
-            string operand_string_1 = str("r", to_string(operands[0]));
-            string operand_string_2 = to_string(operands[1]);
-            return sen(opcode_map[instruction.opcode], operand_string_1, "($fp -", operand_string_2, ")");
-        }
 
         case OP_JZ:
         case OP_JNZ: {
@@ -177,16 +161,6 @@ string Command::print(const map<int, string> *label_names) {
 
         case OP_ALLOC: {
             return sen(opcode_map[instruction.opcode], to_string(operands[0]));
-        }
-        case OP_FLOAD: {
-            string operand_string_1 = str("fr", to_string(operands[0]));
-            string operand_string_2 = str("$", to_string(operands[1]));
-            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
-        }
-        case OP_FSTORE: {
-            string operand_string_1 = str("($fp - ", to_string(operands[0]), ")");
-            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
-            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         case OP_FMOV: {
             string operand_string_1 = str("fr", to_string(operands[0]));
