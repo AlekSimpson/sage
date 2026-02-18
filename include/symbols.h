@@ -172,7 +172,7 @@ public:
     void declare_builtin_type_symbol(const string &name, SageType *type);
     SymbolIndex declare_builtin_function(const string &name, SageType *type);
 
-    SymbolIndex declare_literal(NodeIndex ast_id, SageValue value);
+    SymbolIndex declare_literal(NodeIndex ast_id, SageValue value, int);
     SymbolIndex declare_variable(NodeIndex ast_id, SageType *valuetype);
     SymbolIndex declare_parameter(NodeIndex ast_id, SageType *valuetype, int parameter_register_assignment);
     SymbolIndex declare_type_symbol(NodeIndex ast_id, SageType *type);

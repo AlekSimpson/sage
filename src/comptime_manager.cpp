@@ -83,7 +83,7 @@ void ComptimeManager::register_task_dependencies(SageSymbolTable &symbol_table) 
 
 void ComptimeManager::execute_task(ComptimeTask *task) {
     SageInterpreter interpreter = SageInterpreter(symbol_table);
-    interpreter.open(task->procedure_to_instruction_index, ordered_static_program_memory_elements);
+    interpreter.open(task->procedure_to_instruction_index, *static_program_memory);
     interpreter.load_program(task->task_instructions);
     interpreter.execute();
     task->symbol_injection_value = interpreter.get_return_value();

@@ -95,7 +95,7 @@ struct VisitorResult {
     }
     result_type = type;
   }
-  VisitorResult(int value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
+  VisitorResult(int value) : immediate_value(SageValue((int64_t)value)), state(VisitorResultState::IMMEDIATE) {
     result_type = TR::get_integer_type(8);
   }
   VisitorResult(float value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
@@ -124,11 +124,17 @@ struct VisitorResult {
 };
 
 struct FieldAccessTreeIterator {
-  NodeIndex current_root;
-  NodeManager* node_manager;
+  vector<NodeIndex> elements;
+  int index = 0;
 
-  FieldAccessTreeIterator(NodeIndex current_root, NodeManager* nm)
-      : current_root(current_root), node_manager(nm) {}
+  FieldAccessTreeIterator(NodeIndex root, NodeManager* nm) {
+    NodeIndex current_root = root;
+    while (nm->get_host_nodetype(current_root) == PN_BINARY) {
+      elements.push_back(nm->get_left(current_root));
+      current_root = nm->get_right(current_root);
+    }
+    elements.push_back(current_root);
+  }
 
   NodeIndex next();
   bool has_next();
@@ -152,7 +158,7 @@ public:
   map<string, set<string>> definition_dependencies;
   map<string, int> in_degree_map; // TODO: rename, this is not a very good name
 
-  vector<SymbolIndex> static_program_memory_insertion_order;
+  ByteVector static_program_memory_store;
 
   CodegenMode codegen_mode;
   const int VOLATILE_REGISTER_SIZE = 10;
@@ -195,7 +201,6 @@ public:
   VisitorResult visit_statement(NodeIndex);
   VisitorResult visit_keyword(NodeIndex);
   VisitorResult visit_function_definition(NodeIndex);
-  VisitorResult visit_struct(NodeIndex);
   VisitorResult visit_if(NodeIndex);
   VisitorResult visit_while(NodeIndex);
   VisitorResult visit_for(NodeIndex);

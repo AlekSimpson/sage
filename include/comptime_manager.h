@@ -57,7 +57,7 @@ struct ComptimeManager {
     TaskMinHeap task_min_heap;
     map<NodeIndex, ComptimeTaskId> node_to_task_id;
     queue<ComptimeTask *> staged_for_execution;
-    vector<SymbolIndex> ordered_static_program_memory_elements;
+    ByteVector *static_program_memory;
 
     mutex queue_mutex;
     condition_variable queue_condition_variable;

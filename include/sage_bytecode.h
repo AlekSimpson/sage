@@ -39,20 +39,15 @@ enum SageOpCode {
     OP_FMUL,    // _xx | fmul freg, op, op
     OP_FDIV,    // _xx | fdiv freg, op, op
 
-    OP_MEMCPY,  // _xx | memcpy bytes, ($fp - op), ($fp - op)
-    OP_ALLOC,   // _00 | alloc bytesize
-    OP_LOAD,    // _00 | load bytes, reg, ($fp - offset)
-                // build_load(register, offset)
-    OP_STORE,   // _0x | store bytes, ($fp - offset), op
-                // build_store_immediate(offset, immediate)
-                // build_store_register(offset, register)
+    OP_STATIC_COPY, // _xx | statcpy bytes, ($fp, - op), $static_pointer
+    OP_MEMCPY,      // _xx | memcpy bytes, ($fp - op), ($fp - op)
+    OP_ALLOC,       // _00 | alloc bytesize
+    OP_LOAD,        // _00 | load bytes, reg, ($fp - offset)
+    OP_STORE,       // _0x | store bytes, ($fp - offset), op
 
     OP_ITF_MOV, // _01 | itfmov freg, ireg
     OP_FMOV,    // _0x | mov freg, op
-                // build_fmove_register(register, register)
     OP_MOV,     // _0x | mov reg, op
-                // build_move_immediate(register, immediate)
-                // build_move_register(register, register)
 
     OP_JZ,      // _00 | jz reg immediate  | jump if zero
     OP_JNZ,     // _00 | jnz reg immediate | jump if not zero
@@ -71,7 +66,6 @@ enum SageOpCode {
     OP_AND,     // _xx | and op, op
     OP_OR,      // _xx | or op, op
     OP_NOT,     // _00 | not reg
-                // build_not(int register)
 
     OP_NOP,     // _00 | nop
 

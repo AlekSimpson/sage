@@ -54,8 +54,6 @@ VisitorResult SageCompiler::visit_statement(NodeIndex node) {
     switch (node_manager->get_nodetype(node)) {
         case PN_FUNCDEF:
             return visit_function_definition(node);
-        case PN_STRUCT:
-            return visit_struct(node);
         case PN_IF:
             return visit_if(node);
         case PN_WHILE:
@@ -166,10 +164,6 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
     }
 
     symbol_table.pop_function_processing_context();
-    return VisitorResult();
-}
-
-VisitorResult SageCompiler::visit_struct(NodeIndex node) {
     return VisitorResult();
 }
 
@@ -459,21 +453,7 @@ VisitorResult SageCompiler::build_dereference_instructions(VisitorResult &operan
 
 int SageCompiler::get_literal_static_pointer(SymbolIndex literal_symbol_table_index) {
     auto *target_entry = symbol_table.lookup_by_index(literal_symbol_table_index);
-    auto static_stack_pointer = target_entry->static_stack_pointer;
-    if (static_stack_pointer != -1) return static_stack_pointer;
-
-    int bytes_passed = 0;
-    SymbolEntry *current_entry;
-    for (auto index: static_program_memory_insertion_order) {
-        current_entry = symbol_table.lookup_by_index(index);
-        if (index == literal_symbol_table_index) {
-            target_entry->static_stack_pointer = bytes_passed;
-            return bytes_passed;
-        }
-
-        bytes_passed += current_entry->datatype->size;
-    }
-    return -1;
+    return target_entry->static_stack_pointer;
 }
 
 VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parameter_pointer_register) {
@@ -488,10 +468,9 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
         args.push_back(visit_expression(arg));
     }
 
-    auto identifier = node_manager->get_identifier(node);
+    auto function_name = node_manager->get_identifier(node);
     auto scoped_id = node_manager->get_scope_id(node);
-    SymbolEntry *function_symbol = symbol_table.lookup(identifier, scoped_id);
-    string function_name = function_symbol->name;
+    SymbolEntry *function_symbol = symbol_table.lookup(function_name, scoped_id);
     if (args.size() > 6) {
         logger.log_internal_error_unsafe(
             "builders.cpp",

@@ -39,10 +39,15 @@ Token *SageLexer::check_for_string() {
         char_buffer->get(current_char);
         linedepth++;
 
-        while (current_char != '"') {
+        while (current_char != '"' && current_char != '\n' && !char_buffer->eof()) {
             lexeme += current_char;
             char_buffer->get(current_char);
             linedepth++;
+        }
+
+        if (current_char != '"') {
+            Token tok = Token(TT_STRING, lexeme, linenum);
+            ErrorLogger::get().log_error_unsafe(tok, "Unterminated string literal.", SYNTAX);
         }
 
         lexeme += '"';
@@ -312,18 +317,18 @@ Token *SageLexer::get_token() {
         return current_token;
     }
 
+    // note: CRITICAL!! We have to call get() before we check eof() becaus eof only updates to eof after a *failed* get() call.
+    char_buffer->get(current_char);
+    linedepth++;
+    while (current_char == ' ' || current_char == '\t') {
+        char_buffer->get(current_char);
+        linedepth++;
+    }
+
     if (char_buffer->eof()) {
         tok = lexer_make_token(TT_EOF, "eof");
         last_token = *tok;
         return tok;
-    }
-
-    char_buffer->get(current_char);
-    linedepth++;
-
-    while (current_char == ' ' || current_char == '\t') {
-        char_buffer->get(current_char);
-        linedepth++;
     }
 
     if (current_char == '\n') {

@@ -84,7 +84,7 @@ void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *
     scope_manager->register_symbol_in_current_scope(new_index);
 }
 
-SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) {
+SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value, int static_pointer) {
     int current_scope = nm->get_scope_id(ast_id);
     string name = nm->get_identifier(ast_id);
 
@@ -97,6 +97,7 @@ SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value) 
         entry.name = name;
         entry.scope_id = current_scope;
         entry.definition_ast_index = ast_id;
+        entry.static_stack_pointer = static_pointer;
         entry.symbol_index = new_index;
 
         scope_symbol_map[{current_scope, name}] = new_index;
@@ -570,6 +571,7 @@ SymbolIndex SymbolArena::allocate_symbol() {
 
     int new_id = size;
     size++;
+    is_empty = false;
     return new_id;
 }
 

@@ -487,7 +487,7 @@ VisitorResult SageCompiler::build_function_with_block(string function_name) {
 
 VisitorResult SageCompiler::build_alloca(SymbolEntry *var_symbol) {
     if (var_symbol->spilled) {
-        int offset = var_symbol->datatype->alignment;
+        int offset = var_symbol->datatype->size;
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
     }
 
@@ -577,7 +577,12 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
         }
         case VisitorResultState::SPILLED: {
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-            builder.build_load(argument_register, entry->stack_offset, entry->datatype->size);
+            if (entry->datatype->size > 8) {
+                // can't fit raw value in register so just move pointer into register
+                builder.build_move_immediate(argument_register, entry->stack_offset);
+            }else {
+                builder.build_load(argument_register, entry->stack_offset, 8);
+            }
             break;
         }
         case VisitorResultState::REGISTER: {
@@ -611,22 +616,18 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                 builder.build_move_immediate(argument_register, static_pointer);
                 break;
             }
-
             if (argument_type->identify() == FLOAT) {
-                // we are either moving a static literal or an immediate value into a float register
-                if (static_pointer == -1) {
-                    int temporary_register = compiler.get_volatile_register();
-                    builder.build_move_immediate(temporary_register, entry->data);
-                    builder.build_int_to_float_move_register(argument_register, temporary_register);
-                    break;
-                }
-                builder.build_load(argument_register, static_pointer, entry->datatype->size);
-            } else {
-                // we are either moving a static literal or an immediate value into a register
-                if (static_pointer == -1) {
-                    builder.build_move_immediate(argument_register, entry->data);
-                    break;
-                }
+                builder.build_fmove_immediate(argument_register, entry->data);
+                break;
+            }
+            if (static_pointer == -1) {
+                builder.build_move_immediate(argument_register, entry->data);
+                break;
+            }
+
+            if (entry->datatype->size > 8) {
+                builder.build_move_immediate(argument_register, static_pointer);
+            }else {
                 builder.build_load(argument_register, static_pointer, entry->datatype->size);
             }
             break;
@@ -656,7 +657,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                 temporary_register = compiler.get_volatile_register();
                 builder.build_fmove_immediate(temporary_register, immediate_value);
             }
-            builder.build_instruction(OP_STORE, offset, temporary_register, offset_mode);
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_register, offset_mode);
             break;
         }
         case VisitorResultState::SPILLED: {
@@ -664,20 +665,20 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
             break;
         }
         case VisitorResultState::REGISTER: {
-            builder.build_instruction(OP_STORE, offset, entry->assigned_register, offset_mode + _01);
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->assigned_register, offset_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
             if (static_pointer == -1) {
-                builder.build_instruction(OP_STORE, offset, entry->data, offset_mode);
+                builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->data, offset_mode);
                 break;
             }
-            builder.build_instruction(OP_MEMCPY, entry->datatype->size, offset, static_pointer, offset_mode);
+            builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STORE, offset, temporary_result_register, offset_mode + _01);
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_result_register, offset_mode + _01);
             break;
         }
         case VisitorResultState::LIST: {

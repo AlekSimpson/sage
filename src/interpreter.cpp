@@ -162,7 +162,7 @@ inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands) {
 inline void SageInterpreter::execute_load(std::array<int, 3> &operands, AddressMode &mode) {
     // _0x | load bytes, reg, ($fp - offset)
     int bytes = operands[0];
-    int offset = mode[2] == 1 ? registers[operands[2]] : operands[2];
+    int offset = mode[1] == 1 ? registers[operands[2]] : operands[2];
     int load_address = frame_pointer->stack_pointer - offset;
     std::memcpy(&registers[operands[1]], &memory[load_address], bytes);
 }
@@ -171,9 +171,9 @@ inline void SageInterpreter::execute_store(std::array<int, 3> &operands, Address
     // _xx | store bytes, ($fp - offset), op
     int bytes = operands[0];
 
-    int dest_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int dest_address = frame_pointer->stack_pointer - dest_offset;
-    int payload_value = mode[2] == 1 ? registers[operands[2]] : operands[2];
+    int payload_value = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     std::memcpy(&memory[dest_address], &payload_value, bytes);
 }
@@ -278,11 +278,22 @@ inline void SageInterpreter::execute_float_greater_than_comparison(std::array<in
 void SageInterpreter::execute_mem_copy(std::array<int, 3> &operands, AddressMode &mode) {
     // _xx | memcpy bytes, ($fp - dest_offset), ($fp - src_offset)
     int bytes = operands[0];
-    int dest_offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int dest_address = frame_pointer->stack_pointer - dest_offset;
 
-    int src_offset = mode[2] == 1 ? registers[operands[2]] : operands[2];
+    int src_offset = mode[1] == 1 ? registers[operands[2]] : operands[2];
     int src_address = frame_pointer->stack_pointer - src_offset;
+
+    std::memcpy(&memory[dest_address], &memory[src_address], bytes);
+}
+
+void SageInterpreter::execute_static_copy(std::array<int, 3> &operands, AddressMode &mode) {
+    // _xx | statcpy bytes, ($fp - dest_offset), $pointer
+    int bytes = operands[0];
+    int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
+    int dest_address = frame_pointer->stack_pointer - dest_offset;
+
+    int src_address = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     std::memcpy(&memory[dest_address], &memory[src_address], bytes);
 }
@@ -380,6 +391,9 @@ void SageInterpreter::execute() {
             case OP_MEMCPY:
                 execute_mem_copy(operands, current_command.address_mode);
                 break;
+            case OP_STATIC_COPY:
+                execute_static_copy(operands, current_command.address_mode);
+                break;
             case OP_ITF_MOV:
                 execute_int_to_float_move(operands);
                 break;
@@ -449,9 +463,11 @@ void SageInterpreter::execute() {
     }
 }
 
-void SageInterpreter::open(const map<int, int> &procedure_line_locations, vector<SymbolIndex> &static_memory_insertion_order) {
+void SageInterpreter::open(const map<int, int> &procedure_line_locations, ByteVector &program_static_memory) {
     const int megabyte = 1024 * 1024;
     memory.resize(megabyte);
+
+    proc_line_locations = procedure_line_locations;
 
     if (frame_pointer == nullptr) {
         frame_pointer = new StackFrame(
@@ -464,16 +480,11 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, vector
     }
 
     size_t static_working_pointer = static_start_pointer;
-    for (auto index: static_memory_insertion_order) {
-        auto data_value = symbol_table->lookup_by_index(index)->data;
-        std::memcpy(&memory[static_working_pointer], &data_value, sizeof(data_value));
-        static_working_pointer+=data_value.type->size;
-    }
-    heap_pointer = static_working_pointer;
+    std::memcpy(memory.data(), program_static_memory.data(), (int)program_static_memory.size());
+    heap_pointer = (int)program_static_memory.size();
     static_memory_end_pointer = static_working_pointer - 1;
     registers[STACK_POINTER] = memory.size()-1; // stack begins are memory max and "grows up"
 
-    proc_line_locations = procedure_line_locations;
     vm_running = false;
 }
 

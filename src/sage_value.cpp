@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <cassert>
 #include "../include/sage_value.h"
@@ -5,27 +6,27 @@
 
 SageValue::SageValue(char value) : type(TypeRegistery::get_byte_type(CHAR)), nullvalue(false) {
     byte_data = new Byte[1];
-    std::memcpy(&value, byte_data, sizeof(char));
+    std::memcpy(byte_data, &value, sizeof(char));
 }
 SageValue::SageValue(bool value) : type(TypeRegistery::get_byte_type(BOOL)), nullvalue(false) {
     byte_data = new Byte[1];
-    std::memcpy(&value, byte_data, sizeof(bool));
+    std::memcpy(byte_data, &value, sizeof(bool));
 }
 SageValue::SageValue(int32_t value) : type(TypeRegistery::get_integer_type(4)), nullvalue(false) {
     byte_data = new Byte[4];
-    std::memcpy(&value, byte_data, sizeof(int32_t));
+    std::memcpy(byte_data, &value, sizeof(int32_t));
 }
 SageValue::SageValue(int64_t value) : type(TypeRegistery::get_integer_type(8)), nullvalue(false) {
     byte_data = new Byte[8];
-    std::memcpy(&value, byte_data, sizeof(int64_t));
+    std::memcpy(byte_data, &value, sizeof(int64_t));
 }
 SageValue::SageValue(float value) : type(TypeRegistery::get_float_type(4)), nullvalue(false) {
     byte_data = new Byte[4];
-    std::memcpy(&value, byte_data, sizeof(float));
+    std::memcpy(byte_data, &value, sizeof(float));
 }
 SageValue::SageValue(double value) : type(TypeRegistery::get_float_type(8)), nullvalue(false) {
     byte_data = new Byte[8];
-    std::memcpy(&value, byte_data, sizeof(double));
+    std::memcpy(byte_data, &value, sizeof(double));
 }
 SageValue::SageValue(SageType *custom_type) : type(custom_type), nullvalue(false) {
     byte_data = new Byte[custom_type->size];
@@ -34,7 +35,7 @@ SageValue::SageValue(SageType *custom_type) : type(custom_type), nullvalue(false
     SageValue default_value;
     for (auto member_type: struct_type->member_types) {
         default_value = member_type->get_default_value();
-        std::memcpy(byte_data + pointer, &default_value, default_value.type->size);
+        std::memcpy(byte_data + pointer, default_value.byte_data, default_value.type->size);
         pointer += default_value.type->size;
     }
 }
@@ -50,6 +51,50 @@ SageValue::~SageValue() {
     if (byte_data != nullptr) delete[] byte_data;
 }
 
+// Copy constructor
+SageValue::SageValue(const SageValue& other)
+    : type(other.type), nullvalue(other.nullvalue) {
+    if (other.byte_data != nullptr && other.type != nullptr) {
+        byte_data = new Byte[other.type->size];
+        std::memcpy(byte_data, other.byte_data, other.type->size);
+    } else {
+        byte_data = nullptr;
+    }
+}
+
+// Copy assignment
+SageValue& SageValue::operator=(const SageValue& other) {
+    if (this != &other) {
+        delete[] byte_data;
+        type = other.type;
+        nullvalue = other.nullvalue;
+        if (other.byte_data != nullptr && other.type != nullptr) {
+            byte_data = new Byte[other.type->size];
+            std::memcpy(byte_data, other.byte_data, other.type->size);
+        } else {
+            byte_data = nullptr;
+        }
+    }
+    return *this;
+}
+
+// Move constructor
+SageValue::SageValue(SageValue&& other) noexcept
+    : byte_data(other.byte_data), type(other.type), nullvalue(other.nullvalue) {
+    other.byte_data = nullptr;
+}
+
+// Move assignment
+SageValue& SageValue::operator=(SageValue&& other) noexcept {
+    if (this != &other) {
+        delete[] byte_data;
+        byte_data = other.byte_data;
+        type = other.type;
+        nullvalue = other.nullvalue;
+        other.byte_data = nullptr;
+    }
+    return *this;
+}
 
 bool SageValue::is_null() {
     return nullvalue;
@@ -76,7 +121,7 @@ int32_t SageValue::as_i32() {
 
 int64_t SageValue::as_i64() {
     int64_t result = 0;
-    std::memcpy(&result, byte_data, sizeof(int64_t));
+    std::memcpy(&result, byte_data, std::min((size_t)type->size, sizeof(int64_t)));
     return result;
 }
 
@@ -88,7 +133,7 @@ uint32_t SageValue::as_u32() {
 
 uint64_t SageValue::as_u64() {
     uint64_t result = 0;
-    std::memcpy(&result, byte_data, sizeof(int64_t));
+    std::memcpy(&result, byte_data, std::min((size_t)type->size, sizeof(uint64_t)));
     return result;
 }
 

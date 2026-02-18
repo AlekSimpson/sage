@@ -66,16 +66,13 @@ string Command::print(const map<int, string> *label_names) {
         {OP_ITF_MOV, "ITFMOV"},
     };
 
-    if (instruction.opcode == OP_RET ||
-        instruction.opcode == OP_NOP ||
-        instruction.opcode == OP_SYSCALL ||
-        instruction.opcode == VOP_EXIT) {
-        return opcode_map[instruction.opcode];
-    }
-
     auto &operands = instruction.operands;
-
     switch (instruction.opcode) {
+        case OP_RET:
+        case OP_NOP:
+        case OP_SYSCALL:
+        case VOP_EXIT:
+            return opcode_map[instruction.opcode];
         case OP_NOT: {
             return sen(opcode_map[instruction.opcode], str("r", to_string(operands[0])));
         }
@@ -104,15 +101,17 @@ string Command::print(const map<int, string> *label_names) {
         }
 
         case OP_LOAD: {
-            string operand_string_1 = str("r", to_string(operands[0]));
-            string operand_string_2 = str("$", to_string(operands[1]));
-            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = str("r", to_string(operands[1]));
+            string operand_string_3 = str("$", to_string(operands[2]));
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
 
         case OP_STORE: {
-            string operand_string_1 = str("($fp - ", to_string(operands[0]), ")");
-            string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
-            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = str("($fp - ", to_string(operands[1]), ")");
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
 
         case OP_EQ:
@@ -168,11 +167,16 @@ string Command::print(const map<int, string> *label_names) {
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
         case OP_MEMCPY: {
-            string operand_string_1 = "8";
-            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[0])) : to_string(operands[0]);
-            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
-            // TODO: string operand_string_3 = to_string(operands[3]);
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
             return sen("memcpy", operand_string_1, operand_string_2, operand_string_3);
+        }
+        case OP_STATIC_COPY: {
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
+            return sen("statcpy", operand_string_1, operand_string_2, operand_string_3);
         }
         default:
             return sen("Unknown bytecode", instruction.opcode);

@@ -1,6 +1,7 @@
 
 
-MOV r24 0
+SUB r23 r23 16
+statcpy 16 0 0
 LABEL @2090629895
 MOV r22 1
 MOV r10 r1

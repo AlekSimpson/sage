@@ -8,7 +8,7 @@ typedef uint8_t Byte;
 
 class SageValue {
 public:
-    Byte* byte_data = new Byte[0];
+    Byte* byte_data = nullptr;
     SageType *type = TypeRegistery::get_byte_type(VOID);
     bool nullvalue;
 
@@ -22,6 +22,12 @@ public:
     SageValue(SageType * complex_type);
     SageValue(SageType * complex_type, ByteVector init_data);
     ~SageValue();
+
+    // Rule of 5: copy/move semantics
+    SageValue(const SageValue& other);
+    SageValue& operator=(const SageValue& other);
+    SageValue(SageValue&& other) noexcept;
+    SageValue& operator=(SageValue&& other) noexcept;
 
     bool is_null();
 

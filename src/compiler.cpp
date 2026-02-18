@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
 #include <array>
 
 #include "../include/codegen.h"
@@ -19,10 +20,13 @@
 using namespace std;
 
 NodeIndex FieldAccessTreeIterator::next() {
-    
+    if (index >= (int)elements.size()) return -1;
+    return elements[index++];
 }
 
 bool FieldAccessTreeIterator::has_next() {
+    if (index >= (int)elements.size()) return false;
+    return true;
 }
 
 SageCompiler::SageCompiler(CompilerOptions options)
@@ -65,7 +69,7 @@ void SageCompiler::compile_file(string mainfile) {
         return;
     }
 
-    int symbol_count = BUILTIN_COUNT + parser.symbol_count;
+    int symbol_count = ceil((BUILTIN_COUNT + parser.symbol_count) * 1.5);
     symbol_table = SageSymbolTable(&scope_manager, node_manager, symbol_count);
     symbol_table.initialize();
 
@@ -77,7 +81,7 @@ void SageCompiler::compile_file(string mainfile) {
         logger.report_errors();
         return;
     }
-    comptime_manager.ordered_static_program_memory_elements = static_program_memory_insertion_order;
+    comptime_manager.static_program_memory = &static_program_memory_store;
 
     perform_type_resolution();
     if (logger.has_errors()) {
@@ -205,7 +209,7 @@ void SageCompiler::compile_file(string mainfile) {
 
     if (options.compilation_target == SAGE_VM) {
         auto interpreter = SageInterpreter(&symbol_table);
-        interpreter.open(procedure_to_instruction_index, static_program_memory_insertion_order);
+        interpreter.open(procedure_to_instruction_index, static_program_memory_store);
         interpreter.load_program(runtime_code);
         interpreter.execute();
         interpreter.close();
@@ -386,18 +390,22 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 scanned_literals.insert(node_lexeme);
 
                 process_escape_sequences(node_lexeme);
+                int64_t string_length = node_lexeme.size();
+
                 vector<SageType *> string_member_types = {TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)};
                 auto *string_type = TR::get_struct_type("string", string_member_types);
 
-                ByteVector string_bytes;
-                int64_t string_length = node_lexeme.size();
-                string_bytes.reserve(string_length + 8);
-                std::memcpy(string_bytes.data(), node_lexeme.c_str(), node_lexeme.size());
-                std::memcpy(string_bytes.data() + string_length, &string_length, sizeof(int64_t));
-                SageValue string_value = SageValue(string_type, string_bytes);
-                auto index = symbol_table.declare_literal(current_node, string_value);
+                int64_t static_pointer = static_program_memory_store.size();
+                static_program_memory_store.resize(static_program_memory_store.size() + string_length);
+                std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
 
-                static_program_memory_insertion_order.push_back(index);
+                ByteVector string_instance_data;
+                string_instance_data.resize(string_type->size);
+                std::memcpy(string_instance_data.data(), &static_pointer, 8);
+                std::memcpy(&string_instance_data[8], &string_length, 8);
+
+                SageValue string_value = SageValue(string_type, string_instance_data);
+                symbol_table.declare_literal(current_node, string_value, static_pointer);
                 continue;
             }
             default: {
@@ -553,14 +561,14 @@ void SageCompiler::register_allocation() {
         }
 
         if (entry.spilled || entry.datatype->size > 8 || entry.datatype->is_pointer() || entry.datatype->is_struct()) {
-            symbol_table.entries.get(index).spill(current_relative_stack_location);
+            symbol_table.entries.get_pointer(index)->spill(current_relative_stack_location);
             current_relative_stack_location += entry.datatype->size;
             continue;
         }
 
         if (available_registers.empty()) {
             // no room -> spill
-            symbol_table.entries.get(index).spill(current_relative_stack_location);
+            symbol_table.entries.get_pointer(index)->spill(current_relative_stack_location);
             current_relative_stack_location += entry.datatype->size;
             continue;
         }
@@ -710,7 +718,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     // then sort those definitions into a valid compilation order
     //  *** in_degree represents amount of in sope references contained within the definition
     for (int symbol_id: definitions_by_scope) {
-        if (current_scope != symbol_table.entries.get(symbol_id).scope_id || symbol_id == SAGE_NULL_SYMBOL) {
+        if (symbol_id == SAGE_NULL_SYMBOL || current_scope != symbol_table.entries.get(symbol_id).scope_id) {
             resolve_definition_order(current_scope);
             if (symbol_id == SAGE_NULL_SYMBOL) break;
 

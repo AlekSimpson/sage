@@ -92,7 +92,7 @@ public:
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 
-    void open(const map<int, int> &, vector<SymbolIndex> &static_memory_insertion_order);
+    void open(const map<int, int> &, ByteVector &program_static_memory);
     void close();
     void load_program(bytecode program);
     void execute();
@@ -126,4 +126,5 @@ public:
     inline void execute_not(std::array<int, 3> &);
     inline void execute_system_call();
     inline void execute_mem_copy(std::array<int, 3> &, AddressMode &);
+    inline void execute_static_copy(std::array<int, 3> &, AddressMode &);
 };
