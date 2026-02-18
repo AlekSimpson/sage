@@ -77,13 +77,13 @@ enum SageOpCode {
 
 struct Instruction {
     SageOpCode opcode = SageOpCode::OP_NOP;
-    std::array<int, 3> operands = {0, 0, 0};
+    std::array<int64_t, 3> operands = {0, 0, 0};
     int operand_count = 0;
 
     Instruction();
-    Instruction(SageOpCode, int);
-    Instruction(SageOpCode, int, int);
-    Instruction(SageOpCode, int, int, int);
+    Instruction(SageOpCode, int64_t);
+    Instruction(SageOpCode, int64_t, int64_t);
+    Instruction(SageOpCode, int64_t, int64_t, int64_t);
 };
 
 struct Command {
@@ -93,9 +93,9 @@ struct Command {
     // 1 - deref register
 
     Command();
-    Command(SageOpCode, int, AddressMode);
-    Command(SageOpCode, int, int, AddressMode);
-    Command(SageOpCode, int, int, int, AddressMode);
+    Command(SageOpCode, int64_t, AddressMode);
+    Command(SageOpCode, int64_t, int64_t, AddressMode);
+    Command(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
 
     string print(const map<int, string>* label_names = nullptr);
 };

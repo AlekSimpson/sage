@@ -650,7 +650,8 @@ void SageCompiler::get_in_degree_of(
 
 void SageCompiler::resolve_definition_order(int target_scope) {
     vector<NodeIndex> result_order;
-    stack<string> fringe;
+    //stack<string> fringe;
+    queue<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
     for (const auto &[identifier, in_degree]: in_degree_map) {
         auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
@@ -663,7 +664,8 @@ void SageCompiler::resolve_definition_order(int target_scope) {
     string current;
     set<string> visited;
     while (!fringe.empty()) {
-        current = fringe.top();
+        //current = fringe.top();
+        current = fringe.front();
         fringe.pop();
 
         if (visited.find(current) != visited.end()) {

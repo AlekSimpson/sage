@@ -371,21 +371,27 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         }
         case PN_CHARACTER_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
-            return VisitorResult(SageValue(identifier.c_str()[0]));
+            SageValue value = SageValue(identifier.c_str()[0]);
+            return VisitorResult(value);
         }
         case PN_NUMBER: {
-            return VisitorResult(stoi(node_manager->get_lexeme(node)));
+            SageValue int_result = SageValue(stoi(node_manager->get_lexeme(node)));
+            return VisitorResult(int_result);
         }
         case PN_FLOAT: {
-            return VisitorResult(stof(node_manager->get_lexeme(node)));
+            SageValue float_result = SageValue((double)stof(node_manager->get_lexeme(node)));
+            return VisitorResult(float_result);
         }
         case PN_BOOL: {
             auto identifier = node_manager->get_identifier(node);
+            SageValue bool_result;
             if (identifier == "true") {
-                return VisitorResult(SageValue(true));
+                bool_result = SageValue(true);
+                return VisitorResult(bool_result);
             }
             if (identifier == "false") {
-                return VisitorResult(SageValue(false));
+                bool_result = SageValue(false);
+                return VisitorResult(bool_result);
             }
             logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
                                              sen("Expected to find 'true' or 'false', found", identifier));

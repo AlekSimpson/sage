@@ -492,8 +492,9 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
         string base_type_name = first_parameter->get_base_type_string();
         auto *type_entry = lookup(base_type_name, function_entry.scope_id);
         assert(type_entry != nullptr);
+        auto *function_type = TypeRegistery::get_function_type(parameter_types, return_types);
         type_entry->type_namespace->add_method(function_entry.name,
-                                               static_cast<SageFunctionType *>(function_entry.datatype),
+                                               dynamic_cast<SageFunctionType *>(function_type),
                                                entry_index);
     }
 

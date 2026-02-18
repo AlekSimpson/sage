@@ -44,24 +44,24 @@ struct BytecodeBuilder {
     void enter_comptime();
     void reset_and_exit_comptime();
 
-    void build_instruction(SageOpCode, int, int, int, AddressMode);
-    void build_instruction(SageOpCode, int, int, AddressMode);
-    void build_instruction(SageOpCode, int, AddressMode);
+    void build_instruction(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
+    void build_instruction(SageOpCode, int64_t, int64_t, AddressMode);
+    void build_instruction(SageOpCode, int64_t, AddressMode);
 
-    void build_builtin_instruction(SageOpCode, int, int, int, AddressMode);
-    void build_builtin_instruction(SageOpCode, int, int, AddressMode);
-    void build_builtin_instruction(SageOpCode, int, AddressMode);
+    void build_builtin_instruction(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
+    void build_builtin_instruction(SageOpCode, int64_t, int64_t, AddressMode);
+    void build_builtin_instruction(SageOpCode, int64_t, AddressMode);
 
     void build_int_to_float_move_register(int dest_float_register, int src_int_register);
 
     void build_load(int sage_register, int offset, int bytes);
-    void build_store_immediate(int offset, int immediate, int bytes);
+    void build_store_immediate(int offset, int64_t immediate, int bytes);
     void build_store_register(int offset, int sage_register, int bytes);
 
-    void build_fmove_immediate(int destination_register, double immediate_value);
+    void build_fmove_immediate(int destination_register, int64_t immediate_value);
     void build_fmove_register(int destination_register, int source_register);
 
-    void build_move_immediate(int sage_register, int immediate);
+    void build_move_immediate(int sage_register, int64_t immediate);
     void build_move_register(int destination_register, int source_register);
 
     void build_not(int sage_register);

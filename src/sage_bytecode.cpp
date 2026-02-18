@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <vector>
+#include <cstring>
 #include <string>
 #include <map>
 
@@ -15,19 +16,19 @@ AddressMode operator+(AddressMode &operand_a, AddressMode &operand_b) {
 Command::Command() {
 }
 
-Command::Command(SageOpCode code, int operand, AddressMode mode) : instruction(Instruction(code, operand)) {
+Command::Command(SageOpCode code, int64_t operand, AddressMode mode) : instruction(Instruction(code, operand)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
 }
 
-Command::Command(SageOpCode code, int op1, int op2, AddressMode mode) : instruction(Instruction(code, op1, op2)) {
+Command::Command(SageOpCode code, int64_t op1, int64_t op2, AddressMode mode) : instruction(Instruction(code, op1, op2)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
 }
 
-Command::Command(SageOpCode code, int op1, int op2, int op3, AddressMode mode) : instruction(Instruction(code, op1, op2, op3)) {
+Command::Command(SageOpCode code, int64_t op1, int64_t op2, int64_t op3, AddressMode mode) : instruction(Instruction(code, op1, op2, op3)) {
     for (int i = 0; i < 2; ++i) {
         address_mode[i] = mode[i];
     }
@@ -91,6 +92,13 @@ string Command::print(const map<int, string> *label_names) {
         case OP_MOV: {
             string operand_string_1 = str("r", to_string(operands[0]));
             string operand_string_2 = address_mode[1] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
+        }
+        case OP_FMOV: {
+            string operand_string_1 = str("fr", to_string(operands[0]));
+            double immediate_operand = 0.0;
+            std::memcpy(&immediate_operand, &operands[1], sizeof(double));
+            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(immediate_operand);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
@@ -161,11 +169,7 @@ string Command::print(const map<int, string> *label_names) {
         case OP_ALLOC: {
             return sen(opcode_map[instruction.opcode], to_string(operands[0]));
         }
-        case OP_FMOV: {
-            string operand_string_1 = str("fr", to_string(operands[0]));
-            string operand_string_2 = address_mode[1] == 1 ? str("fr", to_string(operands[1])) : to_string(operands[1]);
-            return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
-        }
+
         case OP_MEMCPY: {
             string operand_string_1 = to_string(operands[0]);
             string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
@@ -186,14 +190,14 @@ string Command::print(const map<int, string> *label_names) {
 Instruction::Instruction() {
 }
 
-Instruction::Instruction(SageOpCode code, int op1)
+Instruction::Instruction(SageOpCode code, int64_t op1)
     : opcode(code), operands({op1, 0, 0}), operand_count(1) {
 }
 
-Instruction::Instruction(SageOpCode code, int op1, int op2)
+Instruction::Instruction(SageOpCode code, int64_t op1, int64_t op2)
     : opcode(code), operands({op1, op2, 0}), operand_count(2) {
 }
 
-Instruction::Instruction(SageOpCode code, int op1, int op2, int op3)
+Instruction::Instruction(SageOpCode code, int64_t op1, int64_t op2, int64_t op3)
     : opcode(code), operands({op1, op2, op3}), operand_count(3) {
 }

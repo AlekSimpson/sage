@@ -33,7 +33,8 @@ public:
 
     bool equals(const SageValue &other);
 
-    operator int() { return as_i64(); }
+    operator double() { return as_f64(); }
+    operator int64_t() { return as_i64(); }
 
     int32_t as_i32();
     int64_t as_i64();

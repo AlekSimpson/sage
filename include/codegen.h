@@ -95,11 +95,9 @@ struct VisitorResult {
     }
     result_type = type;
   }
-  VisitorResult(int value) : immediate_value(SageValue((int64_t)value)), state(VisitorResultState::IMMEDIATE) {
-    result_type = TR::get_integer_type(8);
-  }
-  VisitorResult(float value) : immediate_value(SageValue(value)), state(VisitorResultState::IMMEDIATE) {
-    result_type = TR::get_float_type(8);
+  VisitorResult(SageValue &value) : state(VisitorResultState::IMMEDIATE) {
+    immediate_value = value;
+    result_type = immediate_value.type;
   }
   VisitorResult(SageSymbolTable &table, SymbolIndex symbol_index) : symbol_table_index(symbol_index) {
     auto search = table.lookup_by_index(symbol_index);
@@ -115,7 +113,7 @@ struct VisitorResult {
 
   void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
   void to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
-  pair<int, bool> materialize_register(SageCompiler &compiler);
+  pair<int64_t, bool> materialize_register(SageCompiler &compiler);
 
   bool is_temporary() { return temporary_result_register != -1; }
   bool is_immediate_float() { return !immediate_value.is_null() && immediate_value.type->identify() == FLOAT; }

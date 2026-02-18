@@ -85,35 +85,35 @@ void SageInterpreter::set_float_register(int reg, double value) {
     std::memcpy(&registers[reg], &value, sizeof(double));
 }
 
-inline void SageInterpreter::execute_add(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_add(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_ADD reg, op, op
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
     registers[operands[0]] = operand1 + operand2;
 }
 
-inline void SageInterpreter::execute_float_add(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_float_add(std::array<int64_t, 3> &operands) {
     // _xx | OP_FADD reg, op, op
     double operand1 = read_float_register(operands[1]);
     double operand2 = read_float_register(operands[2]);
     set_float_register(operands[0], operand1 + operand2);
 }
 
-inline void SageInterpreter::execute_sub(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_sub(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_SUB reg, op, op
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
     registers[operands[0]] = operand1 - operand2;
 }
 
-inline void SageInterpreter::execute_float_sub(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_float_sub(std::array<int64_t, 3> &operands) {
     // _xx | OP_FSUB reg, op, op
     double operand1 = read_float_register(operands[1]);
     double operand2 = read_float_register(operands[2]);
     set_float_register(operands[0], operand1 - operand2);
 }
 
-inline void SageInterpreter::execute_mul(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_mul(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_MUL reg, op, op
 
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
@@ -121,7 +121,7 @@ inline void SageInterpreter::execute_mul(std::array<int, 3> &operands, AddressMo
     registers[operands[0]] = operand1 * operand2;
 }
 
-inline void SageInterpreter::execute_float_mul(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_float_mul(std::array<int64_t, 3> &operands) {
     // _xx | OP_FMUL reg, op, op
 
     double operand1 = read_float_register(operands[1]);
@@ -129,7 +129,7 @@ inline void SageInterpreter::execute_float_mul(std::array<int, 3> &operands) {
     set_float_register(operands[0], operand1 * operand2);
 }
 
-inline void SageInterpreter::execute_div(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_div(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_DIV reg, op, op
     if (operands[2] == 0) {
         ErrorLogger::get().log_internal_error_safe(
@@ -144,7 +144,7 @@ inline void SageInterpreter::execute_div(std::array<int, 3> &operands, AddressMo
     registers[operands[0]] = operand1 / operand2;
 }
 
-inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_float_div(std::array<int64_t, 3> &operands) {
     // _xx | OP_FDIV reg, op, op
     if (operands[2] == 0) {
         ErrorLogger::get().log_internal_error_safe(
@@ -159,7 +159,7 @@ inline void SageInterpreter::execute_float_div(std::array<int, 3> &operands) {
     set_float_register(operands[0], operand1 / operand2);
 }
 
-inline void SageInterpreter::execute_load(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_load(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _0x | load bytes, reg, ($fp - offset)
     int bytes = operands[0];
     int offset = mode[1] == 1 ? registers[operands[2]] : operands[2];
@@ -167,7 +167,7 @@ inline void SageInterpreter::execute_load(std::array<int, 3> &operands, AddressM
     std::memcpy(&registers[operands[1]], &memory[load_address], bytes);
 }
 
-inline void SageInterpreter::execute_store(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_store(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | store bytes, ($fp - offset), op
     int bytes = operands[0];
 
@@ -183,17 +183,17 @@ void SageInterpreter::execute_stack_allocate(int bytes) {
     registers[STACK_POINTER] = stack_pointer() - bytes;
 }
 
-inline void SageInterpreter::execute_move(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_move(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _0x | mov reg, op
     registers[operands[0]] = mode[1] == 1 ? registers[operands[1]] : operands[1];
 }
 
-inline void SageInterpreter::execute_int_to_float_move(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_int_to_float_move(std::array<int64_t, 3> &operands) {
     // _01 | itfmov freg, ireg
     set_float_register(operands[0], (double)registers[operands[1]]);
 }
 
-inline void SageInterpreter::execute_float_move(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_move(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _0x | fmov reg, op
     double default_value;
     std::memcpy(&default_value, &operands[1], sizeof(double));
@@ -201,7 +201,7 @@ inline void SageInterpreter::execute_float_move(std::array<int, 3> &operands, Ad
     set_float_register(operands[0], value);
 }
 
-inline void SageInterpreter::execute_call(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_call(std::array<int64_t, 3> &operands) {
     // _00 | call immediate
     int caller_dest_location = operands[0];
     push_stack_scope(caller_dest_location);
@@ -217,65 +217,65 @@ inline void SageInterpreter::execute_return() {
     pop_stack_scope();
 }
 
-inline void SageInterpreter::execute_equality_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_equality_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_EQ op, op
     int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
     registers[21] = operand0 == operand1;
 }
 
-inline void SageInterpreter::execute_less_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_less_than_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_LT op, op
     int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
     registers[21] = operand0 < operand1;
 }
 
-inline void SageInterpreter::execute_greater_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_greater_than_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | gt op, op
     int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
     registers[21] = operand0 > operand1;
 }
 
-inline void SageInterpreter::execute_and(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_and(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_AND op, op
     int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
     registers[21] = operand0 == 1 && operand1 == 0;
 }
 
-inline void SageInterpreter::execute_or(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_or(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_OR op, op
     int operand0 = mode[0] == 1 ? registers[operands[0]] : operands[0];
     int operand1 = mode[1] == 1 ? registers[operands[1]] : operands[1];
     registers[21] = operand0 == 1 || operand1 == 1;
 }
 
-inline void SageInterpreter::execute_not(std::array<int, 3> &operands) {
+inline void SageInterpreter::execute_not(std::array<int64_t, 3> &operands) {
     // _00 | OP_NOT reg
     registers[21] = !operands[0];
 }
 
-inline void SageInterpreter::execute_float_equality_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_equality_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
     int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
     registers[21] = operand1 == operand2;
 }
 
-inline void SageInterpreter::execute_float_less_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_less_than_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
     int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
     registers[21] = operand1 < operand2;
 }
 
-inline void SageInterpreter::execute_float_greater_than_comparison(std::array<int, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_greater_than_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
     int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
     int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
     registers[21] = operand1 > operand2;
 }
 
-void SageInterpreter::execute_mem_copy(std::array<int, 3> &operands, AddressMode &mode) {
+void SageInterpreter::execute_mem_copy(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | memcpy bytes, ($fp - dest_offset), ($fp - src_offset)
     int bytes = operands[0];
     int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
@@ -287,7 +287,7 @@ void SageInterpreter::execute_mem_copy(std::array<int, 3> &operands, AddressMode
     std::memcpy(&memory[dest_address], &memory[src_address], bytes);
 }
 
-void SageInterpreter::execute_static_copy(std::array<int, 3> &operands, AddressMode &mode) {
+void SageInterpreter::execute_static_copy(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | statcpy bytes, ($fp - dest_offset), $pointer
     int bytes = operands[0];
     int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
