@@ -408,7 +408,20 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
         case PN_POINTER_REFERENCE: {
             // move the full address of visit_result into a register
             auto visit_result = visit_literal(node_manager->get_branch(node));
-            return VisitorResult();
+            auto *symbol_entry = symbol_table.lookup_by_index(visit_result.symbol_table_index);
+            int dest_register = get_volatile_register();
+            if (symbol_entry != nullptr && symbol_entry->static_stack_pointer != -1) {
+                builder.build_move_immediate(dest_register, symbol_entry->static_stack_pointer);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            }
+
+            if (visit_result.state != VisitorResultState::SPILLED) {
+                Token token = node_manager->get_token(node);
+                logger.log_error_unsafe(token, sen(token.lexeme, " cannot be referenced."), GENERAL);
+                return VisitorResult();
+            }
+            builder.build_instruction(OP_LOADR, dest_register, symbol_entry->stack_offset, _00);
+            return VisitorResult(dest_register, TR::get_integer_type(8), true);
         }
         case PN_NOT:
             break;
@@ -422,22 +435,24 @@ VisitorResult SageCompiler::build_dereference_instructions(VisitorResult &operan
     if (operand_info.result_type->identify() != POINTER) {
         logger.log_error_unsafe(
             dereference_token,
-            sen("Cannot dereference non-pointer type:", operand_info.result_type->to_string()),
-            SEMANTIC
+            sen("Cannot dereference non-pointer:", operand_info.result_type->to_string()),
+            GENERAL
         );
         return VisitorResult();
     }
 
     int result_register = get_volatile_register();
+    auto *result_pointer_type = dynamic_cast<SagePointerType *>(operand_info.result_type);
+    int result_size = result_pointer_type->pointer_type->size;
 
     switch (operand_info.state) {
         case VisitorResultState::SPILLED: {
             auto *symbol = symbol_table.lookup_by_index(operand_info.symbol_table_index);
-            builder.build_load(result_register, symbol->stack_offset, symbol->datatype->size);
+            builder.build_instruction(OP_LOADP, result_size, result_register, symbol->stack_offset, _00);
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_LOAD, operand_info.result_type->size, result_register, operand_info.temporary_result_register, _01);
+            builder.build_instruction(OP_LOAD, result_size, result_register, operand_info.temporary_result_register, _01);
             break;
         }
         case VisitorResultState::IMMEDIATE:
@@ -445,15 +460,14 @@ VisitorResult SageCompiler::build_dereference_instructions(VisitorResult &operan
         case VisitorResultState::VALUE:
         case VisitorResultState::LIST:
         default: {
-            // error
             logger.log_error_unsafe(
                 dereference_token,
                 str(dereference_token.lexeme, " cannot be dereferenced."),
-                SEMANTIC);
+                GENERAL);
         }
     }
 
-    auto *result_type = static_cast<SagePointerType *>(operand_info.result_type)->pointer_type;
+    auto *result_type = result_pointer_type->pointer_type;
     return VisitorResult(result_register, result_type, true);
 }
 

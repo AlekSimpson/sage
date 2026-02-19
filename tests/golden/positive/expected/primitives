@@ -1,25 +1,25 @@
 
 
-MOV r30 1
-MOV r24 7
-MOV r29 39
-FMOV fr27 2.000000
-FMOV fr28 234.000000
-MOV r25 9
-MOV r26 23000
-LABEL @2090629895
-MOV r22 1
-MOV r10 r1
-MOV r1 r0
-MOV r2 r10
-MOV r0 1
-SYSCALL
-RET
-LABEL @2090629905
-MOV r22 0
-MOV r10 r1
-MOV r1 r0
-MOV r2 r10
-MOV r0 1
-SYSCALL
-RET
+mov r30 1
+mov r24 7
+mov r29 39
+fmov fr27 2.000000
+fmov fr28 234.000000
+mov r25 9
+mov r26 23000
+label @2090629895
+mov r22 1
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret
+label @2090629905
+mov r22 0
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret

@@ -173,7 +173,7 @@ inline void SageInterpreter::execute_store(std::array<int64_t, 3> &operands, Add
 
     int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int dest_address = frame_pointer->stack_pointer - dest_offset;
-    int payload_value = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    int64_t payload_value = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     std::memcpy(&memory[dest_address], &payload_value, bytes);
 }
@@ -298,6 +298,24 @@ void SageInterpreter::execute_static_copy(std::array<int64_t, 3> &operands, Addr
     std::memcpy(&memory[dest_address], &memory[src_address], bytes);
 }
 
+void SageInterpreter::execute_load_reference(std::array<int64_t, 3> &operands, AddressMode &mode) {
+    int dest_register = operands[0];
+    int offset = mode[1] == 1 ? registers[operands[1]] : operands[1];
+    int reference_pointer = frame_pointer->stack_pointer - offset;
+    registers[dest_register] = reference_pointer;
+}
+
+void SageInterpreter::execute_load_pointer(std::array<int64_t, 3> &operands, AddressMode &mode) {
+    // loadp bytes, reg, (pointer)
+    int64_t bytes = operands[0];
+    int64_t dest_register = operands[1];
+    int64_t offset = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    int64_t pointer = frame_pointer->stack_pointer - offset;
+    int64_t deref_pointer;
+    std::memcpy(&deref_pointer, &memory[pointer], bytes);
+    std::memcpy(&registers[dest_register], &memory[deref_pointer], bytes);
+}
+
 inline void SageInterpreter::execute_system_call() {
     SVM_SYSCALL callcode = (SVM_SYSCALL)registers[22];
 
@@ -378,6 +396,12 @@ void SageInterpreter::execute() {
                 break;
             case OP_LOAD:
                 execute_load(operands, current_command.address_mode);
+                break;
+            case OP_LOADP:
+                execute_load_pointer(operands, current_command.address_mode);
+                break;
+            case OP_LOADR:
+                execute_load_reference(operands, current_command.address_mode);
                 break;
             case OP_STORE:
                 execute_store(operands, current_command.address_mode);

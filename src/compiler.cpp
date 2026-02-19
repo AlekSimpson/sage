@@ -594,7 +594,10 @@ void SageCompiler::get_in_degree_of(
         case PN_UNARY: {
             auto nodetype = node_manager->get_nodetype(current_node);
             if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
-                return;
+                auto branch_index = node_manager->get_branch(current_node);
+                if (branch_index == -1) return;
+                get_in_degree_of(root_definition_identifier, branch_index, working_scope);
+                break;
             }
 
             auto identifier = node_manager->get_identifier(current_node);

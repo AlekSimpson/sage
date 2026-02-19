@@ -1,20 +1,20 @@
 
 
-SUB r23 r23 16
-statcpy 16 0 0
-LABEL @2090629895
-MOV r22 1
-MOV r10 r1
-MOV r1 r0
-MOV r2 r10
-MOV r0 1
-SYSCALL
-RET
-LABEL @2090629905
-MOV r22 0
-MOV r10 r1
-MOV r1 r0
-MOV r2 r10
-MOV r0 1
-SYSCALL
-RET
+sub r23 r23 16
+scpy 16 0 0
+label @2090629895
+mov r22 1
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret
+label @2090629905
+mov r22 0
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret

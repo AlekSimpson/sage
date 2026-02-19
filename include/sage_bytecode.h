@@ -39,11 +39,13 @@ enum SageOpCode {
     OP_FMUL,    // _xx | fmul freg, op, op
     OP_FDIV,    // _xx | fdiv freg, op, op
 
-    OP_STATIC_COPY, // _xx | statcpy bytes, ($fp, - op), $static_pointer
-    OP_MEMCPY,      // _xx | memcpy bytes, ($fp - op), ($fp - op)
-    OP_ALLOC,       // _00 | alloc bytesize
+    OP_STATIC_COPY, // _xx | scpy bytes, ($fp, - op), $static_pointer
+    OP_MEMCPY,      // _xx | mcpy bytes, ($fp - op), ($fp - op)
+    OP_ALLOC,       // _00 | allc bytesize
     OP_LOAD,        // _00 | load bytes, reg, ($fp - offset)
     OP_STORE,       // _0x | store bytes, ($fp - offset), op
+    OP_LOADR,       // _0x | loadr reg, ($fp - op)
+    OP_LOADP,       // _0x | loadp bytes, reg, (pointer)
 
     OP_ITF_MOV, // _01 | itfmov freg, ireg
     OP_FMOV,    // _0x | mov freg, op
