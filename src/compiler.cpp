@@ -272,7 +272,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 SymbolIndex table_index = symbol_table.declare_type_symbol(current_node, nullptr);
                 symbol_table.types.insert(table_index);
 
-                auto bodynode = node_manager->reach_right(current_node, 2);
+                auto bodynode = node_manager->get_branch(node_manager->get_right(current_node));
                 for (auto child: node_manager->get_children(bodynode)) {
                     fringe.push(child);
                 }

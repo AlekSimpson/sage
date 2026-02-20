@@ -266,7 +266,7 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
 }
 
 VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
-    assert(node_manager->get_nodetype(node) == PN_BINARY);
+    assert(node_manager->get_nodetype(node) != PN_BINARY);
 
     int final_stack_offset_register = get_volatile_register();
     SageNamespace *current_namespace = nullptr;
@@ -300,16 +300,18 @@ VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
     while (leftmost_node != NULL_INDEX) {
         left_name = node_manager->get_identifier(leftmost_node);
 
-        auto *entry = symbol_table.lookup(left_name, scope_id);
+        auto member_symbol_index = current_namespace->lookup_struct_member(left_name, left_type);
+        auto *entry = symbol_table.lookup_by_index(member_symbol_index);
+        int member_offset = entry->stack_offset;
         left_type = entry->datatype;
         if (current_namespace->is_field_member(left_name, left_type) && left_type->identify() != POINTER) {
             builder.build_instruction(OP_ADD, final_stack_offset_register,
                                       final_stack_offset_register,
-                                      current_namespace->get_member_offset(left_name, left_type), _00);
+                                      member_offset, _00);
         } else if (current_namespace->is_field_member(left_name, left_type) && left_type->identify() == POINTER) {
             builder.build_instruction(OP_ADD, final_stack_offset_register,
                                       final_stack_offset_register,
-                                      current_namespace->get_member_offset(left_name, left_type), _00);
+                                      member_offset, _00);
 
             // auto dereference struct members that are pointers
             VisitorResult access_result = VisitorResult(final_stack_offset_register, left_type, true);

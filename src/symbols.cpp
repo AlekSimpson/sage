@@ -442,10 +442,12 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
             type_expression = nm->get_middle(member_expression);
         }
         auto identifier = nm->get_identifier(type_expression);
+        auto *type_entry = lookup(identifier, nm->get_scope_id(type_expression));
         member_types.push_back(resolve_type_identifier(identifier, scope_id));
         struct_entry.type_namespace->add_field_member(
             identifier,
-            member_types[member_types.size() - 1]
+            member_types[member_types.size() - 1],
+            type_entry
         );
     }
 
@@ -545,9 +547,10 @@ void SageNamespace::add_method(string name, SageFunctionType *type, SymbolIndex 
     struct_methods[member] = index;
 }
 
-void SageNamespace::add_field_member(string name, SageType *type) {
+void SageNamespace::add_field_member(string name, SageType *type, SymbolEntry *entry) {
     auto member = FieldMember(name, type);
-    field_member_offsets[member] = next_offset;
+    field_member_offsets[member] = entry->symbol_index;
+    entry->stack_offset = next_offset;
     next_offset += type->size;
 }
 
@@ -561,7 +564,7 @@ bool SageNamespace::is_method(string name, SageType *type) {
     return struct_methods.find(member) != struct_methods.end();
 }
 
-int SageNamespace::get_member_offset(string name, SageType *type) {
+int SageNamespace::lookup_struct_member(string name, SageType *type) {
     auto member = FieldMember(name, type);
     return field_member_offsets[member];
 }

@@ -265,10 +265,10 @@ NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
             break;
         }
 
-        if (!for_struct) {
-            consume(TT_COMMA, "Expected comma symbol after value declaration list.");
-        }else {
+        if (for_struct) {
             consume(TT_NEWLINE, "Expected struct members to be separated by newline characters.");
+        }else {
+            consume(TT_COMMA, "Expected comma symbol after value declaration list.");
         }
         list_token_lexeme += node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
@@ -545,7 +545,7 @@ NodeIndex SageParser::parse_struct() {
 
     consume(TT_LBRACE, "Expected LBRACE in structure definition.");
 
-    NodeIndex struct_contents = parse_value_dec_list();
+    NodeIndex struct_contents = parse_value_dec_list(true);
 
     consume(TT_RBRACE, "Expected RBRACE in structure definition.");
     scope_manager->exit_scope(current_token->linenum, struct_contents);

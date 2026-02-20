@@ -35,6 +35,8 @@ struct FieldMember {
     };
 };
 
+struct SymbolEntry;
+
 struct SageNamespace {
     unordered_map<FieldMember, int, FieldMember::FieldMemberHash> field_member_offsets;
     unordered_map<FieldMember, SymbolIndex, FieldMember::FieldMemberHash> struct_methods;
@@ -43,10 +45,10 @@ struct SageNamespace {
     bool is_field_member(string name, SageType *type);
     bool is_method(string name, SageType *type);
 
-    int get_member_offset(string name, SageType *type);
+    int lookup_struct_member(string name, SageType *type);
 
     void add_method(string name, SageFunctionType *function_type, SymbolIndex index);
-    void add_field_member(string name, SageType *type);
+    void add_field_member(string name, SageType *type, SymbolEntry *entry);
 };
 
 struct SymbolEntry {
