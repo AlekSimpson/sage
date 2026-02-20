@@ -20,12 +20,12 @@
 using namespace std;
 
 NodeIndex FieldAccessTreeIterator::next() {
-    if (index >= (int)elements.size()) return -1;
+    if (index >= (int) elements.size()) return -1;
     return elements[index++];
 }
 
 bool FieldAccessTreeIterator::has_next() {
-    if (index >= (int)elements.size()) return false;
+    if (index >= (int) elements.size()) return false;
     return true;
 }
 
@@ -392,7 +392,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex root) {
                 process_escape_sequences(node_lexeme);
                 int64_t string_length = node_lexeme.size();
 
-                vector<SageType *> string_member_types = {TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)};
+                vector<SageType *> string_member_types = {
+                    TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)
+                };
                 auto *string_type = TR::get_struct_type("string", string_member_types);
 
                 int64_t static_pointer = static_program_memory_store.size();
@@ -466,7 +468,7 @@ void SageCompiler::perform_type_resolution() {
     vector<SymbolIndex> program_symbols(symbol_table.entries.size);
     std::iota(program_symbols.begin(), program_symbols.end(), 0);
 
-    for (SymbolIndex index : program_symbols) {
+    for (SymbolIndex index: program_symbols) {
         auto *entry = symbol_table.entries.get_pointer(index);
         if (symbol_table.builtins.find(index) != symbol_table.builtins.end()) continue;
         if (entry->type_is_resolved()) continue;

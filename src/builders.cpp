@@ -207,7 +207,8 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
     return result;
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, int64_t operand3, AddressMode mode) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, int64_t operand3,
+                                        AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -267,7 +268,8 @@ void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t opera
     comptime_total_instructions++;
 }
 
-void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, AddressMode mode) {
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2,
+                                                AddressMode mode) {
     runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
         opcode,
         operand1,
@@ -583,14 +585,15 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
             if (entry->datatype->size > 8) {
                 // can't fit raw value in register so just move pointer into register
                 builder.build_move_immediate(argument_register, entry->stack_offset);
-            }else {
+            } else {
                 builder.build_load(argument_register, entry->stack_offset, 8);
             }
             break;
         }
         case VisitorResultState::REGISTER: {
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-            int combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->datatype->identify() == FLOAT;
+            int combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->datatype->identify() ==
+                              FLOAT;
 
             switch (combination) {
                 case 0: /* arg=int, vis=int */
@@ -604,7 +607,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     break;
                 default:
                     compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
-                                          "This visitor combination shouldn't happen. Type checking failed somehow probably.");
+                                                              "This visitor combination shouldn't happen. Type checking failed somehow probably.");
                     break;
             }
             break;
@@ -646,7 +649,8 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
             break;
         }
         case VisitorResultState::REGISTER: {
-            builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->assigned_register, offset_mode + _01);
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->assigned_register,
+                                      offset_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
@@ -659,7 +663,8 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_result_register, offset_mode + _01);
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_result_register,
+                                      offset_mode + _01);
             break;
         }
         case VisitorResultState::LIST: {

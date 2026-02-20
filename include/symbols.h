@@ -16,39 +16,20 @@
 #define NULL_SYMBOL_NAME "__SAGE_NULL_SYMBOL__"
 #define GLOBAL_NAME "___SAGE__GLOBAL__FUNCTION___3827"
 
-struct FieldMember {
-    string name;
-    SageType *type;
-
-    FieldMember(string name, SageType *type): name(name), type(type) {}
-
-    bool operator==(const FieldMember& other) const {
-        return name == other.name && type == other.type;  // or whatever fields define equality
-    }
-
-    struct FieldMemberHash {
-        size_t operator()(const FieldMember& member) const {
-            size_t hash1 = std::hash<string>{}(member.name);
-            size_t hash2 = std::hash<string>{}(member.type->to_string());
-            return hash1 ^ (hash2 << 1);
-        }
-    };
-};
-
 struct SymbolEntry;
 
 struct SageNamespace {
-    unordered_map<FieldMember, int, FieldMember::FieldMemberHash> field_member_offsets;
-    unordered_map<FieldMember, SymbolIndex, FieldMember::FieldMemberHash> struct_methods;
+    unordered_map<string, SymbolIndex> fields;
+    unordered_map<string, SymbolIndex> methods;
     int next_offset = 0;
 
-    bool is_field_member(string name, SageType *type);
-    bool is_method(string name, SageType *type);
+    bool is_field_member(string &name);
+    bool is_method(string &name);
 
-    int lookup_struct_member(string name, SageType *type);
+    int lookup_struct_member(string &name);
 
-    void add_method(string name, SageFunctionType *function_type, SymbolIndex index);
-    void add_field_member(string name, SageType *type, SymbolEntry *entry);
+    void add_method(SymbolEntry *entry);
+    void add_field_member(SymbolEntry *entry);
 };
 
 struct SymbolEntry {

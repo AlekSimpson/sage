@@ -442,13 +442,8 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
             type_expression = nm->get_middle(member_expression);
         }
         auto identifier = nm->get_identifier(type_expression);
-        auto *type_entry = lookup(identifier, nm->get_scope_id(type_expression));
         member_types.push_back(resolve_type_identifier(identifier, scope_id));
-        struct_entry.type_namespace->add_field_member(
-            identifier,
-            member_types[member_types.size() - 1],
-            type_entry
-        );
+        //struct_entry.type_namespace->add_field_member();
     }
 
     return TypeRegistery::get_struct_type(struct_entry.name, member_types);
@@ -457,14 +452,14 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
 SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
     vector<SageType *> parameter_types;
     vector<SageType *> return_types;
-    auto function_entry = entries.get(entry_index);
-    if (function_entry.type_is_resolved()) {
-        return function_entry.datatype;
+    auto *function_entry = entries.get_pointer(entry_index);
+    if (function_entry->type_is_resolved()) {
+        return function_entry->datatype;
     }
 
-    NodeIndex function_signature = nm->get_right(function_entry.definition_ast_index);
+    NodeIndex function_signature = nm->get_right(function_entry->definition_ast_index);
 
-    int scope_id = function_entry.scope_id;
+    int scope_id = function_entry->scope_id;
     string current_identifier;
     for (auto parameter_expression: nm->get_children(nm->get_left(function_signature))) {
         auto type_expression = nm->get_right(parameter_expression);
@@ -486,18 +481,14 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
     SageType *first_parameter = nullptr;
     if (!parameter_types.empty()) {
         first_parameter = parameter_types[0];
-        if (first_parameter->identify() == FUNC || first_parameter->identify() == REFERENCE || first_parameter->
-            identify() == ARRAY || first_parameter->identify() == DYN_ARRAY) {
+        if (first_parameter->identify() == FUNC || first_parameter->identify() == REFERENCE) {
             return TypeRegistery::get_function_type(parameter_types, return_types);
         }
 
         string base_type_name = first_parameter->get_base_type_string();
-        auto *type_entry = lookup(base_type_name, function_entry.scope_id);
+        auto *type_entry = lookup(base_type_name, function_entry->scope_id);
         assert(type_entry != nullptr);
-        auto *function_type = TypeRegistery::get_function_type(parameter_types, return_types);
-        type_entry->type_namespace->add_method(function_entry.name,
-                                               dynamic_cast<SageFunctionType *>(function_type),
-                                               entry_index);
+        type_entry->type_namespace->add_method(function_entry);
     }
 
     return TypeRegistery::get_function_type(parameter_types, return_types);
@@ -505,6 +496,7 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
 
 int SageSymbolTable::get_result_total_byte_size(SymbolIndex symbol_index) {
     auto *entry = lookup_by_index(symbol_index);
+    assert(entry != nullptr);
     auto *function_type = static_cast<SageFunctionType *>(entry->datatype);
     int bytesize = 0;
     for (auto *type: function_type->return_type) {
@@ -539,35 +531,28 @@ void SageSymbolTable::pop_function_processing_context() {
 
 
 
-
-
-
-void SageNamespace::add_method(string name, SageFunctionType *type, SymbolIndex index) {
-    auto member = FieldMember(name, type);
-    struct_methods[member] = index;
+void SageNamespace::add_method(SymbolEntry *entry) {
+    methods[entry->name] = entry->symbol_index;
 }
 
-void SageNamespace::add_field_member(string name, SageType *type, SymbolEntry *entry) {
-    auto member = FieldMember(name, type);
-    field_member_offsets[member] = entry->symbol_index;
+void SageNamespace::add_field_member(SymbolEntry *entry) {
+    fields[entry->name] = entry->symbol_index;
     entry->stack_offset = next_offset;
-    next_offset += type->size;
+    next_offset += entry->datatype->size;
 }
 
-bool SageNamespace::is_field_member(string name, SageType *type) {
-    auto member = FieldMember(name, type);
-    return field_member_offsets.find(member) != field_member_offsets.end();
+bool SageNamespace::is_field_member(string &name) {
+    return fields.find(name) != fields.end();
 }
 
-bool SageNamespace::is_method(string name, SageType *type) {
-    auto member = FieldMember(name, type);
-    return struct_methods.find(member) != struct_methods.end();
+bool SageNamespace::is_method(string &name) {
+    return methods.find(name) != methods.end();
 }
 
-int SageNamespace::lookup_struct_member(string name, SageType *type) {
-    auto member = FieldMember(name, type);
-    return field_member_offsets[member];
+int SageNamespace::lookup_struct_member(string &name) {
+    return fields[name];
 }
+
 
 
 SymbolIndex SymbolArena::allocate_symbol() {
