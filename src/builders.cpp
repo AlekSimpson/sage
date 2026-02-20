@@ -596,11 +596,6 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                 case 0: /* arg=int, vis=int */
                     builder.build_move_register(argument_register, entry->assigned_register);
                     break;
-                case 1: /* arg=int, vis=float */
-                    //builder.build_move_register(argument_register, );
-                    compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
-                                                              "This visitor combination shouldn't happen.");
-                    break;
                 case 2: /* arg=float, vis=int */
                     builder.build_int_to_float_move_register(argument_register, entry->assigned_register);
                     break;
@@ -608,31 +603,16 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     builder.build_fmove_register(argument_register, entry->assigned_register);
                     break;
                 default:
+                    compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
+                                          "This visitor combination shouldn't happen. Type checking failed somehow probably.");
                     break;
             }
             break;
         }
         case VisitorResultState::VALUE: {
-            auto *entry = symbol_table.lookup_by_index(symbol_table_index);
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            if (argument_type->is_array() || argument_type->is_pointer() || argument_type->is_struct()) {
-                builder.build_move_immediate(argument_register, static_pointer);
-                break;
-            }
-            if (argument_type->identify() == FLOAT) {
-                builder.build_fmove_immediate(argument_register, entry->data);
-                break;
-            }
-            if (static_pointer == -1) {
-                builder.build_move_immediate(argument_register, entry->data);
-                break;
-            }
-
-            if (entry->datatype->size > 8) {
-                builder.build_move_immediate(argument_register, static_pointer);
-            }else {
-                builder.build_load(argument_register, static_pointer, entry->datatype->size);
-            }
+            assert(static_pointer != -1);
+            builder.build_move_immediate(argument_register, static_pointer);
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {

@@ -67,8 +67,7 @@ inline int SageInterpreter::stack_pointer() {
 }
 
 SageValue SageInterpreter::get_return_value() const {
-    // TODO: float return? other return types? function / type returns?
-    return SageValue((int)registers[6]);
+    return SageValue();
 }
 
 void SageInterpreter::load_program(bytecode _program) {
