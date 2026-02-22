@@ -68,10 +68,10 @@ void SageSymbolTable::declare_null_symbol() {
     scope_manager->register_symbol_in_current_scope(new_index);
 }
 
-void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
+SymbolIndex SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
     SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
-    entry.type_namespace = new SageNamespace();
+    entry.type_namespace = nullptr;
     entry.datatype = type;
     entry.name = name;
     entry.definition_ast_index = -1;
@@ -82,6 +82,7 @@ void SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *
     types.insert(new_index);
     scope_symbol_map[{0, name}] = new_index;
     scope_manager->register_symbol_in_current_scope(new_index);
+    return new_index;
 }
 
 SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value, int static_pointer) {
@@ -308,11 +309,16 @@ void SageSymbolTable::initialize() {
     declare_builtin_type_symbol("f64", TypeRegistery::get_float_type(8));
     declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
 
-    declare_builtin_type_symbol("string", TypeRegistery::get_struct_type("string", {
+    auto type_symbol_index = declare_builtin_type_symbol("string", TypeRegistery::get_struct_type("string", {
                                                                              TypeRegistery::get_pointer_type(
                                                                                  TypeRegistery::get_byte_type(CHAR)),
                                                                              TypeRegistery::get_integer_type(8)
                                                                          }));
+    auto *string_namespace = new BuiltinNamespace();
+    entries.get_pointer(type_symbol_index)->type_namespace = string_namespace;
+    string_namespace->add_field_member("bytes", TR::get_pointer_type(TR::get_byte_type(CHAR)));
+    string_namespace->add_field_member("length", TR::get_integer_type(8));
+
 
     // setup builtin functions
     vector<SageType *> puti_params = {
@@ -408,7 +414,7 @@ SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int s
 }
 
 SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
-    auto entry = entries.get(entry_index);
+    auto &entry = entries.get(entry_index);
     if (entry.type_is_resolved()) {
         return entry.datatype;
     }
@@ -422,28 +428,36 @@ SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
     auto scope_id = entry.scope_id;
     auto identifier = nm->get_identifier(type_ast_id);
 
-
     return resolve_type_identifier(identifier, scope_id);
 }
 
 SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
     vector<SageType *> member_types;
-    auto struct_entry = entries.get(entry_index);
+    auto &struct_entry = entries.get(entry_index);
     if (struct_entry.type_is_resolved()) {
         return struct_entry.datatype;
     }
 
-    NodeIndex struct_signature = nm->get_right(struct_entry.definition_ast_index);
+    NodeIndex struct_body = nm->get_right(struct_entry.definition_ast_index);
+    struct_body = nm->get_branch(struct_body);
 
-    int scope_id = struct_entry.scope_id;
-    for (auto member_expression: nm->get_children(struct_signature)) {
+    int scope_id = nm->get_scope_id(struct_body);
+    for (auto member_expression: nm->get_children(struct_body)) {
         auto type_expression = nm->get_right(member_expression);
         if (nm->get_host_nodetype(member_expression) == PN_TRINARY) {
             type_expression = nm->get_middle(member_expression);
         }
+
         auto identifier = nm->get_identifier(type_expression);
-        member_types.push_back(resolve_type_identifier(identifier, scope_id));
-        //struct_entry.type_namespace->add_field_member();
+        auto *member_type = resolve_type_identifier(identifier, scope_id);
+        member_types.push_back(member_type);
+
+        auto member_symbol_node = nm->get_left(member_expression);
+        auto member_name = nm->get_identifier(member_symbol_node);
+        auto *member_symbol = lookup(member_name, scope_id);
+        assert(member_symbol != nullptr);
+        member_symbol->datatype = member_type;
+        struct_entry.type_namespace->add_field_member(member_symbol);
     }
 
     return TypeRegistery::get_struct_type(struct_entry.name, member_types);
@@ -507,6 +521,7 @@ int SageSymbolTable::get_result_total_byte_size(SymbolIndex symbol_index) {
 
 int SageSymbolTable::get_amount_of_elements_being_returned(SymbolIndex symbol_index) {
     auto *entry = lookup_by_index(symbol_index);
+    assert(entry != nullptr);
     auto *function_type = static_cast<SageFunctionType *>(entry->datatype);
     return function_type->return_type.size();
 }
@@ -538,6 +553,7 @@ void SageNamespace::add_method(SymbolEntry *entry) {
 void SageNamespace::add_field_member(SymbolEntry *entry) {
     fields[entry->name] = entry->symbol_index;
     entry->stack_offset = next_offset;
+    entry->is_struct_member = true;
     next_offset += entry->datatype->size;
 }
 
@@ -553,6 +569,31 @@ int SageNamespace::lookup_struct_member(string &name) {
     return fields[name];
 }
 
+BuiltinNamespace *SageNamespace::as_builtin() {
+    return static_cast<BuiltinNamespace *>(this);
+}
+
+void BuiltinNamespace::add_field_member(const string &name, SageType *member_type) {
+    builtin_fields[name] = next_offset;
+    builtin_field_types[name] = member_type;
+    next_offset += member_type->size;
+}
+
+bool BuiltinNamespace::is_field_member(string &name) {
+    return builtin_fields.find(name) != builtin_fields.end();
+}
+
+int BuiltinNamespace::get_field_offset(const string &name) {
+    auto it = builtin_fields.find(name);
+    if (it != builtin_fields.end()) return it->second;
+    return -1;
+}
+
+SageType* BuiltinNamespace::get_field_type(const string &name) {
+    auto it = builtin_field_types.find(name);
+    if (it != builtin_field_types.end()) return it->second;
+    return nullptr;
+}
 
 
 SymbolIndex SymbolArena::allocate_symbol() {

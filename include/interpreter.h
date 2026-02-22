@@ -96,6 +96,8 @@ public:
     void close();
     void load_program(bytecode program);
     void execute();
+    void print_static_memory();
+    void print_stack_memory();
 
     SageValue get_return_value() const;
 

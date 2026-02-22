@@ -631,7 +631,6 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
 }
 
 void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode) {
-    // generate instructions which stores this visitor result into an argument register
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
     auto *entry = symbol_table.lookup_by_index(symbol_table_index);
@@ -655,11 +654,32 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            if (static_pointer == -1 && entry->data.byte_data != nullptr) {
-                builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->data, offset_mode);
+
+            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
+            if (entry != nullptr && entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
+                int64_t first_chunk = 0, second_chunk = 0;
+                std::memcpy(&first_chunk, entry->data.byte_data, 8);
+                std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+
+                // Store first 8 bytes (pointer) at offset
+                builder.build_instruction(OP_STORE, 8, offset, first_chunk, offset_mode);
+
+                // Store second 8 bytes (length) at offset + 8
+                if (offset_mode == _10) {
+                    int temp_reg = compiler.get_volatile_register();
+                    builder.build_instruction(OP_ADD, temp_reg, offset, 8, _10);
+                    builder.build_instruction(OP_STORE, 8, temp_reg, second_chunk, _10);
+                } else {
+                    builder.build_instruction(OP_STORE, 8, offset + 8, second_chunk, _00);
+                }
                 break;
             }
-            builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
+
+            if (static_pointer != -1) {
+                builder.build_instruction(OP_STORE, 8, offset, static_pointer, offset_mode);
+            } else {
+                builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
+            }
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {

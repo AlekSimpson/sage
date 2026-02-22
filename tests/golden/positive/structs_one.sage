@@ -1,15 +1,14 @@
 
-
 ContactInfo :: struct {
     name: string
-    phone_number: i32
+    phone_number: i64
     email: string
     address: string
 }
 
-info: ContactInfo
-info.name = "George"
-info.phone_number = 6026872771
-info.email = "george@fake.com"
-info.address = "your moms house"
+test_string: string = "test"
+puti(test_string.length, 1)
+
+hello: string = "Hello World!"
+puti(hello.length, 1)
 

@@ -18,18 +18,33 @@
 
 struct SymbolEntry;
 
+struct BuiltinNamespace;
 struct SageNamespace {
     unordered_map<string, SymbolIndex> fields;
     unordered_map<string, SymbolIndex> methods;
     int next_offset = 0;
 
-    bool is_field_member(string &name);
+    virtual ~SageNamespace() = default;
+    virtual bool is_field_member(string &name);
     bool is_method(string &name);
 
     int lookup_struct_member(string &name);
 
     void add_method(SymbolEntry *entry);
     void add_field_member(SymbolEntry *entry);
+    BuiltinNamespace *as_builtin();
+    virtual bool is_builtin() { return false; }
+};
+
+struct BuiltinNamespace : SageNamespace {
+    unordered_map<string, int> builtin_fields;
+    unordered_map<string, SageType*> builtin_field_types;
+
+    void add_field_member(const string &name, SageType *);
+    bool is_field_member(string &name) override;
+    int get_field_offset(const string &name);
+    SageType* get_field_type(const string &name);
+    bool is_builtin() override { return true; }
 };
 
 struct SymbolEntry {
@@ -46,6 +61,7 @@ struct SymbolEntry {
     int max_return_count = 0;
 
     bool spilled = false;
+    bool is_struct_member = false;
     int assigned_register = -1;
     int stack_offset = 0;
     int static_stack_pointer = -1;
@@ -152,7 +168,7 @@ public:
 
     // Symbol declarations
     void declare_null_symbol();
-    void declare_builtin_type_symbol(const string &name, SageType *type);
+    SymbolIndex declare_builtin_type_symbol(const string &name, SageType *type);
     SymbolIndex declare_builtin_function(const string &name, SageType *type);
 
     SymbolIndex declare_literal(NodeIndex ast_id, SageValue value, int);

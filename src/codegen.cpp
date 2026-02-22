@@ -19,6 +19,7 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
 
         case PN_FUNCDEF:
         case PN_STRUCT:
+            return VisitorResult();
         case PN_IF:
         case PN_WHILE:
         case PN_FOR:
@@ -101,7 +102,7 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     NodeIndex LHS = node_manager->get_left(node);
     auto lhs_nodetype = node_manager->get_nodetype(LHS);
     if (lhs_nodetype == PN_FIELD_ACCESS) {
-        auto field_access_result = visit_struct_field_access(LHS);
+        auto field_access_result = visit_struct_field_access(LHS, true);
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_node_result = visit_expression(right_node_index);
@@ -258,14 +259,15 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
 
 
 VisitorResult SageCompiler::visit_expression(NodeIndex node) {
-    if (node_manager->get_host_nodetype(node) == PN_BINARY) {
+    if (node_manager->get_host_nodetype(node) == PN_BINARY &&
+        node_manager->get_nodetype(node) != PN_FIELD_ACCESS) {
         return visit_binary_operator(node);
     }
 
     return visit_literal(node);
 }
 
-VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
+VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node, bool for_assignment) {
     assert(node_manager->get_nodetype(node) != PN_BINARY);
 
     int final_stack_offset_register = get_volatile_register();
@@ -296,46 +298,55 @@ VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
     leftmost_node = iterator.next();
 
     string current_name;
-    SageType *left_type;
+    SymbolEntry *current_type_entry;
+    SymbolEntry *entry;
+    Token current_token;
+    SageType *field_type = nullptr;
     while (leftmost_node != NULL_INDEX) {
         current_name = node_manager->get_identifier(leftmost_node);
+        current_token = node_manager->get_token(leftmost_node);
 
-        auto member_symbol_index = current_namespace->lookup_struct_member(current_name);
-        auto *entry = symbol_table.lookup_by_index(member_symbol_index);
-        int member_offset = entry->stack_offset;
-        //left_type = entry->datatype;
+        int member_offset;
+        if (current_namespace->is_builtin()) {
+            auto *builtin_ns = current_namespace->as_builtin();
+            member_offset = builtin_ns->get_field_offset(current_name);
+            field_type = builtin_ns->get_field_type(current_name);
+            entry = nullptr;
+            current_type_entry = nullptr;
+        } else {
+            auto member_symbol_index = current_namespace->lookup_struct_member(current_name);
+            entry = symbol_table.lookup_by_index(member_symbol_index);
+            current_type_entry = symbol_table.lookup(entry->datatype->get_base_type_string(), scope_id);
+            member_offset = entry->stack_offset;
+            field_type = entry->datatype;
+        }
 
         if (current_namespace->is_field_member(current_name)) {
-            if ()
-
-            continue;
-        }
-
-        if (current_namespace->is_method(current_name)) {
-
-            continue;
-        }
-
-        if (current_namespace->is_field_member(left_name) && left_type->identify() != POINTER) {
             builder.build_instruction(OP_ADD, final_stack_offset_register,
-                                      final_stack_offset_register,
-                                      member_offset, _00);
-        } else if (current_namespace->is_field_member(left_name) && left_type->identify() == POINTER) {
-            builder.build_instruction(OP_ADD, final_stack_offset_register,
-                                      final_stack_offset_register,
-                                      member_offset, _00);
+                          final_stack_offset_register,
+                          member_offset, _10);
+
+            if (field_type->identify() != POINTER) {
+                if (current_type_entry != nullptr) {
+                    current_namespace = current_type_entry->get_namespace();
+                }
+                leftmost_node = iterator.next();
+                continue;
+            }
 
             // auto dereference struct members that are pointers
-            VisitorResult access_result = VisitorResult(final_stack_offset_register, left_type, true);
-            VisitorResult deref_result = build_dereference_instructions(
-                access_result, node_manager->get_token(leftmost_node));
+            VisitorResult access_result = VisitorResult(final_stack_offset_register, field_type, true);
+            VisitorResult deref_result = build_dereference_instructions(access_result, current_token);
             builder.build_move_register(final_stack_offset_register, deref_result.temporary_result_register);
-        } else if (current_namespace->is_method(left_name) && iterator.has_next()) {
-            // return value should be new stack base offset
+        }else if (current_namespace->is_method(current_name)) {
             auto call_result = visit_function_call(leftmost_node, final_stack_offset_register);
+            // if access chain expression ends in function call then expression should evaluate to that
+            if (!iterator.has_next()) return call_result;
+
             if (!call_result.result_type->is_callable()) {
                 auto token = node_manager->get_token(leftmost_node);
-                logger.log_error_unsafe(token, str("Return value of function call ", token.lexeme, " is not callable."),
+                logger.log_error_unsafe(token,
+                                        str("Return value of function call ", token.lexeme, " is not callable."),
                                         GENERAL);
                 return VisitorResult();
             }
@@ -345,21 +356,26 @@ VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node) {
             }
 
             builder.build_move_register(final_stack_offset_register, call_result.temporary_result_register);
-        } else if (current_namespace->is_method(left_name)) {
-            // return normal function call visitor result
-            return visit_function_call(leftmost_node, final_stack_offset_register);
-        } else {
+        }else {
             auto token = node_manager->get_token(leftmost_node);
             logger.log_error_unsafe(token, str("Cannot find struct member, ", token.lexeme, "."), GENERAL);
             return VisitorResult();
         }
 
-        auto *type_entry = symbol_table.lookup(left_type->get_base_type_string(), scope_id);
-        current_namespace = type_entry->get_namespace();
+        if (current_type_entry != nullptr) {
+            current_namespace = current_type_entry->get_namespace();
+        }
         leftmost_node = iterator.next();
     }
 
-    return VisitorResult(final_stack_offset_register, left_type, true);
+    if (!for_assignment) {
+        int value_register = get_volatile_register();
+        int load_size = field_type->size <= 8 ? field_type->size : 8;
+        builder.build_instruction(OP_LOAD, load_size, value_register, final_stack_offset_register, _01);
+        return VisitorResult(value_register, field_type, true);
+    }
+
+    return VisitorResult(final_stack_offset_register, field_type, true);
 }
 
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
@@ -390,7 +406,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             return VisitorResult(value);
         }
         case PN_NUMBER: {
-            SageValue int_result = SageValue(stoi(node_manager->get_lexeme(node)));
+            SageValue int_result = SageValue((int64_t) stoll(node_manager->get_lexeme(node)));
             return VisitorResult(int_result);
         }
         case PN_FLOAT: {

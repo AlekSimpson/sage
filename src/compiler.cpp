@@ -548,7 +548,12 @@ void SageCompiler::register_allocation() {
     SymbolEntry *working_symbol_entry;
     int assigned_register;
     for (SymbolIndex index: variables_by_scope) {
-        auto entry = symbol_table.entries.get(index);
+        auto &entry = symbol_table.entries.get(index);
+
+        if (entry.is_struct_member) {
+            continue;
+        }
+
         if (current_scope != entry.scope_id) {
             current_relative_stack_location = 0;
             current_scope = entry.scope_id;
@@ -750,7 +755,7 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
                 break;
             }
             case PN_STRUCT: {
-                auto body = node_manager->get_branch(ast_id);
+                auto body = node_manager->get_branch(node_manager->get_right(ast_id));
                 get_in_degree_of(node_manager->get_identifier(ast_id), body, current_scope);
                 break;
             }

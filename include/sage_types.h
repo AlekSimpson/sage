@@ -207,6 +207,8 @@ public:
     static SageType *get_array_type(SageType *element_type, int size);
     static SageType *get_reference_type(SageType *base_type, int size);
     static SageType *get_function_type(std::vector<SageType *> parameter_tyeps, std::vector<SageType *> function_types);
+
+
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);
 
     static bool is_float64_type(SageType *type);

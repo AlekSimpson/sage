@@ -227,7 +227,7 @@ public:
     /* visitors */
     VisitorResult visit(NodeIndex);
 
-    VisitorResult visit_struct_field_access(NodeIndex);
+    VisitorResult visit_struct_field_access(NodeIndex, bool for_assignment = false);
 
     VisitorResult visit_statement(NodeIndex);
 

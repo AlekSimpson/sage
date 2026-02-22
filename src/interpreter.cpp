@@ -323,9 +323,8 @@ inline void SageInterpreter::execute_system_call() {
             int static_pointer = registers[1];
             int character_count = registers[2];
             string characters;
-            for (int i = 0; i < character_count; i++) {
-                characters += (char)memory[static_pointer];
-                static_pointer++;
+            for (int i = 0; i < character_count; ++i) {
+                characters += (char)memory[static_pointer + i];
             }
             const char *buffer = characters.c_str();
             sage_write(
@@ -347,6 +346,24 @@ inline void SageInterpreter::execute_system_call() {
     }
 }
 
+void SageInterpreter::print_static_memory() {
+    printf("STATIC_MEM[%ld]: ---------------------------------\n", ((int64_t)static_memory_end_pointer+1));
+    for (int i = 0; i <= static_memory_end_pointer; ++i) {
+        printf("%c", (char)memory[i]);
+    }
+    printf("END\n");
+    printf("---------------------------------------------\n\n\n");
+}
+
+void SageInterpreter::print_stack_memory() {
+    printf("STACK_MEM[%ld]: ---------------------------------\n", ((int64_t)memory.size() - stack_pointer()));
+    for (int64_t i = memory.size()-1; i >= stack_pointer(); --i) {
+        printf("0x%02x ", memory[i]);
+    }
+    printf("END\n");
+    printf("---------------------------------------------\n\n\n");
+}
+
 void SageInterpreter::execute() {
     if (frame_pointer == nullptr) return;
 
@@ -355,6 +372,8 @@ void SageInterpreter::execute() {
     Command current_command;
     vm_running = true;
     bool prog_pointer_jump = false;
+
+    print_static_memory();
 
     while (vm_running && program_pointer < (int) program.size()) {
         if (ErrorLogger::get().has_errors()) {
@@ -502,10 +521,9 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, ByteVe
         );
     }
 
-    size_t static_working_pointer = static_start_pointer;
-    std::memcpy(memory.data(), program_static_memory.data(), (int)program_static_memory.size());
-    heap_pointer = (int)program_static_memory.size();
-    static_memory_end_pointer = static_working_pointer - 1;
+    std::memcpy(memory.data(), program_static_memory.data(), program_static_memory.size());
+    heap_pointer = program_static_memory.size();
+    static_memory_end_pointer = program_static_memory.size() - 1;
     registers[STACK_POINTER] = memory.size()-1; // stack begins are memory max and "grows up"
 
     vm_running = false;
