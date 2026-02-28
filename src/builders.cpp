@@ -193,16 +193,16 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
     int global_id = get_procedure_frame_id(GLOBAL_NAME);
     auto global_instructions = runtime_procedures[global_id].procedure_instructions;
 
+    // Global initialization code always runs first
+    procedure_line_locations[global_id] = result.size();
+    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
+
     if (runtime_has_main_function) {
-        // interpreter program pointer always starts at procedure_line_locations[id("GLOBAL")]
-        // but we want runtime execution to start at "main" function so we point the global starter to the main func line location
-        procedure_line_locations[global_id] = procedure_line_locations[get_procedure_frame_id("main")];
-    } else {
-        // no main function, so execution starts at global scope code
-        procedure_line_locations[global_id] = result.size();
+        // After global init, call main
+        int main_id = get_procedure_frame_id("main");
+        result.push_back(Command(OP_CALL, main_id, _00));
     }
 
-    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
     result.push_back(Command(VOP_EXIT, -1, _00));
     return result;
 }

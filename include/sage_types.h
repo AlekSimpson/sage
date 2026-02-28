@@ -211,6 +211,7 @@ public:
 
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);
 
+    static bool is_builtin_primitive(SageType *type);
     static bool is_float64_type(SageType *type);
     static bool is_float32_type(SageType *type);
     static bool is_int64_type(SageType *type);

@@ -18,6 +18,7 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         }
 
         case PN_FUNCDEF:
+            return visit_statement(node);
         case PN_STRUCT:
             return VisitorResult();
         case PN_IF:

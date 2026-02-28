@@ -10,5 +10,5 @@ test_string: string = "test"
 puti(test_string.length, 1)
 
 hello: string = "Hello World!"
-puti(hello.length, 1)
+puti(hello.length, 2)
 

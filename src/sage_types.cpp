@@ -565,6 +565,11 @@ SageType *TypeRegistery::get_function_type(std::vector<SageType *> parameter_typ
 }
 
 
+bool TypeRegistery::is_builtin_primitive(SageType *type) {
+    auto it = builtin_types.find(make_pair<CanonicalType, int>(type->identify(), std::move(type->size)));
+    return it != builtin_types.end();
+}
+
 bool TypeRegistery::is_float64_type(SageType *type) {
     auto *float_type = get_builtin_type(FLOAT, 8);
     return type->match(float_type);

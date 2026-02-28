@@ -1,0 +1,36 @@
+
+
+sub r23 r23 16
+store 8 ($fp - 16) 4
+store 8 ($fp - 24) 12
+sub r23 r23 16
+store 8 ($fp - 0) 0
+store 8 ($fp - 8) 4
+mov r10 0
+add r10 r10 8
+load 8 r11 ($fp - r10)
+mov r0 r11
+mov r1 1
+call @2090629895
+mov r12 16
+add r12 r12 8
+load 8 r13 ($fp - r12)
+mov r0 r13
+mov r1 2
+call @2090629895
+label @2090629895
+mov r22 1
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret
+label @2090629905
+mov r22 0
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret

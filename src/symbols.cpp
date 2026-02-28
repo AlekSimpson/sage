@@ -495,7 +495,7 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
     SageType *first_parameter = nullptr;
     if (!parameter_types.empty()) {
         first_parameter = parameter_types[0];
-        if (first_parameter->identify() == FUNC || first_parameter->identify() == REFERENCE) {
+        if (first_parameter->identify() == FUNC || first_parameter->identify() == REFERENCE || TR::is_builtin_primitive(first_parameter)) {
             return TypeRegistery::get_function_type(parameter_types, return_types);
         }
 

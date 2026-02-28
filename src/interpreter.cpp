@@ -373,7 +373,7 @@ void SageInterpreter::execute() {
     vm_running = true;
     bool prog_pointer_jump = false;
 
-    print_static_memory();
+    //print_static_memory();
 
     while (vm_running && program_pointer < (int) program.size()) {
         if (ErrorLogger::get().has_errors()) {
