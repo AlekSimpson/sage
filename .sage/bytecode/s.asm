@@ -1,15 +1,6 @@
 
 
-sub r23 r23 16
-store 8 ($fp - 0) 0
-store 8 ($fp - 8) 6
-mov r25 0
-mov r24 21
-label @2090499946
-mov r0 6
-mov r1 r24
-call @2090629905
-exit
+mov r24 239
 label @2090629895
 mov r22 1
 mov r10 r1
