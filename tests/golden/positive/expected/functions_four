@@ -1,0 +1,40 @@
+
+
+label @193487034
+add r11 r28 r25
+mov r29 r11
+add r12 r25 10
+mov r25 r12
+mov r0 r29
+mov r1 3
+call @2090629895
+ret
+label @193491849
+mov r26 3
+mov r27 1000
+add r10 40 r24
+mov r28 r10
+call @193487034
+ret
+mov r24 56
+label @2090499946
+mov r25 39
+call @193491849
+call @193491849
+exit
+label @2090629895
+mov r22 1
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret
+label @2090629905
+mov r22 0
+mov r10 r1
+mov r1 r0
+mov r2 r10
+mov r0 1
+syscall
+ret

@@ -191,6 +191,9 @@ public:
 
         void initialize_graph(set<string> local_definition_identifiers, int local_scope);
         void delete_graph() {
+            for (const auto &[identifier, index]: local_defintions_to_matrix_index) {
+                previously_processed.insert(identifier);
+            }
             if (local_scope_definition_dependency_matrix == nullptr) return;
             delete[] local_scope_definition_dependency_matrix;
             local_scope_definition_dependency_matrix = nullptr;

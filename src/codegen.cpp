@@ -525,6 +525,12 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     auto function_name = node_manager->get_identifier(node);
     auto scoped_id = node_manager->get_scope_id(node);
     SymbolEntry *function_symbol = symbol_table.lookup(function_name, scoped_id);
+    if (function_symbol == nullptr) {
+        Token token = node_manager->get_token(node);
+        logger.log_error_unsafe(token, sen("Call to undefined function: ", token.lexeme), GENERAL);
+        return VisitorResult();
+    }
+
     if (args.size() > 6) {
         logger.log_internal_error_unsafe(
             "builders.cpp",

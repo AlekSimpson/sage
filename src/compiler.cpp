@@ -513,14 +513,13 @@ void SageCompiler::register_allocation() {
     });
 
     set<int> available_registers;
-    set<string> working_symbols;
+    set<SymbolIndex> working_symbols;
     int current_scope = 0;
     int current_relative_stack_location = 0;
     for (int r = GENERAL_REG_RANGE_BEGIN; r < GENERAL_REG_RANGE_END; ++r) {
         available_registers.insert(r);
     }
 
-    SymbolEntry *working_symbol_entry;
     int assigned_register;
     for (SymbolIndex index: variables_by_scope) {
         auto &entry = symbol_table.entries.get(index);
@@ -533,15 +532,17 @@ void SageCompiler::register_allocation() {
             current_relative_stack_location = 0;
             current_scope = entry.scope_id;
 
-            for (auto symbol = working_symbols.begin(); symbol != working_symbols.end();) {
-                working_symbol_entry = symbol_table.lookup(*symbol, current_scope);
-                if (working_symbol_entry == nullptr) {
-                    ++symbol;
+            // Free registers for symbols whose scopes are no longer active (not ancestors of current scope)
+            for (auto it = working_symbols.begin(); it != working_symbols.end();) {
+                auto &working_entry = symbol_table.entries.get(*it);
+                if (scope_manager.is_ancestor_of(working_entry.scope_id, current_scope)) {
+                    // Symbol's scope is an ancestor of current scope -> still visible, keep register
+                    ++it;
                     continue;
                 }
-
-                symbol = working_symbols.erase(symbol);
-                available_registers.insert(working_symbol_entry->assigned_register);
+                // Symbol's scope is NOT an ancestor -> we've exited that scope, free register
+                available_registers.insert(working_entry.assigned_register);
+                it = working_symbols.erase(it);
             }
         }
 
@@ -560,7 +561,7 @@ void SageCompiler::register_allocation() {
 
         assigned_register = *available_registers.begin();
         symbol_table.entries.get_pointer(index)->assigned_register = assigned_register;
-        working_symbols.insert(entry.name);
+        working_symbols.insert(index);
         available_registers.erase(assigned_register);
     }
 }
@@ -641,6 +642,9 @@ void SageCompiler::ScopeDependencyGraph::initialize_graph(
 
     auto &symbol_table = compiler->symbol_table;
     this->local_scope = local_scope;
+
+    local_defintions_to_matrix_index.clear();
+    matrix_index_to_definition_identifier.clear();
 
     int i = 0;
     for (auto identifier: local_definition_identifiers) {

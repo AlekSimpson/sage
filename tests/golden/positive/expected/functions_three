@@ -1,12 +1,12 @@
 
 
 label @193487034
-mov r0 3
+mov r0 0
 mov r1 3
 call @2090629905
 ret
 label @193491849
-mov r0 0
+mov r0 3
 mov r1 3
 call @2090629905
 call @193487034
@@ -18,7 +18,7 @@ add r10 r0 r1
 mov r6 r10
 ret
 label @2090268373
-fsub fr11 fr2 fr3
+fsub fr11 fr0 fr1
 fmov fr6 fr11
 ret
 label @2090499946
