@@ -10,6 +10,7 @@
 #include <cmath>
 #include <array>
 
+#include "codegen.h"
 #include "../include/codegen.h"
 #include "../include/parser.h"
 #include "../include/node_manager.h"
@@ -35,7 +36,8 @@ SageCompiler::SageCompiler(CompilerOptions options)
       scope_manager(ScopeManager()),
       parser(SageParser(&scope_manager, node_manager)),
       builder(BytecodeBuilder()),
-      comptime_manager(ComptimeManager(node_manager)) {
+      comptime_manager(ComptimeManager(node_manager)),
+      dependency_graph(ScopeDependencyGraph(this)) {
     // Set scope_manager on node_manager for automatic scope_id assignment
     node_manager->set_scope_manager(&scope_manager);
 }
@@ -348,6 +350,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             break;
         }
         case PN_FUNCCALL: {
+            auto identifier = node_manager->get_identifier(current_node);
+
             scan_all_program_symbols(node_manager->get_branch(current_node));
             break;
         }
@@ -416,6 +420,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                             GENERAL);
                         return;
                     }
+
+                    auto identifier = node_manager->get_identifier(current_node);
 
                     auto variable_reference_identifier = node_manager->get_identifier(branch);
                     auto scope_id = node_manager->get_scope_id(branch);
@@ -565,55 +571,165 @@ int SageCompiler::get_volatile_register() {
     return _register;
 }
 
-void SageCompiler::get_in_degree_of_dependency_node(string dependency_name) {
-    if (in_degree_map.find(dependency_name) != in_degree_map.end()) return;
+void SageCompiler::ScopeDependencyGraph::add_definition_contents_to_dependency_graph(NodeIndex current_node) {
+    auto *node_manager = compiler->node_manager;
+    auto &symbol_table = compiler->symbol_table;
+    auto &logger = compiler->logger;
 
-    int in_degree = 0;
-    for (const auto &[name, dependencies]: definition_dependencies) {
-        if (dependencies.find(dependency_name) != dependencies.end()) {
-            in_degree++;
+    switch (compiler->node_manager->get_host_nodetype(current_node)) {
+        case PN_UNARY: {
+            auto nodetype = node_manager->get_nodetype(current_node);
+            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
+                auto branch_index = node_manager->get_branch(current_node);
+                if (branch_index == -1) return;
+                add_definition_contents_to_dependency_graph(branch_index);
+                break;
+            }
+
+            auto identifier = node_manager->get_identifier(current_node);
+            auto symbol = symbol_table.lookup(identifier, local_scope);
+            if (symbol == nullptr) return;
+            if (previously_processed.find(identifier) != previously_processed.end()) return;
+            if (symbol_table.builtins.find(symbol->symbol_index) != symbol_table.builtins.end()) return;
+
+            if (symbol->definition_ast_index == -1) {
+                Token found_tok = node_manager->get_token(current_node);
+                logger.log_error_unsafe(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
+                return;
+            }
+
+            // if the found reference is in scope of working scope
+            // then add data dependency and increment in degree
+            int identifier_index = local_defintions_to_matrix_index[identifier];
+            int root_definition_identifier_index = local_defintions_to_matrix_index[root_definition_identifier];
+            if (pair_seen_previously(root_definition_identifier_index, identifier_index)) return;
+
+            mark(root_definition_identifier_index, identifier_index);
+            break;
         }
+        case PN_BINARY: {
+            auto left = node_manager->get_left(current_node);
+            auto right = node_manager->get_right(current_node);
+            add_definition_contents_to_dependency_graph(left);
+            add_definition_contents_to_dependency_graph(right);
+            break;
+        }
+        case PN_TRINARY: {
+            auto left = node_manager->get_left(current_node);
+            auto middle = node_manager->get_middle(current_node);
+            auto right = node_manager->get_right(current_node);
+            add_definition_contents_to_dependency_graph(left);
+            add_definition_contents_to_dependency_graph(middle);
+            add_definition_contents_to_dependency_graph(right);
+            break;
+        }
+        case PN_BLOCK: {
+            for (auto child: node_manager->get_children(current_node)) {
+                add_definition_contents_to_dependency_graph(child);
+            }
+            break;
+        }
+        default:
+            break;
     }
-    in_degree_map[dependency_name] = in_degree;
 }
 
-void SageCompiler::resolve_definition_order(int target_scope) {
+void SageCompiler::ScopeDependencyGraph::initialize_graph(
+    set<string> local_definition_identifiers,
+    int local_scope
+) {
+
+    auto &symbol_table = compiler->symbol_table;
+    this->local_scope = local_scope;
+
+    int i = 0;
+    for (auto identifier: local_definition_identifiers) {
+        auto *column_symbol = symbol_table.global_lookup(identifier);
+        if (column_symbol == nullptr) continue; // the function which feeds into this parameter includes identifiers that aren't truly definition symbols
+        if (symbol_table.builtins.find(column_symbol->symbol_index) != symbol_table.builtins.end()) continue;
+
+        local_defintions_to_matrix_index[identifier] = i;
+        matrix_index_to_definition_identifier[i] = identifier;
+        i++;
+    }
+
+    col_row_length = local_defintions_to_matrix_index.size();
+    int matrix_size = col_row_length*col_row_length;
+    local_scope_definition_dependency_matrix = new int[matrix_size];
+    for (i = 0; i < matrix_size; ++i) {
+        local_scope_definition_dependency_matrix[i] = 0;
+    }
+}
+
+void SageCompiler::ScopeDependencyGraph::setup_definition_fringe(
+    queue<string> &fringe,
+    map<string, NodeIndex> &identifier_to_ast,
+    map<string, int> &in_degrees
+) {
+    auto &symbol_table = compiler->symbol_table;
+    int matrix_size = col_row_length*col_row_length;
+
+    vector<int> column_sums;
+    column_sums.resize(col_row_length);
+
+    for (int i = 0; i < matrix_size; ++i) {
+        int column_index = i % col_row_length;
+        column_sums[column_index] += local_scope_definition_dependency_matrix[i];
+    }
+
+    for (int column = 0; column < col_row_length; ++column) {
+        string column_identifier = matrix_index_to_definition_identifier[column];
+        in_degrees[column_identifier] = column_sums[column];
+        if (column_sums[column] != 0) continue;
+
+        auto ast_id = symbol_table.global_lookup(column_identifier)->definition_ast_index;
+        identifier_to_ast[column_identifier] = ast_id;
+        fringe.push(column_identifier);
+    }
+}
+
+void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
+    auto *node_manager = compiler->node_manager;
+    auto &scope_manager = compiler->scope_manager;
+    auto &logger = compiler->logger;
+
     vector<NodeIndex> result_order;
     queue<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
-    for (const auto &[identifier, in_degree]: in_degree_map) {
-        auto ast_id = symbol_table.global_lookup(identifier)->definition_ast_index;
-        identifier_to_ast[identifier] = ast_id;
+    map<string, int> in_degrees;
+    setup_definition_fringe(fringe, identifier_to_ast, in_degrees);
 
-        if (in_degree != 0) { continue; }
-        fringe.push(identifier);
-    }
-
-    string current;
     set<string> visited;
     while (!fringe.empty()) {
-        current = fringe.front();
+        string current_identifier = fringe.front();
         fringe.pop();
+        int current_index = local_defintions_to_matrix_index[current_identifier];
 
-        if (visited.find(current) != visited.end()) {
-            auto token = node_manager->get_token(identifier_to_ast[current]);
-            logger.log_error_unsafe(token, sen("Invalid redefinition of symbol:", current), SEMANTIC);
+        if (visited.find(current_identifier) != visited.end()) {
+            auto token = node_manager->get_token(identifier_to_ast[current_identifier]);
+            logger.log_error_unsafe(token, sen("Invalid redefinition of symbol:", current_identifier), SEMANTIC);
             break;
         }
-        visited.insert(current);
-        result_order.push_back(identifier_to_ast[current]);
+        visited.insert(current_identifier);
+        result_order.push_back(identifier_to_ast[current_identifier]);
 
-        for (string child_dependency: definition_dependencies[current]) {
-            in_degree_map[child_dependency] -= 1;
-            if (in_degree_map[child_dependency] == 0) {
-                fringe.push(child_dependency);
+        int row_index = current_index; // index of defintion that comes before
+        for (int i = row_index * col_row_length; i < (row_index + 1) * col_row_length; ++i) {
+            if (local_scope_definition_dependency_matrix[i] == 0) continue;
+            int column_index = i % col_row_length;
+            string column_identifier = matrix_index_to_definition_identifier[column_index];
+            in_degrees[column_identifier] -= 1;
+            if (in_degrees[column_identifier] == 0) {
+                auto ast_id = compiler->symbol_table.global_lookup(column_identifier)->definition_ast_index;
+                identifier_to_ast[column_identifier] = ast_id;
+                fringe.push(column_identifier);
             }
         }
     }
 
     if (result_order.empty()) { return; }
 
-    NodeIndex target_ast_root = scope_manager.scope_to_astroot[target_scope];
+    NodeIndex target_ast_root = scope_manager.scope_to_astroot[local_scope];
 
     // preserve order of non definition statements in scope while prepending new resolved defintion statement order
     for (auto child: node_manager->get_children(target_ast_root)) {
@@ -633,31 +749,52 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.types.begin(), symbol_table.types.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(),
                                 symbol_table.functions.end());
-    // then arange what is left according to scope_id descending
     std::sort(definitions_by_scope.begin(), definitions_by_scope.end(), [this](int a, int b) {
         return (symbol_table.entries.get(a).scope_id < symbol_table.entries.get(b).scope_id);
     });
     definitions_by_scope.push_back(SAGE_NULL_SYMBOL);
 
+    set<string> local_definition_identifiers;
+    auto get_local_identifiers = [&](int local_scope) {
+        local_definition_identifiers.clear();
+        for (int i = 0; i < symbol_table.entries.size; ++i) {
+            auto &entry = symbol_table.entries.data[i];
+            bool not_builtin = symbol_table.builtins.find(entry.symbol_index) == symbol_table.builtins.end();
+            if (entry.scope_id == local_scope && not_builtin) {
+                local_definition_identifiers.insert(entry.name);
+            }
+        }
+    };
+
     int current_scope = node_manager->get_scope_id(program_root);
-    in_degree_map.clear();
+    get_local_identifiers(current_scope);
+    dependency_graph.initialize_graph(local_definition_identifiers, current_scope);
 
     // for each scope, find every native definition and get its in_degree,
     // then sort those definitions into a valid compilation order
-    //  *** in_degree represents amount of in sope references contained within the definition
+    //  *** in_degree represents amount of in scope references contained within the definition
     for (int symbol_id: definitions_by_scope) {
         if (symbol_id == SAGE_NULL_SYMBOL || current_scope != symbol_table.entries.get(symbol_id).scope_id) {
-            resolve_definition_order(current_scope);
+            dependency_graph.resolve_definition_order();
+            dependency_graph.delete_graph();
             if (symbol_id == SAGE_NULL_SYMBOL) break;
 
             current_scope = symbol_table.entries.get(symbol_id).scope_id;
-
-            in_degree_map.clear();
+            get_local_identifiers(current_scope);
+            dependency_graph.initialize_graph(local_definition_identifiers, current_scope);
         }
 
         auto ast_id = symbol_table.entries.get(symbol_id).definition_ast_index;
-        if (ast_id == -1) continue; // find all definitions in that scope
+        if (ast_id == -1) continue;
 
-        get_in_degree_of_dependency_node(node_manager->get_identifier(ast_id));
+        auto nodetype = node_manager->get_nodetype(ast_id);
+        assert(nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT);
+
+        NodeIndex definition_contents = nodetype == PN_STRUCT ?
+            node_manager->get_branch(node_manager->get_right(ast_id)) :
+            node_manager->get_right(ast_id);
+
+        dependency_graph.root_definition_identifier = node_manager->get_identifier(ast_id);
+        dependency_graph.add_definition_contents_to_dependency_graph(definition_contents);
     }
 }

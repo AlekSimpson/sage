@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <cassert>
 #include "error_logger.h"
 #include "parser.h"
 #include "interpreter.h"
@@ -162,10 +163,47 @@ public:
     BytecodeBuilder builder;
     ComptimeManager comptime_manager;
 
-    // for forward decl auto resolution
-    //set<string> previously_processed;
-    map<string, set<string> > definition_dependencies;
-    map<string, int> in_degree_map; // TODO: rename, this is not a very good name
+    struct ScopeDependencyGraph {
+        SageCompiler *compiler;
+        string root_definition_identifier = "";
+        map<string, int> local_defintions_to_matrix_index;
+        map<int, string> matrix_index_to_definition_identifier;
+        set<string> previously_processed;
+        int col_row_length = 0;
+        int* local_scope_definition_dependency_matrix; // y (comes before)--> {x0, x1, ...} (y=rows, x=columns)
+        int local_scope = -1;
+
+        ScopeDependencyGraph(SageCompiler *compiler): compiler(compiler),
+                                        local_scope_definition_dependency_matrix(nullptr) {}
+
+        bool pair_seen_previously(int x, int y) {
+            return get(x, y) == 1;
+        }
+
+        int &get(int x, int y) {
+            int column_length = local_defintions_to_matrix_index.size();
+            return local_scope_definition_dependency_matrix[y * column_length + x];
+        }
+        void mark(int x, int y) {
+            int column_length = local_defintions_to_matrix_index.size();
+            local_scope_definition_dependency_matrix[y * column_length + x] = 1;
+        }
+
+        void initialize_graph(set<string> local_definition_identifiers, int local_scope);
+        void delete_graph() {
+            if (local_scope_definition_dependency_matrix == nullptr) return;
+            delete[] local_scope_definition_dependency_matrix;
+            local_scope_definition_dependency_matrix = nullptr;
+        }
+
+        void setup_definition_fringe(queue<string> &fringe, map<string, NodeIndex> &, map<string, int> &);
+
+        void resolve_definition_order();
+        void add_definition_contents_to_dependency_graph(NodeIndex current_node);
+    };
+
+    // for forward declaration auto resolution
+    ScopeDependencyGraph dependency_graph;
 
     ByteVector static_program_memory_store;
 
@@ -183,8 +221,6 @@ public:
     void scan_all_program_symbols(NodeIndex root, int function_paramter_register = 0, string parent_function_name = "");
     void perform_type_resolution();
     void forward_declaration_resolution(int program_root);
-    void get_in_degree_of_dependency_node(string dependency_name);
-    void resolve_definition_order(int target_scope);
     void process_escape_sequences(string &str);
     bool is_float_operation(VisitorResult &one, VisitorResult &two);
     int get_literal_static_pointer(SymbolIndex literal_symbol_table_index);
