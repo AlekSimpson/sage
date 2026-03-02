@@ -134,6 +134,7 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
     string function_name = node_manager->get_lexeme(node_manager->get_left(node));
     SymbolEntry *function_entry = symbol_table.lookup(function_name, node_manager->get_scope_id(node));
+
     symbol_table.push_function_processing_context(function_entry->symbol_index);
 
     NodeIndex function_signature_node = node_manager->get_right(node);

@@ -163,7 +163,7 @@ public:
     ComptimeManager comptime_manager;
 
     // for forward decl auto resolution
-    set<string> previously_processed;
+    //set<string> previously_processed;
     map<string, set<string> > definition_dependencies;
     map<string, int> in_degree_map; // TODO: rename, this is not a very good name
 
@@ -174,84 +174,48 @@ public:
     int volatile_index = 0;
 
     SageCompiler(CompilerOptions options);
-
     ~SageCompiler();
 
     void compile_file(string mainfile);
-
     bool generating_compile_time_bytecode();
-
     void register_allocation();
-
     int get_volatile_register();
-
-    void scan_all_program_symbols(NodeIndex root);
-
+    void scan_all_program_symbols(NodeIndex root, int function_paramter_register = 0, string parent_function_name = "");
     void perform_type_resolution();
-
     void forward_declaration_resolution(int program_root);
-
-    void get_in_degree_of(const string &root_definition_identifier, NodeIndex current_node, int working_sope);
-
+    void get_in_degree_of_dependency_node(string dependency_name);
     void resolve_definition_order(int target_scope);
-
     void process_escape_sequences(string &str);
-
     bool is_float_operation(VisitorResult &one, VisitorResult &two);
-
     int get_literal_static_pointer(SymbolIndex literal_symbol_table_index);
 
     /* builders */
     VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
-
     VisitorResult build_function_with_block(string);
-
     VisitorResult build_alloca(SymbolEntry *var_symbol);
-
     VisitorResult build_add(VisitorResult, VisitorResult);
-
     VisitorResult build_sub(VisitorResult, VisitorResult);
-
     VisitorResult build_div(VisitorResult, VisitorResult);
-
     VisitorResult build_mul(VisitorResult, VisitorResult);
-
     VisitorResult build_and(VisitorResult, VisitorResult);
-
     VisitorResult build_or(VisitorResult, VisitorResult);
-
     VisitorResult build_operator(VisitorResult, VisitorResult, SageOpCode);
-
     VisitorResult build_dereference_instructions(VisitorResult &, Token);
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-
     VisitorResult visit_struct_field_access(NodeIndex, bool for_assignment = false);
-
     VisitorResult visit_statement(NodeIndex);
-
     VisitorResult visit_keyword(NodeIndex);
-
     VisitorResult visit_function_definition(NodeIndex);
-
     VisitorResult visit_if(NodeIndex);
-
     VisitorResult visit_while(NodeIndex);
-
     VisitorResult visit_for(NodeIndex);
-
     VisitorResult visit_variable_definition(NodeIndex);
-
     VisitorResult visit_variable_assign(NodeIndex);
-
     VisitorResult visit_function_return(NodeIndex);
-
     VisitorResult visit_expression(NodeIndex);
-
     VisitorResult visit_literal(NodeIndex);
-
     VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);
-
     VisitorResult visit_binary_operator(NodeIndex);
 };

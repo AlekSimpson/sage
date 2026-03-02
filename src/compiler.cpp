@@ -251,217 +251,186 @@ void SageCompiler::compile_file(string mainfile) {
     }
 }
 
-void SageCompiler::scan_all_program_symbols(NodeIndex root) {
-    NodeIndex current_node;
+void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register, string parent_function_name) {
+    auto nodetype = node_manager->get_nodetype(current_node);
+    switch (nodetype) {
+        case PN_STRUCT: {
+            symbol_table.declare_type_symbol(current_node, nullptr);
 
-    map<string, int> function_parameter_register_generator;
-    map<string, string> parameter_name_to_parent_function;
-    set<string> scanned_literals;
-
-    queue<NodeIndex> fringe;
-    fringe.push(root);
-
-    // scan for all symbols
-    while (!fringe.empty()) {
-        current_node = fringe.front();
-        fringe.pop();
-
-        auto nodetype = node_manager->get_nodetype(current_node);
-        switch (nodetype) {
-            case PN_STRUCT: {
-                SymbolIndex table_index = symbol_table.declare_type_symbol(current_node, nullptr);
-                symbol_table.types.insert(table_index);
-
-                auto bodynode = node_manager->get_branch(node_manager->get_right(current_node));
-                for (auto child: node_manager->get_children(bodynode)) {
-                    fringe.push(child);
-                }
-                continue;
+            auto body_node = node_manager->get_branch(node_manager->get_right(current_node));
+            for (auto child: node_manager->get_children(body_node)) {
+                scan_all_program_symbols(child);
             }
-            case PN_FUNCDEF: {
-                auto table_index = symbol_table.declare_function(current_node, nullptr);
-                symbol_table.functions.insert(table_index);
-                string identifier = node_manager->get_identifier(current_node);
 
-                symbol_table.entries.get_pointer(table_index)->max_return_count = parser.
-                        function_to_max_return_count[identifier];
+            break;
+        }
+        case PN_FUNCDEF: {
+            auto table_index = symbol_table.declare_function(current_node, nullptr);
+            string function_identifier = node_manager->get_identifier(current_node);
 
-                auto signature_trinary = node_manager->get_right(current_node);
-                auto parameters_node = node_manager->get_left(signature_trinary);
-                auto bodynode = node_manager->reach_right(current_node, 2);
+            symbol_table.entries.get_pointer(table_index)->max_return_count = parser.
+                function_to_max_return_count[function_identifier];
 
-                function_parameter_register_generator[identifier] = 0;
-                string child_ident;
-                for (auto child: node_manager->get_children(parameters_node)) {
-                    child_ident = node_manager->get_identifier(child);
-                    fringe.push(child);
-                    parameter_name_to_parent_function[child_ident] = identifier;
-                }
+            auto signature_trinary_node = node_manager->get_right(current_node);
+            auto paramters_node = node_manager->get_left(signature_trinary_node);
+            auto bodynode = node_manager->reach_right(current_node, 2);
 
-                // scan the return type
-                fringe.push(node_manager->get_middle(signature_trinary));
-
-                for (auto child: node_manager->get_children(bodynode)) {
-                    fringe.push(child);
-                }
-                continue;
+            int current_parameter_register = 0;
+            for (auto child: node_manager->get_children(paramters_node)) {
+                scan_all_program_symbols(child, current_parameter_register, function_identifier);
+                current_parameter_register++;
             }
-            case PN_VAR_DEC: {
-                auto identifier = node_manager->get_identifier(current_node);
-                SymbolIndex new_variable_symbol;
-                if (parameter_name_to_parent_function.find(identifier) != parameter_name_to_parent_function.end()) {
-                    string parent_function_name = parameter_name_to_parent_function[identifier];
-                    new_variable_symbol = symbol_table.declare_parameter(
-                        current_node, nullptr, function_parameter_register_generator[parent_function_name]);
-                    function_parameter_register_generator[parent_function_name]++;
-                } else {
-                    new_variable_symbol = symbol_table.declare_variable(current_node, nullptr);
+
+            // scan the return type node
+            scan_all_program_symbols(node_manager->get_middle(signature_trinary_node));
+
+            for (auto child: node_manager->get_children(bodynode)) {
+                scan_all_program_symbols(child);
+            }
+
+            break;
+        }
+        case PN_VAR_DEC: {
+            auto identifier = node_manager->get_identifier(current_node);
+            SymbolIndex new_variable_symbol = parent_function_name != "" ?
+                symbol_table.declare_parameter(current_node, nullptr, function_parameter_register) :
+                symbol_table.declare_variable(current_node, nullptr);
+
+            auto right_most_node = node_manager->get_right(current_node);
+            if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
+                if (node_manager->get_nodetype(right_most_node) == PN_TYPE) {
+                    string type_identifier = node_manager->get_identifier(right_most_node);
+                    symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find("*") != std::string::npos;
                 }
 
-                if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
-                    auto declaration_type_node = node_manager->get_right(current_node);
-                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) ==
-                        PN_TYPE) {
-                        string type_identifier = node_manager->get_identifier(declaration_type_node);
-                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled =
-                                type_identifier.find('*') != std::string::npos;
-                        continue;
+            }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
+                auto declaration_type_node = node_manager->get_middle(current_node);
+                if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
+                    string type_identifier = node_manager->get_identifier(declaration_type_node);
+                    symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find("*") != std::string::npos;
+                }
+
+                auto assigned_value_node = node_manager->get_right(current_node);
+                if (node_manager->get_nodetype(assigned_value_node) == PN_RUN_DIRECTIVE) {
+                    symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
+
+                    auto bodynode = node_manager->get_branch(current_node);
+                    for (auto child: node_manager->get_children(bodynode)) {
+                        scan_all_program_symbols(child);
                     }
 
-                    fringe.push(declaration_type_node);
-                } else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
-                    auto declaration_type_node = node_manager->get_middle(current_node);
-                    if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) ==
-                        PN_TYPE) {
-                        string type_identifier = node_manager->get_identifier(declaration_type_node);
-                        symbol_table.entries.get_pointer(new_variable_symbol)->spilled =
-                                type_identifier.find('*') != std::string::npos;
-                    }
-
-                    // if the right most child ast node is a run directive that means that this variable is going to be
-                    // awaiting the compile time computed output of its child run directive
-                    if (node_manager->get_nodetype(node_manager->get_right(current_node)) == PN_RUN_DIRECTIVE) {
-                        symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
-
-                        auto bodynode = node_manager->get_branch(current_node);
-                        for (auto child: node_manager->get_children(bodynode)) {
-                            fringe.push(child);
-                        }
-                        continue;
-                    }
-
-                    fringe.push(node_manager->get_right(current_node));
+                    break;
                 }
-                continue;
-            }
-            case PN_FOR:
-            case PN_IF:
-            case PN_IF_BRANCH:
-            case PN_ELSE_BRANCH:
-            case PN_WHILE: {
-                auto bodynode = node_manager->get_right(current_node);
-                for (auto child: node_manager->get_children(bodynode)) {
-                    fringe.push(child);
-                }
-                continue;
-            }
-            case PN_RUN_DIRECTIVE: {
-                comptime_manager.add_task(current_node);
-                auto bodynode = node_manager->get_branch(current_node);
-                for (auto child: node_manager->get_children(bodynode)) {
-                    fringe.push(child);
-                }
-                continue;
-            }
-            case PN_FUNCCALL: {
-                fringe.push(node_manager->get_branch(current_node));
-                continue;
-            }
-            case PN_KEYWORD: {
-                if (node_manager->get_branch(current_node) == NULL_INDEX) continue;
-                fringe.push(node_manager->get_branch(current_node));
-                continue;
             }
 
-            case PN_STRING: {
-                auto node_lexeme = node_manager->get_lexeme(current_node);
-                node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
-                if (scanned_literals.find(node_lexeme) != scanned_literals.end()) continue;
-                scanned_literals.insert(node_lexeme);
-
-                process_escape_sequences(node_lexeme);
-                int64_t string_length = node_lexeme.size();
-
-                vector<SageType *> string_member_types = {
-                    TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)
-                };
-                auto *string_type = TR::get_struct_type("string", string_member_types);
-
-                int64_t static_pointer = static_program_memory_store.size();
-                static_program_memory_store.resize(static_program_memory_store.size() + string_length);
-                std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
-
-                ByteVector string_instance_data;
-                string_instance_data.resize(string_type->size);
-                std::memcpy(string_instance_data.data(), &static_pointer, 8);
-                std::memcpy(&string_instance_data[8], &string_length, 8);
-
-                SageValue string_value = SageValue(string_type, string_instance_data);
-                symbol_table.declare_literal(current_node, string_value, static_pointer);
-                continue;
+            scan_all_program_symbols(right_most_node);
+            break;
+        }
+        case PN_FOR:
+        case PN_IF:
+        case PN_IF_BRANCH:
+        case PN_ELSE_BRANCH:
+        case PN_WHILE: {
+            auto bodynode = node_manager->get_right(current_node);
+            for (auto child: node_manager->get_children(bodynode)) {
+                scan_all_program_symbols(child);
             }
-            default: {
-                switch (node_manager->get_host_nodetype(current_node)) {
-                    case PN_BLOCK: {
-                        for (auto child: node_manager->get_children(current_node)) {
-                            fringe.push(child);
-                        }
-                        break;
+
+            break;
+        }
+        case PN_RUN_DIRECTIVE: {
+            comptime_manager.add_task(current_node);
+            auto bodynode = node_manager->get_branch(current_node);
+            for (auto child: node_manager->get_children(bodynode)) {
+                scan_all_program_symbols(child);
+            }
+
+            break;
+        }
+        case PN_FUNCCALL: {
+            scan_all_program_symbols(node_manager->get_branch(current_node));
+            break;
+        }
+        case PN_KEYWORD: {
+            if (node_manager->get_branch(current_node) == NULL_INDEX) return;
+            scan_all_program_symbols(node_manager->get_branch(current_node));
+            break;
+        }
+        case PN_STRING: {
+            auto node_lexeme = node_manager->get_lexeme(current_node);
+            node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
+            auto *string_symbol = symbol_table.lookup(
+                node_manager->get_identifier(current_node),
+                node_manager->get_scope_id(current_node)
+            );
+            if (string_symbol != nullptr) return;
+
+            process_escape_sequences(node_lexeme);
+            int64_t string_length = node_lexeme.size();
+
+            vector<SageType *> string_member_types = {
+                TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)
+            };
+            auto *string_type = TR::get_struct_type("string", string_member_types);
+
+            int64_t static_pointer = static_program_memory_store.size();
+            static_program_memory_store.resize(static_program_memory_store.size() + string_length);
+            std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
+
+            ByteVector string_instance_data;
+            string_instance_data.resize(string_type->size);
+            std::memcpy(string_instance_data.data(), &static_pointer, 8);
+            std::memcpy(&string_instance_data[8], &string_length, 8);
+
+            SageValue string_value = SageValue(string_type, string_instance_data);
+            symbol_table.declare_literal(current_node, string_value, static_pointer);
+            break;
+        }
+        default: {
+            switch (node_manager->get_host_nodetype(current_node)) {
+                case PN_BLOCK: {
+                    for (auto child: node_manager->get_children(current_node)) {
+                        scan_all_program_symbols(child);
                     }
-                    case PN_TRINARY:
-                    case PN_BINARY: {
-                        fringe.push(node_manager->get_right(current_node));
-                        break;
-                    }
-                    case PN_UNARY: {
-                        auto branch = node_manager->get_branch(current_node);
-                        if (branch == NULL_INDEX) continue;
-
-                        auto unary_nodetype = node_manager->get_nodetype(current_node);
-                        if (unary_nodetype != PN_POINTER_DEREFERENCE && unary_nodetype != PN_POINTER_REFERENCE) {
-                            fringe.push(node_manager->get_branch(current_node));
-                            continue;
-                        }
-
-                        if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
-                            Token token = node_manager->get_token(branch);
-                            logger.log_error_unsafe(
-                                token,
-                                "Cannot use pointer operator on temporary value.",
-                                GENERAL);
-                            continue;
-                        }
-
-                        auto variable_reference_identifier = node_manager->get_identifier(branch);
-                        auto scope_id = node_manager->get_scope_id(branch);
-                        auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
-                        if (search_entry != nullptr) {
-                            search_entry->spilled = true;
-                        } else {
-                            symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
-                        }
-
-                        continue;
-                    }
-                    default:
-                        break;
+                    break;
                 }
-                continue;
+                case PN_TRINARY:
+                case PN_BINARY: {
+                    scan_all_program_symbols(node_manager->get_right(current_node));
+                    break;
+                }
+                case PN_UNARY: {
+                    auto branch = node_manager->get_branch(current_node);
+                    if (branch == NULL_INDEX) return;
+
+                    if (nodetype != PN_POINTER_DEREFERENCE && nodetype != PN_POINTER_REFERENCE) {
+                        scan_all_program_symbols(branch);
+                        return;
+                    }
+
+                    if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
+                        Token token = node_manager->get_token(branch);
+                        logger.log_error_unsafe(
+                            token,
+                            "Cannot use pointer operator on temporary value.",
+                            GENERAL);
+                        return;
+                    }
+
+                    auto variable_reference_identifier = node_manager->get_identifier(branch);
+                    auto scope_id = node_manager->get_scope_id(branch);
+                    auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
+                    if (search_entry != nullptr) {
+                        search_entry->spilled = true;
+                    }else {
+                        symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
+                    }
+                }
+                default:
+                    break;
             }
         }
     }
-
-    return;
 }
 
 void SageCompiler::perform_type_resolution() {
@@ -558,11 +527,14 @@ void SageCompiler::register_allocation() {
             current_relative_stack_location = 0;
             current_scope = entry.scope_id;
 
-            for (auto symbol: working_symbols) {
-                working_symbol_entry = symbol_table.lookup(symbol, current_scope);
-                if (working_symbol_entry == nullptr) continue;
+            for (auto symbol = working_symbols.begin(); symbol != working_symbols.end();) {
+                working_symbol_entry = symbol_table.lookup(*symbol, current_scope);
+                if (working_symbol_entry == nullptr) {
+                    ++symbol;
+                    continue;
+                }
 
-                working_symbols.erase(symbol);
+                symbol = working_symbols.erase(symbol);
                 available_registers.insert(working_symbol_entry->assigned_register);
             }
         }
@@ -593,74 +565,20 @@ int SageCompiler::get_volatile_register() {
     return _register;
 }
 
-void SageCompiler::get_in_degree_of(
-    const string &root_definition_identifier,
-    NodeIndex current_node,
-    int working_scope) {
-    switch (node_manager->get_host_nodetype(current_node)) {
-        case PN_UNARY: {
-            auto nodetype = node_manager->get_nodetype(current_node);
-            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
-                auto branch_index = node_manager->get_branch(current_node);
-                if (branch_index == -1) return;
-                get_in_degree_of(root_definition_identifier, branch_index, working_scope);
-                break;
-            }
+void SageCompiler::get_in_degree_of_dependency_node(string dependency_name) {
+    if (in_degree_map.find(dependency_name) != in_degree_map.end()) return;
 
-            auto identifier = node_manager->get_identifier(current_node);
-            auto symbol = symbol_table.lookup(identifier, working_scope);
-            if (symbol == nullptr) { return; }
-            if (previously_processed.find(identifier) != previously_processed.end()) { return; }
-            if (symbol_table.builtins.find(symbol->symbol_index) != symbol_table.builtins.end()) { return; }
-            if (symbol->definition_ast_index == -1) {
-                Token found_tok = node_manager->get_token(current_node);
-                logger.log_error_unsafe(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
-                return;
-            }
-
-            // if the found reference is in scope of working scope
-            // then add data dependency and increment in degree
-            if (definition_dependencies.find(identifier) == definition_dependencies.end()) {
-                definition_dependencies[identifier] = set<string>();
-            }
-            definition_dependencies[identifier].insert(root_definition_identifier);
-
-            if (in_degree_map.find(root_definition_identifier) == in_degree_map.end()) {
-                in_degree_map[root_definition_identifier] = 0;
-            }
-            in_degree_map[root_definition_identifier] += 1;
-            break;
+    int in_degree = 0;
+    for (const auto &[name, dependencies]: definition_dependencies) {
+        if (dependencies.find(dependency_name) != dependencies.end()) {
+            in_degree++;
         }
-        case PN_BINARY: {
-            auto left = node_manager->get_left(current_node);
-            auto right = node_manager->get_right(current_node);
-            get_in_degree_of(root_definition_identifier, left, working_scope);
-            get_in_degree_of(root_definition_identifier, right, working_scope);
-            break;
-        }
-        case PN_TRINARY: {
-            auto left = node_manager->get_left(current_node);
-            auto middle = node_manager->get_middle(current_node);
-            auto right = node_manager->get_right(current_node);
-            get_in_degree_of(root_definition_identifier, left, working_scope);
-            get_in_degree_of(root_definition_identifier, middle, working_scope);
-            get_in_degree_of(root_definition_identifier, right, working_scope);
-            break;
-        }
-        case PN_BLOCK: {
-            for (auto child: node_manager->get_children(current_node)) {
-                get_in_degree_of(root_definition_identifier, child, working_scope);
-            }
-            break;
-        }
-        default:
-            break;
     }
+    in_degree_map[dependency_name] = in_degree;
 }
 
 void SageCompiler::resolve_definition_order(int target_scope) {
     vector<NodeIndex> result_order;
-    //stack<string> fringe;
     queue<string> fringe;
     map<string, NodeIndex> identifier_to_ast;
     for (const auto &[identifier, in_degree]: in_degree_map) {
@@ -674,7 +592,6 @@ void SageCompiler::resolve_definition_order(int target_scope) {
     string current;
     set<string> visited;
     while (!fringe.empty()) {
-        //current = fringe.top();
         current = fringe.front();
         fringe.pop();
 
@@ -683,7 +600,7 @@ void SageCompiler::resolve_definition_order(int target_scope) {
             logger.log_error_unsafe(token, sen("Invalid redefinition of symbol:", current), SEMANTIC);
             break;
         }
-
+        visited.insert(current);
         result_order.push_back(identifier_to_ast[current]);
 
         for (string child_dependency: definition_dependencies[current]) {
@@ -724,7 +641,6 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
 
     int current_scope = node_manager->get_scope_id(program_root);
     in_degree_map.clear();
-    previously_processed.clear();
 
     // for each scope, find every native definition and get its in_degree,
     // then sort those definitions into a valid compilation order
@@ -736,31 +652,12 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
 
             current_scope = symbol_table.entries.get(symbol_id).scope_id;
 
-            for (const auto &[identifier, in_degree]: in_degree_map) {
-                previously_processed.insert(identifier);
-            }
             in_degree_map.clear();
-            definition_dependencies.clear();
         }
 
         auto ast_id = symbol_table.entries.get(symbol_id).definition_ast_index;
         if (ast_id == -1) continue; // find all definitions in that scope
 
-        in_degree_map[node_manager->get_identifier(ast_id)] = 0;
-        switch (node_manager->get_nodetype(ast_id)) {
-            case PN_FUNCDEF:
-            case PN_VAR_DEC: {
-                auto rhs = node_manager->get_right(ast_id);
-                get_in_degree_of(node_manager->get_identifier(ast_id), rhs, current_scope);
-                break;
-            }
-            case PN_STRUCT: {
-                auto body = node_manager->get_branch(node_manager->get_right(ast_id));
-                get_in_degree_of(node_manager->get_identifier(ast_id), body, current_scope);
-                break;
-            }
-            default:
-                break;
-        }
+        get_in_degree_of_dependency_node(node_manager->get_identifier(ast_id));
     }
 }
