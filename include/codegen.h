@@ -138,7 +138,12 @@ struct FieldAccessTreeIterator {
 
     FieldAccessTreeIterator(NodeIndex root, NodeManager *nm) {
         NodeIndex current_root = root;
-        while (nm->get_host_nodetype(current_root) == PN_BINARY) {
+        if (current_root == NULL_INDEX) return;
+        int iteration_count = 0;
+        const int MAX_DEPTH = 10000;
+
+        while (nm->get_host_nodetype(current_root) == PN_BINARY &&
+               iteration_count++ < MAX_DEPTH) {
             elements.push_back(nm->get_left(current_root));
             current_root = nm->get_right(current_root);
         }
@@ -243,7 +248,7 @@ public:
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-    VisitorResult visit_struct_field_access(NodeIndex, bool for_assignment = false);
+    VisitorResult visit_struct_field_access(NodeIndex, bool struct_field_is_being_assigned_to = false);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);

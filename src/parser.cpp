@@ -88,6 +88,7 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
     NodeIndex program_root = parse_statements();
 
     // Global scope doesn't need to be exited
+    scope_manager->scope_to_astroot[0] = program_root;
 
     return program_root;
 }
@@ -95,18 +96,12 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 NodeIndex SageParser::parse_statements() {
     NodeIndex list_node = node_manager->create_block();
 
-    while (!ErrorLogger::get().has_errors()) {
-        while (match_types(current_token->token_type, TT_NEWLINE)) {
-            advance();
-        }
-        if (match_types(current_token->token_type, TT_EOF)) {
-            break;
-        }
+    while (!ErrorLogger::get().has_errors() && current_token->token_type != TT_EOF) {
+        while (match_types(current_token->token_type, TT_NEWLINE)) advance();
 
         NodeIndex next_statement = parse_statement();
-        if (next_statement == NULL_INDEX) {
-            break; // don't want to add nullptr to children list if an error is found
-        }
+        // don't want to add nullptr to children list if an error is found
+        if (next_statement == NULL_INDEX) break;
 
         node_manager->add_child(list_node, next_statement);
     }

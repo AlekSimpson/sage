@@ -51,21 +51,12 @@ bool SageCompiler::generating_compile_time_bytecode() {
 }
 
 void SageCompiler::compile_file(string mainfile) {
-    if (options.compilation_target != SAGE_VM) {
-        logger.log_internal_error_unsafe(
-            "compiler.cpp",
-            current_linenum,
-            sen("Support for compilation target", compilation_target_string(options.compilation_target),
-                "is not implemented yet."));
-    }
+    assertm(options.compilation_target == SAGE_VM, sen("Support for compilation target", compilation_target_string(options.compilation_target), "is not implemented yet.").data());
 
     /// 1. INITIAL PROGRAM COMPILATION PASS
     string emit_string;
     NodeIndex ast_root = parser.parse_program(mainfile);
-    if (ast_root == NULL_INDEX) {
-        logger.log_internal_error_unsafe("compiler.cpp", current_linenum, "AST root is null. parsing failed.");
-        return;
-    }
+    assertm(ast_root != NULL_INDEX, "AST root is null. parsing failed.");
     if (logger.has_errors()) {
         logger.report_errors();
         return;
@@ -116,14 +107,7 @@ void SageCompiler::compile_file(string mainfile) {
         int current_prerequisite_count = 0;
         vector<ComptimeTask *> task_execution_batch;
         while (!on_last_batch) {
-            if (comptime_manager.execution_iterations >= comptime_manager.MAX_ITERATIONS &&
-                comptime_manager.task_min_heap.empty()) {
-                logger.log_internal_error_unsafe(
-                    "compiler.cpp",
-                    current_linenum,
-                    "Reached maximum compile time iteration count. This should never happen");
-                break;
-            }
+            assertm(comptime_manager.execution_iterations < comptime_manager.MAX_ITERATIONS || !comptime_manager.task_min_heap.empty(), "Reached maximum compile time iteration count. This should never happen");
 
             while (current_prerequisite_count == comptime_manager.get_next_task_prerequisite_count()) {
                 task_execution_batch.push_back(comptime_manager.task_min_heap.top());
@@ -460,10 +444,7 @@ void SageCompiler::perform_type_resolution() {
                 entry->datatype = symbol_table.resolve_function_type(index);
                 break;
             default:
-                logger.log_internal_error_unsafe(
-                    "compiler.cpp",
-                    current_linenum,
-                    "Type resolution encountered unknown symbol type");
+                assertm(false, "Type resolution encountered unknown symbol type");
                 break;
         }
     }

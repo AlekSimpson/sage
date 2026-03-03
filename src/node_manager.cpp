@@ -1,12 +1,12 @@
 #include <vector>
 #include <string>
-#include <iostream>
-#include <typeinfo>
-#include "../include/node_manager.h"
-
+#include <cassert>
 #include <error_logger.h>
 
+#include "../include/node_manager.h"
 #include "../include/scope_manager.h"
+
+#define assertm(condition, message) assert((condition) && (message))
 
 NodeManager::NodeManager() {
     box_count = 0;
@@ -61,14 +61,7 @@ BlockParseNode *NodeManager::unbox(NodeIndex index) {
 }
 
 nodebox NodeManager::get_node(NodeIndex node) {
-    if (node < 0 || node > capacity) {
-        ErrorLogger::get().log_internal_error_safe(
-            "node_manager.cpp",
-            current_linenum,
-            sen("get_node: attempted to access invalid node index", node));
-        return nodebox{};
-    }
-
+    assertm(!(node < 0 || node > capacity), sen("get_node: attempted to access invalid node index", node).data());
     return container[node];
 }
 
@@ -168,13 +161,7 @@ string NodeManager::get_full_lexeme(NodeIndex index) {
 
 NodeIndex NodeManager::get_left(NodeIndex node) {
     auto box = get_node(node);
-    if (box.node == nullptr) {
-        ErrorLogger::get().log_internal_error_safe(
-            "node_manager.cpp",
-            current_linenum,
-            sen("get_left: out of range node index. Given", node,"which is invalid."));
-        return NULL_INDEX;
-    }
+    assertm(box.node != nullptr, sen("get_left: out of range node index. Given", node,"which is invalid.").data());
 
     AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
@@ -192,13 +179,7 @@ NodeIndex NodeManager::get_left(NodeIndex node) {
 
 NodeIndex NodeManager::get_right(NodeIndex node) {
     auto box = get_node(node);
-    if (box.node == nullptr) {
-        ErrorLogger::get().log_internal_error_safe(
-            "node_manager.cpp",
-            current_linenum,
-            sen("get_right: out of range node index. Given", node,"which is invalid."));
-        return NULL_INDEX;
-    }
+    assertm(box.node != nullptr, sen("get_right: out of range node index. Given", node,"which is invalid.").data());
 
     AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
@@ -216,13 +197,7 @@ NodeIndex NodeManager::get_right(NodeIndex node) {
 
 NodeIndex NodeManager::get_middle(NodeIndex node) {
     auto box = get_node(node);
-    if (box.node == nullptr) {
-        ErrorLogger::get().log_internal_error_safe(
-           "node_manager.cpp",
-           current_linenum,
-           sen("get_middle: out of range node index. Given", node,"which is invalid."));
-        return NULL_INDEX;
-    }
+    assert(box.node != nullptr);
 
     AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
@@ -237,13 +212,7 @@ NodeIndex NodeManager::get_middle(NodeIndex node) {
 
 NodeIndex NodeManager::get_branch(NodeIndex node) {
     auto box = get_node(node);
-    if (box.node == nullptr) {
-        ErrorLogger::get().log_internal_error_safe(
-           "node_manager.cpp",
-           current_linenum,
-           sen("get_branch: out of range node index. Given", node,"which is invalid."));
-        return NULL_INDEX;
-    }
+    assertm(box.node != nullptr, sen("get_branch: out of range node index. Given", node,"which is invalid.").data());
 
     AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
@@ -276,13 +245,7 @@ NodeIndex NodeManager::reach_right(NodeIndex node, int reach_depth) {
 
 vector<NodeIndex> NodeManager::get_children(NodeIndex node) {
     auto box = get_node(node);
-    if (box.node == nullptr) {
-        ErrorLogger::get().log_internal_error_safe(
-           "node_manager.cpp",
-           current_linenum,
-           sen("get_children: out of range node index. Given", node,"which is invalid."));
-        return vector<NodeIndex>();
-    }
+    assertm(box.node != nullptr, sen("get_children: out of range node index. Given", node,"which is invalid.").data());
 
     AbstractParseNode *parsenode = box.node;
     auto hosttype = box.host_type;
@@ -465,7 +428,7 @@ void NodeManager::expand_container() {
 
         // otherwise we are initializing newly created space to null
         // and updating the amount of free space
-        container[i] = nodebox{nullptr, PN_UNARY};
+        new_container[i] = nodebox{nullptr, PN_UNARY};
         free_spaces.push_back(i);
     }
 
@@ -506,7 +469,7 @@ set<int> NodeManager::get_in_scope_symbol_indices(int scope_id) {
     auto &scopes = scope_manager->scopes;
 
     int _current_scope_id = scope_id;
-    while (_current_scope_id <= 0) {
+    while (_current_scope_id >= 0) {
         in_scope_symbol_indices.insert(scopes[_current_scope_id].symbol_indices.begin(), scopes[_current_scope_id].symbol_indices.end());
         _current_scope_id--;
     }

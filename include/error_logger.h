@@ -67,13 +67,11 @@ public:
   static ErrorLogger &get();
 
   // thread safe
-  void log_internal_error_safe(string sourcefile, int lineno, string message);
   void log_error_safe(Token &token, string message, ErrorType type);
   void log_error_safe(string filename, int lineno, string message, ErrorType);
   void log_warning_safe(Token &token, string message, ErrorType type);
 
   // non thread safe
-  void log_internal_error_unsafe(string sourcefile, int lineno, string message);
   void log_error_unsafe(Token &token, string message, ErrorType type);
   void log_error_unsafe(string filename, int lineno, string message, ErrorType);
   void log_warning_unsafe(Token &token, string message, ErrorType type);

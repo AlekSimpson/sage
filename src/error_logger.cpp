@@ -146,22 +146,6 @@ void ErrorLogger::collect_pending_errors() {
     }
 }
 
-void ErrorLogger::log_internal_error_safe(
-    string sourcefile,
-    int lineno,
-    string message) {
-    // note: it says this memory will leak but im not really sure thats the case because we will collect the errors in the destructor to ensure all comptime errors also get freed
-    SageError *error = new SageError(
-        message,
-        sourcefile,
-        lineno,
-        0,
-        INTERNAL);
-
-    lock_guard<mutex> lock(error_mutex);
-    pending_comptime_errors.push(error);
-}
-
 void ErrorLogger::log_error_safe(
     string filename,
     int lineno,
@@ -206,27 +190,6 @@ void ErrorLogger::log_warning_safe(
 
     lock_guard<mutex> lock(error_mutex);
     pending_comptime_errors.push(error);
-}
-
-void ErrorLogger::log_internal_error_unsafe(
-    string sourcefile,
-    int lineno,
-    string message) {
-    SageError *error = new SageError(
-        message,
-        sourcefile,
-        lineno,
-        0,
-        INTERNAL);
-
-    if (error_hashes.find(error->hash()) != error_hashes.end()) {
-        delete error;
-        return;
-    }
-
-    error_amount++;
-    errors.push_back(error);
-    error_hashes.insert(error->hash());
 }
 
 void ErrorLogger::log_error_unsafe(

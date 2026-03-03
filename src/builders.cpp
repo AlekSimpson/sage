@@ -478,8 +478,7 @@ VisitorResult SageCompiler::build_store(VisitorResult right_value, SymbolEntry *
             break;
         }
         default:
-            ErrorLogger::get().log_internal_error_unsafe("builders.cpp", current_linenum,
-                                                         "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
+            assertm(false, "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
     }
     return VisitorResult();
 }
@@ -606,8 +605,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     builder.build_fmove_register(argument_register, entry->assigned_register);
                     break;
                 default:
-                    compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
-                                                              "This visitor combination shouldn't happen. Type checking failed somehow probably.");
+                    assertm(false, "This visitor combination shouldn't happen. Type checking failed somehow probably.");
                     break;
             }
             break;
@@ -634,13 +632,15 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
     auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+    assertm(entry != nullptr, "symbol entry was nullptr");
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
-            if (result_type->identify() == FLOAT) {
+            int store_size = result_type != nullptr ? result_type->size : 8;
+            if (result_type != nullptr && result_type->identify() == FLOAT) {
                 builder.build_fmove_immediate(compiler.get_volatile_register(), immediate_value);
             }
-            builder.build_instruction(OP_STORE, entry->datatype->size, offset, immediate_value, offset_mode);
+            builder.build_instruction(OP_STORE, store_size, offset, immediate_value, offset_mode);
             break;
         }
         case VisitorResultState::SPILLED: {

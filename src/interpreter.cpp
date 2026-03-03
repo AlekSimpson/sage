@@ -130,13 +130,7 @@ inline void SageInterpreter::execute_float_mul(std::array<int64_t, 3> &operands)
 
 inline void SageInterpreter::execute_div(std::array<int64_t, 3> &operands, AddressMode &mode) {
     // _xx | OP_DIV reg, op, op
-    if (operands[2] == 0) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "Division by zero.");
-        return;
-    }
+    assertm(operands[2] != 0, "Division by zero.");
 
     int operand1 = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int operand2 = mode[1] == 1 ? registers[operands[2]] : operands[2];
@@ -145,13 +139,7 @@ inline void SageInterpreter::execute_div(std::array<int64_t, 3> &operands, Addre
 
 inline void SageInterpreter::execute_float_div(std::array<int64_t, 3> &operands) {
     // _xx | OP_FDIV reg, op, op
-    if (operands[2] == 0) {
-        ErrorLogger::get().log_internal_error_safe(
-            "interpreter.cpp",
-            current_linenum,
-            "Division by zero.");
-        return;
-    }
+    assertm(operands[2] != 0, "Division by zero.");
 
     double operand1 = read_float_register(operands[1]);
     double operand2 = read_float_register(operands[2]);
@@ -376,6 +364,7 @@ void SageInterpreter::execute() {
     //print_static_memory();
 
     while (vm_running && program_pointer < (int) program.size()) {
+        //printf("interpretting...\n");
         if (ErrorLogger::get().has_errors()) {
             ErrorLogger::get().report_errors();
             break;
@@ -490,11 +479,7 @@ void SageInterpreter::execute() {
                 vm_running = false;
                 continue;
             default:
-                ErrorLogger::get().log_internal_error_safe(
-                    "interpreter.cpp",
-                    current_linenum,
-                    "VM tried to execute unrecognized bytecode");
-                vm_running = false;
+                assertm(false, "VM tried to execute unrecognized bytecode");
                 continue;
         }
 

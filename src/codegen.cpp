@@ -37,10 +37,7 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_FUNCCALL:
             return visit_expression(node);
         default:
-            ErrorLogger::get().log_internal_error_unsafe(
-                "codegen.cpp",
-                current_linenum,
-                sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)));
+            assertm(false, sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)).data());
             break;
     }
     return VisitorResult();
@@ -92,10 +89,7 @@ VisitorResult SageCompiler::visit_keyword(NodeIndex node) {
     if (lexeme == "break") {
         return VisitorResult();
     }
-    ErrorLogger::get().log_internal_error_unsafe(
-        "codegen.cpp",
-        current_linenum,
-        sen("found unrecognized keyword:", node_manager->get_lexeme(node)));
+    assertm(false, sen("found unrecognized keyword:", node_manager->get_lexeme(node)).data());
     return VisitorResult();
 }
 
@@ -104,6 +98,9 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     auto lhs_nodetype = node_manager->get_nodetype(LHS);
     if (lhs_nodetype == PN_FIELD_ACCESS) {
         auto field_access_result = visit_struct_field_access(LHS, true);
+        if (logger.has_errors()) {
+            return VisitorResult();
+        }
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_node_result = visit_expression(right_node_index);
@@ -120,11 +117,7 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     auto lhs_identifier = node_manager->get_identifier(LHS);
     auto scope_id = node_manager->get_scope_id(LHS);
     auto variable_symbol = symbol_table.lookup(lhs_identifier, scope_id);
-    if (variable_symbol == nullptr) {
-        // should be an assert
-        logger.log_internal_error_unsafe("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
-        return VisitorResult();
-    }
+    assertm(variable_symbol != nullptr, str("variable_symbol was nullptr").data());
 
     NodeIndex right_node_index = node_manager->get_right(node);
     VisitorResult right_node_result = visit_expression(right_node_index);
@@ -139,14 +132,7 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
 
     NodeIndex function_signature_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(function_signature_node);
-    if (right_host != PN_TRINARY) {
-        // TODO: checks like this really should be asserts that aren't generated in production mode
-        logger.log_internal_error_unsafe(
-            "codegen.cpp",
-            current_linenum,
-            str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host));
-        return VisitorResult();
-    }
+    assertm(right_host == PN_TRINARY, str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host).data());
 
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(function_signature_node);
@@ -269,7 +255,7 @@ VisitorResult SageCompiler::visit_expression(NodeIndex node) {
     return visit_literal(node);
 }
 
-VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node, bool for_assignment) {
+VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node, bool struct_field_is_being_assigned_to) {
     assert(node_manager->get_nodetype(node) != PN_BINARY);
 
     int final_stack_offset_register = get_volatile_register();
@@ -310,10 +296,9 @@ VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node, bool for_a
 
         int member_offset;
         if (current_namespace->is_builtin()) {
-            auto *builtin_ns = current_namespace->as_builtin();
-            member_offset = builtin_ns->get_field_offset(current_name);
-            field_type = builtin_ns->get_field_type(current_name);
-            entry = nullptr;
+            auto *builtin_ins = current_namespace->as_builtin();
+            member_offset = builtin_ins->get_field_offset(current_name);
+            field_type = builtin_ins->get_field_type(current_name);
             current_type_entry = nullptr;
         } else {
             auto member_symbol_index = current_namespace->lookup_struct_member(current_name);
@@ -369,23 +354,21 @@ VisitorResult SageCompiler::visit_struct_field_access(NodeIndex node, bool for_a
         }
         leftmost_node = iterator.next();
     }
+    assert(field_type != nullptr);
 
-    if (!for_assignment) {
-        int value_register = get_volatile_register();
-        int load_size = field_type->size <= 8 ? field_type->size : 8;
-        builder.build_instruction(OP_LOAD, load_size, value_register, final_stack_offset_register, _01);
-        return VisitorResult(value_register, field_type, true);
-    }
+    if (struct_field_is_being_assigned_to) return VisitorResult(final_stack_offset_register, field_type, true);
 
-    return VisitorResult(final_stack_offset_register, field_type, true);
+    int value_register = get_volatile_register();
+    int load_size = field_type->size <= 8 ? field_type->size : 8;
+    builder.build_instruction(OP_LOAD, load_size, value_register, final_stack_offset_register, _01);
+    return VisitorResult(value_register, field_type, true);
 }
 
 VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
         case PN_LIST: {
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
-                                             "TODO: List literal visitor unimplemented.");
+            assertm(false, "TODO: List literal visitor unimplemented.");
             return VisitorResult();
         }
         case PN_VAR_REF:
@@ -426,8 +409,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
                 bool_result = SageValue(false);
                 return VisitorResult(bool_result);
             }
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
-                                             sen("Expected to find 'true' or 'false', found", identifier));
+            assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
             return VisitorResult();
         }
         case PN_FIELD_ACCESS: {
@@ -531,13 +513,7 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
         return VisitorResult();
     }
 
-    if (args.size() > 6) {
-        logger.log_internal_error_unsafe(
-            "builders.cpp",
-            current_linenum,
-            sen(function_name, "with more than 6 arguments is unimplemented."));
-        return VisitorResult();
-    }
+    assertm(args.size() <= 6, sen(function_name, "with more than 6 arguments is unimplemented.").data());
 
     int argument_register_address = 0;
     if (first_parameter_pointer_register != -1) {
@@ -636,11 +612,10 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             break;
         case TT_EQUALITY:
             break;
+        case TT_FIELD_ACCESSOR:
+            return visit_struct_field_access(node, false);
         default:
-            ErrorLogger::get().log_internal_error_unsafe(
-                "codegen.cpp",
-                current_linenum,
-                str("Node", node, "recieved incorrect node type for binary operation."));
+            assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());
             break;
     }
     return VisitorResult();
