@@ -132,29 +132,6 @@ struct VisitorResult {
     bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
 };
 
-struct FieldAccessTreeIterator {
-    vector<NodeIndex> elements;
-    int index = 0;
-
-    FieldAccessTreeIterator(NodeIndex root, NodeManager *nm) {
-        NodeIndex current_root = root;
-        if (current_root == NULL_INDEX) return;
-        int iteration_count = 0;
-        const int MAX_DEPTH = 10000;
-
-        while (nm->get_host_nodetype(current_root) == PN_BINARY &&
-               iteration_count++ < MAX_DEPTH) {
-            elements.push_back(nm->get_left(current_root));
-            current_root = nm->get_right(current_root);
-        }
-        elements.push_back(current_root);
-    }
-
-    NodeIndex next();
-
-    bool has_next();
-};
-
 // TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
 public:
@@ -249,6 +226,7 @@ public:
     /* visitors */
     VisitorResult visit(NodeIndex);
     VisitorResult visit_struct_field_access(NodeIndex, bool struct_field_is_being_assigned_to = false);
+    VisitorResult visit_struct_field_access_helper(NodeIndex, int *, SageType **, SageNamespace *, int);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);

@@ -20,16 +20,6 @@
 
 using namespace std;
 
-NodeIndex FieldAccessTreeIterator::next() {
-    if (index >= (int) elements.size()) return -1;
-    return elements[index++];
-}
-
-bool FieldAccessTreeIterator::has_next() {
-    if (index >= (int) elements.size()) return false;
-    return true;
-}
-
 SageCompiler::SageCompiler(CompilerOptions options)
     : options(options),
       node_manager(new NodeManager()),

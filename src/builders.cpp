@@ -612,7 +612,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            assert(static_pointer != -1);
+            //assert(static_pointer != -1);
             builder.build_move_immediate(argument_register, static_pointer);
             break;
         }

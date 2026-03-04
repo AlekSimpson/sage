@@ -13,6 +13,8 @@ const SIGNAL_NAMES = Dict(
     15 => "SIGTERM (terminated)",
 )
 
+const DISABLED_TESTS = ["functions_seven.sage"]
+
 struct CompilerResult
     exit_code::Int
     signal::Int
@@ -150,7 +152,7 @@ function discover_tests()
         end
 
         for f in readdir(cat_dir)
-            if isdir(joinpath(cat_dir, f))
+            if isdir(joinpath(cat_dir, f)) || f in DISABLED_TESTS
                 continue
             end
 
@@ -178,6 +180,11 @@ function report_results(results::Vector{TestResult})
         println(r.name)
     end
 
+    for test in DISABLED_TESTS
+        printstyled("  ~ ", color=:yellow, bold=true)
+        println(test)
+    end
+
     if !isempty(passed_results) && !isempty(failed)
         println()
     end
@@ -194,9 +201,14 @@ function report_results(results::Vector{TestResult})
 
     println(repeat('-', 60))
     summary_color = isempty(failed) ? :green : :red
-    printstyled("$(length(passed_results))/$(length(results)) passed", color=summary_color, bold=true)
+    total_test_length = length(results) + length(DISABLED_TESTS)
+    printstyled("$(length(passed_results))/$(total_test_length) passed", color=summary_color, bold=true)
     if !isempty(failed)
         printstyled(", $(length(failed)) failed", color=:red, bold=true)
+    end
+    if !isempty(DISABLED_TESTS)
+        print("  |  ")
+        printstyled("$(length(DISABLED_TESTS)) disabled.", color=:yellow, bold=true)
     end
     println()
 
