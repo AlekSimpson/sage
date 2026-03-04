@@ -18,6 +18,15 @@ load 8 r13 ($fp - r12)
 mov r0 r13
 mov r1 2
 call @2090629895
+mov r14 16
+add r14 r14 0
+load 8 r15 ($fp - r14)
+mov r16 16
+add r16 r16 8
+load 8 r17 ($fp - r16)
+mov r0 r15
+mov r1 r17
+call @2090629905
 label @2090629895
 mov r22 1
 mov r10 r1

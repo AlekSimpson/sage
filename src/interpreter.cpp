@@ -364,7 +364,6 @@ void SageInterpreter::execute() {
     //print_static_memory();
 
     while (vm_running && program_pointer < (int) program.size()) {
-        //printf("interpretting...\n");
         if (ErrorLogger::get().has_errors()) {
             ErrorLogger::get().report_errors();
             break;

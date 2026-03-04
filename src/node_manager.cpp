@@ -298,6 +298,31 @@ NodeIndex NodeManager::create_binary(Token token, ParseNodeType type, NodeIndex 
     return node_id;
 }
 
+NodeIndex NodeManager::create_empty_binary(Token token, ParseNodeType type) {
+    BinaryParseNode *binary_node = new BinaryParseNode(this, token, type, NULL_INDEX, NULL_INDEX);
+    auto node_id = create(binary_node, PN_BINARY);
+    set_scope_id(node_id, scope_manager->get_current_scope());
+    return node_id;
+}
+
+void NodeManager::set_binary_left(NodeIndex target, NodeIndex new_left_node) {
+    auto box = get_node(target);
+    assert(box.node != nullptr);
+    assert(box.host_type == PN_BINARY);
+
+    BinaryParseNode *binary_node = dynamic_cast<BinaryParseNode *>(box.node);
+    binary_node->left = new_left_node;
+}
+
+void NodeManager::set_binary_right(NodeIndex target, NodeIndex new_right_node) {
+    auto box = get_node(target);
+    assert(box.node != nullptr);
+    assert(box.host_type == PN_BINARY);
+
+    BinaryParseNode *binary_node = dynamic_cast<BinaryParseNode *>(box.node);
+    binary_node->right = new_right_node;
+}
+
 NodeIndex NodeManager::create_trinary(Token token, ParseNodeType type, NodeIndex left, NodeIndex middle,
                                       NodeIndex right) {
     TrinaryParseNode *trinary_node = new TrinaryParseNode(this, token, type, left, middle, right);

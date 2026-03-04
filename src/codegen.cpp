@@ -38,9 +38,7 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
             return visit_expression(node);
         default:
             assertm(false, sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)).data());
-            break;
     }
-    return VisitorResult();
 }
 
 /*
@@ -90,7 +88,6 @@ VisitorResult SageCompiler::visit_keyword(NodeIndex node) {
         return VisitorResult();
     }
     assertm(false, sen("found unrecognized keyword:", node_manager->get_lexeme(node)).data());
-    return VisitorResult();
 }
 
 VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
@@ -341,12 +338,12 @@ VisitorResult SageCompiler::visit_struct_field_access_helper(
 
     if (current_namespace->is_field_member(current_name)) {
         builder.build_instruction(OP_ADD, *final_stack_offset_register, *final_stack_offset_register, member_offset, _10);
-        if (node_manager->get_host_nodetype(node) == PN_BINARY) return VisitorResult();
+        *current_field_type = field_type;
+        if (node_manager->get_host_nodetype(node) != PN_BINARY) return VisitorResult();
         if (field_type->identify() != POINTER) {
             if (current_type_entry != nullptr) {
                 current_namespace = current_type_entry->get_namespace();
             }
-            *current_field_type = field_type;
             return visit_struct_field_access_helper(
                 node_manager->get_right(node),
                 final_stack_offset_register,
@@ -441,9 +438,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             }
             assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
         }
-        case PN_FIELD_ACCESS: {
+        case PN_FIELD_ACCESS:
             return visit_struct_field_access(node);
-        }
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
             auto visit_result = visit_literal(node_manager->get_branch(node));
@@ -453,8 +449,10 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             // move the full address of visit_result into a register
             auto visit_result = visit_literal(node_manager->get_branch(node));
             auto *symbol_entry = symbol_table.lookup_by_index(visit_result.symbol_table_index);
+            assert(symbol_entry != nullptr);
+
             int dest_register = get_volatile_register();
-            if (symbol_entry != nullptr && symbol_entry->static_stack_pointer != -1) {
+            if (symbol_entry->static_stack_pointer != -1) {
                 builder.build_move_immediate(dest_register, symbol_entry->static_stack_pointer);
                 return VisitorResult(dest_register, TR::get_integer_type(8), true);
             }
@@ -645,7 +643,6 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             return visit_struct_field_access(node, false);
         default:
             assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());
-            break;
     }
     return VisitorResult();
 }

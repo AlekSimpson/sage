@@ -53,17 +53,18 @@ public:
     string get_identifier(NodeIndex);
     NodeIndex get_parent(NodeIndex);
 
-    void set_parent(NodeIndex, NodeIndex);
-    void set_children(NodeIndex, vector<NodeIndex>);
-
+    // NEW: AST modification operations
     void add_child(NodeIndex self, NodeIndex new_child);
     void delete_node(NodeIndex index);
 
-    // NEW: AST modification operations
     void replace_node(NodeIndex old_node, NodeIndex new_node);
     void splice_nodes(NodeIndex target, vector<NodeIndex> replacements);
     void remove_node(NodeIndex node); // TODO
     void insert_after(NodeIndex target, NodeIndex new_node); // TODO
+    void set_parent(NodeIndex, NodeIndex);
+    void set_children(NodeIndex, vector<NodeIndex>);
+    void set_binary_left(NodeIndex target, NodeIndex new_left_node);
+    void set_binary_right(NodeIndex target, NodeIndex new_right_node);
 
     // NEW: Track modifications for incremental reanalysis
     set<NodeIndex> modified_subtrees;
@@ -83,6 +84,7 @@ public:
     NodeIndex create_block(Token, ParseNodeType, vector<NodeIndex>);
 
     NodeIndex create_binary(Token, ParseNodeType, NodeIndex, NodeIndex);
+    NodeIndex create_empty_binary(Token, ParseNodeType);
 
     NodeIndex create_trinary(Token, ParseNodeType, NodeIndex, NodeIndex, NodeIndex);
 

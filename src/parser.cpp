@@ -821,39 +821,66 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
 }
 
 NodeIndex SageParser::parse_postfix_operator() {
-    bool has_a_postfix_operator = peek().token_type == TT_FIELD_ACCESSOR;
+    Token next_token = peek();
+    bool has_a_postfix_operator = next_token.token_type == TT_FIELD_ACCESSOR;
     if (!has_a_postfix_operator) {
         return parse_primary();
     }
 
     // note: in the future if we choose to keep the '++'/'--' postfix operators, their parsing would also happen here
 
-    Token postfix_token;
-    NodeIndex current_postfix_target_node = parse_primary();
-    while (has_a_postfix_operator) {
-        postfix_token = *current_token;
-        advance(); // advance past '.' token
-        auto next_accessor = parse_primary();
-        if (node_manager->get_nodetype(next_accessor) != PN_STRING && node_manager->get_nodetype(next_accessor) != PN_VAR_REF && node_manager->get_nodetype(next_accessor) != PN_FUNCCALL) {
-            ErrorLogger::get().log_error_unsafe(
-               *current_token,
-               str("Expected a field accessor character, '.', instead found: ", current_token->lexeme, ". Only a field accessor operator can be used to access data in a structure."),
-               SYNTAX
-            );
+    const int MAX_ITERATION_GUARD = 256;
+    int iteration_count = 0;
+    NodeIndex current_binary_node = node_manager->create_empty_binary(next_token, PN_FIELD_ACCESS);
+    NodeIndex root_binary_node = current_binary_node;
+    NodeIndex current_member_variable_node;
+    while (iteration_count < MAX_ITERATION_GUARD) {
+        current_member_variable_node = parse_primary();
+
+        consume(TT_FIELD_ACCESSOR, "Expected '.' character in structure field access expression.");
+
+        if (peek().token_type != TT_FIELD_ACCESSOR) {
+            // last field access in the chain
+            node_manager->set_binary_left(current_binary_node, current_member_variable_node);
+            node_manager->set_binary_right(current_binary_node, parse_primary());
             break;
         }
 
-        current_postfix_target_node = node_manager->create_binary(
-            postfix_token,
-            PN_FIELD_ACCESS,
-            current_postfix_target_node,
-            next_accessor
-        );
-
-        has_a_postfix_operator = current_token->token_type == TT_FIELD_ACCESSOR;
+        node_manager->set_binary_left(current_binary_node, current_member_variable_node);
+        NodeIndex next_binary_node = node_manager->create_empty_binary(next_token, PN_FIELD_ACCESS);
+        node_manager->set_binary_right(current_binary_node, next_binary_node);
+        current_binary_node = next_binary_node;
+        iteration_count++;
     }
 
-    return current_postfix_target_node;
+    return root_binary_node;
+    //NodeIndex current_postfix_target_node = parse_primary();
+    //while (has_a_postfix_operator) {
+    //    postfix_token = *current_token;
+    //    advance(); // advance past '.' token
+    //    auto next_accessor = parse_primary();
+    //    if (node_manager->get_nodetype(next_accessor) != PN_STRING &&
+    //        node_manager->get_nodetype(next_accessor) != PN_VAR_REF &&
+    //        node_manager->get_nodetype(next_accessor) != PN_FUNCCALL) {
+    //        ErrorLogger::get().log_error_unsafe(
+    //           *current_token,
+    //           str("Expected a field accessor character, '.', instead found: ", current_token->lexeme, ". Only a field accessor operator can be used to access data in a structure."),
+    //           SYNTAX
+    //        );
+    //        break;
+    //    }
+
+    //    current_postfix_target_node = node_manager->create_binary(
+    //        postfix_token,
+    //        PN_FIELD_ACCESS,
+    //        current_postfix_target_node,
+    //        next_accessor
+    //    );
+
+    //    has_a_postfix_operator = current_token->token_type == TT_FIELD_ACCESSOR;
+    //}
+
+    //return current_postfix_target_node;
 }
 
 NodeIndex SageParser::parse_unary_operator() {
