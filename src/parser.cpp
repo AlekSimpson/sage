@@ -854,33 +854,6 @@ NodeIndex SageParser::parse_postfix_operator() {
     }
 
     return root_binary_node;
-    //NodeIndex current_postfix_target_node = parse_primary();
-    //while (has_a_postfix_operator) {
-    //    postfix_token = *current_token;
-    //    advance(); // advance past '.' token
-    //    auto next_accessor = parse_primary();
-    //    if (node_manager->get_nodetype(next_accessor) != PN_STRING &&
-    //        node_manager->get_nodetype(next_accessor) != PN_VAR_REF &&
-    //        node_manager->get_nodetype(next_accessor) != PN_FUNCCALL) {
-    //        ErrorLogger::get().log_error_unsafe(
-    //           *current_token,
-    //           str("Expected a field accessor character, '.', instead found: ", current_token->lexeme, ". Only a field accessor operator can be used to access data in a structure."),
-    //           SYNTAX
-    //        );
-    //        break;
-    //    }
-
-    //    current_postfix_target_node = node_manager->create_binary(
-    //        postfix_token,
-    //        PN_FIELD_ACCESS,
-    //        current_postfix_target_node,
-    //        next_accessor
-    //    );
-
-    //    has_a_postfix_operator = current_token->token_type == TT_FIELD_ACCESSOR;
-    //}
-
-    //return current_postfix_target_node;
 }
 
 NodeIndex SageParser::parse_unary_operator() {
