@@ -113,6 +113,7 @@ public:
     inline void execute_load(std::array<int64_t, 3> &, AddressMode &);
     inline void execute_load_reference(std::array<int64_t, 3> &, AddressMode &);
     inline void execute_load_pointer(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_load_address(std::array<int64_t, 3> &, AddressMode &);
     inline void execute_store(std::array<int64_t, 3> &, AddressMode &mode);
     inline void execute_move(std::array<int64_t, 3> &, AddressMode &mode);
     inline void execute_int_to_float_move(std::array<int64_t, 3> &operands);

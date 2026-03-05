@@ -66,7 +66,8 @@ string Command::print(const map<int, string> *label_names) {
         {OP_FMOV, "fmov"},
         {OP_ITF_MOV, "itfmov"},
         {OP_LOADR, "loadr"},
-        {OP_LOADP, "loadp"}
+        {OP_LOADP, "loadp"},
+        {OP_LOADA, "loada"}
     };
 
     auto &operands = instruction.operands;
@@ -111,6 +112,7 @@ string Command::print(const map<int, string> *label_names) {
         }
 
         case OP_LOADP:
+        case OP_LOADA:
         case OP_LOAD: {
             string operand_string_0 = to_string(operands[0]);
             string operand_string_1 = str("r", to_string(operands[1]));

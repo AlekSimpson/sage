@@ -303,6 +303,13 @@ void SageInterpreter::execute_load_pointer(std::array<int64_t, 3> &operands, Add
     std::memcpy(&registers[dest_register], &memory[deref_pointer], bytes);
 }
 
+void SageInterpreter::execute_load_address(std::array<int64_t, 3> &operands, AddressMode &mode) {
+    int64_t bytes = operands[0];
+    int64_t dest_register = operands[1];
+    int64_t address = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    std::memcpy(&registers[dest_register], &memory[address], bytes);
+}
+
 inline void SageInterpreter::execute_system_call() {
     SVM_SYSCALL callcode = (SVM_SYSCALL)registers[22];
 
@@ -408,6 +415,9 @@ void SageInterpreter::execute() {
                 break;
             case OP_LOADR:
                 execute_load_reference(operands, current_command.address_mode);
+                break;
+            case OP_LOADA:
+                execute_load_address(operands, current_command.address_mode);
                 break;
             case OP_STORE:
                 execute_store(operands, current_command.address_mode);

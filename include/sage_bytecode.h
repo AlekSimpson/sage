@@ -46,6 +46,7 @@ enum SageOpCode {
     OP_STORE,       // _0x | store bytes, ($fp - offset), op
     OP_LOADR,       // _0x | loadr reg, ($fp - op)
     OP_LOADP,       // _0x | loadp bytes, reg, (pointer)
+    OP_LOADA,       // _xx | loada bytes, reg, address
 
     OP_ITF_MOV, // _01 | itfmov freg, ireg
     OP_FMOV,    // _0x | mov freg, op

@@ -168,6 +168,7 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
         //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
 
+
         return build_alloca(var_symbol);
     }
 
@@ -353,10 +354,11 @@ VisitorResult SageCompiler::visit_struct_field_access_helper(
             );
         }
 
-        // auto derefence struct members that are pointers
-        VisitorResult access_result = VisitorResult(*final_stack_offset_register, field_type, true);
-        VisitorResult deref_result = build_dereference_instructions(access_result, current_token);
-        builder.build_move_register(*final_stack_offset_register, deref_result.temporary_result_register);
+        // TODO: auto derefence struct members that are pointers
+        // we want to load the 8 bytes on the stack at the pointer stored at final_stack_offset_register
+        // into the final_stack_offset_register
+        builder.build_instruction(OP_LOADA, 8, *final_stack_offset_register, *final_stack_offset_register, _01);
+
     }else if (current_namespace->is_method(current_name)) {
         auto call_result = visit_function_call(leftmost_node, *final_stack_offset_register);
 
