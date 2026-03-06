@@ -1,8 +1,8 @@
 
 
 sub r23 r23 8
-store 8 ($fp - 0) 5
 sub r23 r23 8
+store 8 ($fp - 0) 5
 loadr r10 ($fp - 0)
 store 8 ($fp - 8) r10
 loadp 8 r11 ($fp - 8)

@@ -1,10 +1,10 @@
 
 
 label @193487034
-add r11 r29 r26
-mov r30 r11
-add r12 r26 10
-mov r26 r12
+add r10 r29 r26
+mov r30 r10
+add r11 r26 10
+mov r26 r11
 mov r0 r30
 mov r1 3
 call @2090629895
@@ -12,8 +12,8 @@ ret
 label @193491849
 mov r27 3
 mov r28 1000
-add r10 40 r25
-mov r29 r10
+add r12 40 r25
+mov r29 r12
 call @193487034
 ret
 mov r25 56

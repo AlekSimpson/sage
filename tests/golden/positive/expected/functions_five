@@ -1,10 +1,10 @@
 
 
 sub r23 r23 16
+mov r25 21
 store 8 ($fp - 0) 0
 store 8 ($fp - 8) 6
 mov r26 0
-mov r25 21
 label @2090499946
 mov r0 6
 mov r1 r25

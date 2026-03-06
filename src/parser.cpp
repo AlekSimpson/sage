@@ -632,7 +632,7 @@ NodeIndex SageParser::parse_function_call() {
     NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
 
     while (true) {
-        NodeIndex param = parse_postfix_operator();
+        NodeIndex param = parse_unary_operator();
         node_manager->add_child(params_node, param);
 
         if (!match_types(current_token->token_type, TT_COMMA)) {

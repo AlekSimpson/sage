@@ -682,7 +682,18 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
             break;
         }
         visited.insert(current_identifier);
-        result_order.push_back(identifier_to_ast[current_identifier]);
+        NodeIndex current_ast_index = identifier_to_ast[current_identifier];
+        // if current is trinary var dec then we need to push back a new binary dec node
+        if (node_manager->get_nodetype(current_ast_index == PN_VAR_DEC) &&
+            node_manager->get_host_nodetype(current_ast_index) == PN_TRINARY) {
+            auto left_node = node_manager->get_left(current_ast_index);
+            auto middle_node = node_manager->get_middle(current_ast_index);
+            Token token = node_manager->get_token(current_ast_index);
+            auto new_dec_node = node_manager->create_binary(token, PN_VAR_DEC, left_node, middle_node);
+            result_order.push_back(new_dec_node);
+        }else {
+            result_order.push_back(current_ast_index);
+        }
 
         int row_index = current_index; // index of defintion that comes before
         for (int i = row_index * col_row_length; i < (row_index + 1) * col_row_length; ++i) {
@@ -705,6 +716,16 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
     // preserve order of non definition statements in scope while prepending new resolved defintion statement order
     for (auto child: node_manager->get_children(target_ast_root)) {
         auto nodetype = node_manager->get_nodetype(child);
+        // if current child is a trinary var dec then we need to push back a new binary assign node using nodes from the trinary dec
+        if (nodetype == PN_VAR_DEC && node_manager->get_host_nodetype(child) == PN_TRINARY) {
+            auto left_node = node_manager->get_left(child);
+            auto right_node = node_manager->get_right(child);
+            Token token = node_manager->get_token(child);
+            auto new_dec_node = node_manager->create_binary(token, PN_ASSIGN, left_node, right_node);
+            result_order.push_back(new_dec_node);
+            continue;
+        }
+
         if (nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT) {
             continue;
         }
@@ -716,6 +737,8 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
 }
 
 void SageCompiler::forward_declaration_resolution(int program_root) {
+    // TODO: FIX: for trinary declaration statements, we need to separate the declaration from the assignment and only count the declaration in the fwd resolution and keep the assignment where it is
+
     vector<SymbolIndex> definitions_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.types.begin(), symbol_table.types.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(),

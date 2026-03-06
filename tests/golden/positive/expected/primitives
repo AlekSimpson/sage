@@ -1,12 +1,12 @@
 
 
-mov r31 1
 mov r25 7
-mov r30 39
-fmov fr28 2.000000
-fmov fr29 234.000000
 mov r26 9
 mov r27 23000
+fmov fr28 2.000000
+fmov fr29 234.000000
+mov r30 39
+mov r31 1
 label @2090629895
 mov r22 1
 mov r10 r1

@@ -96,7 +96,7 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     NodeIndex LHS = node_manager->get_left(node);
     auto lhs_nodetype = node_manager->get_nodetype(LHS);
     if (lhs_nodetype == PN_FIELD_ACCESS) {
-        auto field_access_result = visit_struct_field_access(LHS, 24, get_volatile_register(), nullptr, true);
+        auto field_access_result = visit_struct_field_access(LHS, 24, get_volatile_register(), nullptr, true, false);
         if (logger.has_errors()) {
             return VisitorResult();
         }
@@ -253,7 +253,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
     int base_address_register,
     int offset_register,
     SageNamespace *current_namespace,
-    bool struct_field_is_being_assigned_to
+    bool struct_field_is_being_assigned_to,
+    bool taking_address_of_field
 ) {
     int scope_id = node_manager->get_scope_id(binary_access_node);
 
@@ -282,7 +283,9 @@ VisitorResult SageCompiler::visit_struct_field_access(
             builder.build_instruction(OP_ADD, offset_register, offset_register, member_offset, _10);
             builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
 
-            if (struct_field_is_being_assigned_to) return VisitorResult(result_pointer_register, type_entry, true);
+            if (struct_field_is_being_assigned_to || taking_address_of_field) {
+                return VisitorResult(result_pointer_register, type_entry, true);
+            }
 
             int value_result_register = get_volatile_register();
             builder.build_instruction(OP_LOADA, 8, value_result_register, result_pointer_register, _01);
@@ -327,7 +330,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
                     new_base,
                     offset_register,
                     base_type->type_namespace,
-                    struct_field_is_being_assigned_to
+                    struct_field_is_being_assigned_to,
+                    taking_address_of_field
                 );
             }
 
@@ -337,7 +341,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
                 base_address_register,
                 offset_register,
                 type_entry->type_namespace,
-                struct_field_is_being_assigned_to
+                struct_field_is_being_assigned_to,
+                taking_address_of_field
             );
         }
 
@@ -368,7 +373,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
                 new_base,
                 offset_register,
                 base_type->type_namespace,
-                struct_field_is_being_assigned_to
+                struct_field_is_being_assigned_to,
+                taking_address_of_field
             );
         }
 
@@ -382,7 +388,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
             base_address_register,
             offset_register,
             type_entry->type_namespace,
-            struct_field_is_being_assigned_to
+            struct_field_is_being_assigned_to,
+            taking_address_of_field
         );
     }
 
@@ -411,7 +418,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
             base_address_register,
             offset_register,
             type_entry->type_namespace,
-            struct_field_is_being_assigned_to
+            struct_field_is_being_assigned_to,
+            taking_address_of_field
         );
     }
 
@@ -420,7 +428,7 @@ VisitorResult SageCompiler::visit_struct_field_access(
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::visit_literal(NodeIndex node) {
+VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of_field) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
         case PN_LIST: {
@@ -467,15 +475,24 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
             assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
         }
         case PN_FIELD_ACCESS:
-            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false);
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, taking_address_of_field);
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
-            auto visit_result = visit_literal(node_manager->get_branch(node));
+            auto branch_node = node_manager->get_branch(node);
+            auto visit_result = visit_literal(branch_node);
             return build_dereference_instructions(visit_result, node_manager->get_token(node));
         }
         case PN_POINTER_REFERENCE: {
             // move the full address of visit_result into a register
-            auto visit_result = visit_literal(node_manager->get_branch(node));
+            auto branch = node_manager->get_branch(node);
+            auto branch_nodetype = node_manager->get_nodetype(branch);
+            Token token = node_manager->get_token(branch);
+            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype != PN_FIELD_ACCESS) {
+                logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
+                return VisitorResult();
+            }
+
+            auto visit_result = visit_literal(branch, branch_nodetype == PN_FIELD_ACCESS);
             auto *symbol_entry = symbol_table.lookup_by_index(visit_result.symbol_table_index);
             assert(symbol_entry != nullptr);
 
@@ -485,13 +502,18 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
                 return VisitorResult(dest_register, TR::get_integer_type(8), true);
             }
 
-            if (visit_result.state != VisitorResultState::SPILLED) {
-                Token token = node_manager->get_token(node);
-                logger.log_error_unsafe(token, sen(token.lexeme, " cannot be referenced."), GENERAL);
-                return VisitorResult();
+            if (visit_result.state == VisitorResultState::SPILLED) {
+                builder.build_instruction(OP_LOADR, dest_register, symbol_entry->stack_offset, _00);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
             }
-            builder.build_instruction(OP_LOADR, dest_register, symbol_entry->stack_offset, _00);
-            return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            if (visit_result.state == VisitorResultState::TEMP_REGISTER) {
+                // if its a temporary register this this MUST have been from referencing a struct field access
+                builder.build_move_register(dest_register, visit_result.temporary_result_register);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            }
+
+            logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
+            return VisitorResult();
         }
         case PN_NOT:
             break;
@@ -501,7 +523,10 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::build_dereference_instructions(VisitorResult &operand_info, Token dereference_token) {
+VisitorResult SageCompiler::build_dereference_instructions(
+    VisitorResult &operand_info,
+    Token dereference_token
+) {
     if (operand_info.result_type->identify() != POINTER) {
         logger.log_error_unsafe(
             dereference_token,
@@ -522,8 +547,8 @@ VisitorResult SageCompiler::build_dereference_instructions(VisitorResult &operan
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_LOAD, result_size, result_register, operand_info.temporary_result_register,
-                                      _01);
+            builder.build_instruction(OP_LOADA, result_size, result_register, operand_info.temporary_result_register,
+                        _01);
             break;
         }
         case VisitorResultState::IMMEDIATE:
@@ -668,7 +693,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
         case TT_EQUALITY:
             break;
         case TT_FIELD_ACCESSOR:
-            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false);
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, false);
         default:
             assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());
     }

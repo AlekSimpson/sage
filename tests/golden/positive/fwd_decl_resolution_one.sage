@@ -1,9 +1,17 @@
 
 
 
-puts("fwd decl resolution", 19)
-puti(foo, 2)
+fooo: int = 3 + bar + b + a
 
-foo: int = 34
+b: int = 34
+
+foo: int = 3 + bar
+
+bar: int = 34 - other_var + a
+
+other_var: int = 3487
+
+a: int = 3
+
 
 

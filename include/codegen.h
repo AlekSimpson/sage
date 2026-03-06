@@ -225,7 +225,7 @@ public:
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool);
+    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool, bool);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);
@@ -236,7 +236,7 @@ public:
     VisitorResult visit_variable_assign(NodeIndex);
     VisitorResult visit_function_return(NodeIndex);
     VisitorResult visit_expression(NodeIndex);
-    VisitorResult visit_literal(NodeIndex);
+    VisitorResult visit_literal(NodeIndex, bool taking_address_of_field = false);
     VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);
     VisitorResult visit_binary_operator(NodeIndex);
 };

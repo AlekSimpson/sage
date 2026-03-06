@@ -648,10 +648,11 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             int dest_address_reg = compiler.get_volatile_register();
             int size = entry->datatype->size;
 
-            // Source: lowest address of the source struct
+            // note: we need to think about lowest and highest address because std::memcpy copies up instead of down like our stack works
+            // source: lowest address of the source struct
             builder.build_instruction(OP_SUB, src_address_reg, 24, entry->stack_offset + size - 1, _10);
 
-            // Destination: lowest address of the dest struct
+            // destination: lowest address of the dest struct
             builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size - 1, _10);
 
             builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
