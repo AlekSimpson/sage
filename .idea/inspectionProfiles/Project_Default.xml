@@ -5,6 +5,7 @@
     <inspection_tool class="CppCStyleCast" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="CppDFAConstantFunctionResult" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="CppDFALocalValueEscapesFunction" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="CppHidingFunction" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="CppJoinDeclarationAndAssignment" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="CppLocalVariableMayBeConst" enabled="false" level="HINT" enabled_by_default="false" />
     <inspection_tool class="CppMemberFunctionMayBeConst" enabled="false" level="WEAK WARNING" enabled_by_default="false" />

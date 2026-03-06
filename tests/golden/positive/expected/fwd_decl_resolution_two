@@ -1,17 +1,17 @@
 
 
-mov r29 3
-mov r25 34
-mov r28 3487
-sub r10 34 r28
-add r11 r10 r29
-mov r27 r11
-add r12 3 r27
-mov r26 r12
-add r13 3 r27
-add r14 r13 r25
-add r15 r14 r29
-mov r24 r15
+mov r30 3
+mov r26 34
+mov r29 3487
+sub r10 34 r29
+add r11 r10 r30
+mov r28 r11
+add r12 3 r28
+mov r27 r12
+add r13 3 r28
+add r14 r13 r26
+add r15 r14 r30
+mov r25 r15
 label @2090629895
 mov r22 1
 mov r10 r1

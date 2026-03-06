@@ -3,32 +3,34 @@
 sub r23 r23 32
 mov r10 0
 add r10 r10 0
-store 8 ($fp - 10) 4
-mov r11 0
-add r11 r11 8
-store 8 ($fp - 11) 2
-mov r12 0
-add r12 r12 16
-store 8 ($fp - 12) 0
-add r13 r12 8
-store 8 ($fp - 13) 11
-mov r14 0
-add r14 r14 16
-add r14 r14 8
-load 8 r15 ($fp - r14)
+add r10 r10 16
+sub r11 r24 r10
+storea 8 $r11 0
+sub r12 r11 8
+storea 8 $r12 11
+mov r13 0
+add r13 r13 0
+add r13 r13 16
+add r13 r13 8
+sub r14 r24 r13
+loada 8 r15 ($fp - r14)
 mov r0 r15
 mov r1 2
 call @2090629895
 mov r16 0
+add r16 r16 0
 add r16 r16 16
 add r16 r16 0
-load 8 r17 ($fp - r16)
-mov r18 0
-add r18 r18 16
-add r18 r18 8
-load 8 r19 ($fp - r18)
-mov r0 r17
-mov r1 r19
+sub r17 r24 r16
+loada 8 r18 ($fp - r17)
+mov r19 0
+add r19 r19 0
+add r19 r19 16
+add r19 r19 8
+sub r10 r24 r19
+loada 8 r11 ($fp - r10)
+mov r0 r18
+mov r1 r11
 call @2090629905
 label @2090629895
 mov r22 1

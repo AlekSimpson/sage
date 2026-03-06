@@ -39,17 +39,13 @@ public:
     // - 0-5  = function parameter registers
     // - 6-9  = return value registers
     // - 10-20 = volatile registers (hold results of temp values and stuff)
-    // - 21-23 = system registers
-    // - 24-124 = general
+    // - 21-24 = system registers
+    // - 25-124 = general
     //
     // sr21 = bool logical result register
     // sr22 = syscall register
     // sr23 = stack pointer
-    //
-    // fsr0-5  = function parameter registers
-    // fsr6-9  = return value registers
-    // fsr10-69 = float registers
-    // fsr70-99 = volatile float registers
+    // sr24 = frame pointer
     //
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
@@ -132,4 +128,6 @@ public:
     inline void execute_system_call();
     inline void execute_mem_copy(std::array<int64_t, 3> &, AddressMode &);
     inline void execute_static_copy(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_mem_copy_address(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_store_address(std::array<int64_t, 3> &, AddressMode &);
 };

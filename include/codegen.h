@@ -17,8 +17,8 @@
 #define ui32 uint32_t
 #define ui64 uint64_t
 
-#define GENERAL_REGISTER_COUNT 100
-#define GENERAL_REG_RANGE_BEGIN 24
+#define GENERAL_REGISTER_COUNT 99
+#define GENERAL_REG_RANGE_BEGIN 25
 #define GENERAL_REG_RANGE_END 124
 #define BUILTIN_COUNT 14
 
@@ -121,7 +121,7 @@ struct VisitorResult {
     }
 
     void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
-
+    void to_stack_instruction_absolute(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
     void to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
 
     pair<int64_t, bool> materialize_register(SageCompiler &compiler);
@@ -225,8 +225,7 @@ public:
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-    VisitorResult visit_struct_field_access(NodeIndex, bool struct_field_is_being_assigned_to = false);
-    VisitorResult visit_struct_field_access_helper(NodeIndex, int *, SageType **, SageNamespace *, int);
+    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);

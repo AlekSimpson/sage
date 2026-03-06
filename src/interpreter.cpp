@@ -45,6 +45,7 @@ size_t SageInterpreter::allocate_on_stack(size_t bytes) {
 void SageInterpreter::push_stack_scope(int func_id) {
     // make new current stack frame
     int program_return_address = program_pointer + 1;
+    registers[24] = stack_pointer() - 1; // frame pointer
     registers[STACK_POINTER] = stack_pointer() - 1;
     int start_stack_address = stack_pointer();
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
@@ -56,6 +57,8 @@ void SageInterpreter::push_stack_scope(int func_id) {
 }
 
 void SageInterpreter::pop_stack_scope() {
+    assert(frame_pointer->previous_frame != nullptr);
+    registers[24] = frame_pointer->previous_frame->stack_pointer;
     registers[STACK_POINTER] = frame_pointer->stack_pointer + 1;
     StackFrame *previous = frame_pointer->previous_frame;
     delete frame_pointer;
@@ -160,6 +163,16 @@ inline void SageInterpreter::execute_store(std::array<int64_t, 3> &operands, Add
 
     int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int dest_address = frame_pointer->stack_pointer - dest_offset;
+    int64_t payload_value = mode[1] == 1 ? registers[operands[2]] : operands[2];
+
+    std::memcpy(&memory[dest_address], &payload_value, bytes);
+}
+
+inline void SageInterpreter::execute_store_address(std::array<int64_t, 3> &operands, AddressMode &mode) {
+    // _xx | store bytes, ($fp - offset), op
+    int bytes = operands[0];
+
+    int dest_address = mode[0] == 1 ? registers[operands[1]] : operands[1];
     int64_t payload_value = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     std::memcpy(&memory[dest_address], &payload_value, bytes);
@@ -270,6 +283,16 @@ void SageInterpreter::execute_mem_copy(std::array<int64_t, 3> &operands, Address
 
     int src_offset = mode[1] == 1 ? registers[operands[2]] : operands[2];
     int src_address = frame_pointer->stack_pointer - src_offset;
+
+    std::memcpy(&memory[dest_address], &memory[src_address], bytes);
+}
+
+void SageInterpreter::execute_mem_copy_address(std::array<int64_t, 3> &operands, AddressMode &mode) {
+    // _xx | acpy bytes, ($fp - dest_offset), ($fp - src_offset)
+    int bytes = operands[0];
+    int dest_address = mode[0] == 1 ? registers[operands[1]] : operands[1];
+
+    int src_address = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
     std::memcpy(&memory[dest_address], &memory[src_address], bytes);
 }
@@ -481,6 +504,12 @@ void SageInterpreter::execute() {
             case OP_SYSCALL:
                 execute_system_call();
                 break;
+            case OP_STOREA:
+                execute_store_address(operands, current_command.address_mode);
+                break;
+            case OP_ADDR_MEMCPY:
+                execute_mem_copy_address(operands, current_command.address_mode);
+                break;
             case OP_LABEL:
             case OP_NOP:
                 break;
@@ -519,6 +548,7 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, ByteVe
     heap_pointer = program_static_memory.size();
     static_memory_end_pointer = program_static_memory.size() - 1;
     registers[STACK_POINTER] = memory.size()-1; // stack begins are memory max and "grows up"
+    registers[24] = registers[STACK_POINTER]; // frame pointer
 
     vm_running = false;
 }

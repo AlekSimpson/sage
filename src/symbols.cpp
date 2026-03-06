@@ -544,7 +544,11 @@ void SageSymbolTable::pop_function_processing_context() {
     function_processing_context.pop();
 }
 
-
+int SageNamespace::get_field_offset(SageSymbolTable *table, const string &name) {
+    SymbolIndex it = fields.find(name)->second;
+    auto *entry = table->lookup_by_index(it);
+    return entry->stack_offset;
+}
 
 void SageNamespace::add_method(SymbolEntry *entry) {
     methods[entry->name] = entry->symbol_index;

@@ -41,9 +41,11 @@ enum SageOpCode {
 
     OP_STATIC_COPY, // _xx | scpy bytes, ($fp, - op), $static_pointer
     OP_MEMCPY,      // _xx | mcpy bytes, ($fp - op), ($fp - op)
+    OP_ADDR_MEMCPY, // _xx | acpy bytes, $pointer, $pointer
     OP_ALLOC,       // _00 | allc bytesize
     OP_LOAD,        // _00 | load bytes, reg, ($fp - offset)
     OP_STORE,       // _0x | store bytes, ($fp - offset), op
+    OP_STOREA,      // _xx | storea bytes, ($pointer), op
     OP_LOADR,       // _0x | loadr reg, ($fp - op)
     OP_LOADP,       // _0x | loadp bytes, reg, (pointer)
     OP_LOADA,       // _xx | loada bytes, reg, address

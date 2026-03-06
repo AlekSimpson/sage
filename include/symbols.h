@@ -28,6 +28,8 @@ struct SageNamespace {
     virtual bool is_field_member(string &name);
     bool is_method(string &name);
 
+    int get_field_offset(SageSymbolTable *, const string &name);
+
     int lookup_struct_member(string &name);
 
     void add_method(SymbolEntry *entry);

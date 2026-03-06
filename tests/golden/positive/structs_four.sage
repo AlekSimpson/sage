@@ -7,8 +7,6 @@ NamedVector2 :: struct {
 }
 
 value: NamedVector2
-value.x = 4
-value.y = 2
 value.name = "some vector"
 
 puti(value.name.length, 2)

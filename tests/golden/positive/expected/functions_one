@@ -7,8 +7,8 @@ ret
 mov r0 40
 mov r1 20
 call @193486030
-mov r24 r6
-mov r0 r24
+mov r25 r6
+mov r0 r25
 mov r1 2
 call @2090629895
 label @2090629895

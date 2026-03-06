@@ -133,6 +133,12 @@ string Command::print(const map<int, string> *label_names) {
             string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2, operand_string_3);
         }
+        case OP_STOREA: {
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = address_mode[0] == 1 ? str("$r", to_string(operands[1])) : str("$", to_string(operands[1]));
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
+            return sen("storea", operand_string_1, operand_string_2, operand_string_3);
+        }
 
         case OP_EQ:
         case OP_LT:
@@ -187,6 +193,12 @@ string Command::print(const map<int, string> *label_names) {
             string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
             string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
             return sen("mcpy", operand_string_1, operand_string_2, operand_string_3);
+        }
+        case OP_ADDR_MEMCPY: {
+            string operand_string_1 = to_string(operands[0]);
+            string operand_string_2 = address_mode[0] == 1 ? str("r", to_string(operands[1])) : to_string(operands[1]);
+            string operand_string_3 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
+            return sen("acpy", operand_string_1, operand_string_2, operand_string_3);
         }
         case OP_STATIC_COPY: {
             string operand_string_1 = to_string(operands[0]);
