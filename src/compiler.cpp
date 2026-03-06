@@ -737,8 +737,6 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
 }
 
 void SageCompiler::forward_declaration_resolution(int program_root) {
-    // TODO: FIX: for trinary declaration statements, we need to separate the declaration from the assignment and only count the declaration in the fwd resolution and keep the assignment where it is
-
     vector<SymbolIndex> definitions_by_scope(symbol_table.variables.begin(), symbol_table.variables.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.types.begin(), symbol_table.types.end());
     definitions_by_scope.insert(definitions_by_scope.end(), symbol_table.functions.begin(),
