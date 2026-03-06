@@ -644,7 +644,17 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::SPILLED: {
-            builder.build_instruction(OP_ADDR_MEMCPY, entry->datatype->size, absolute_address, entry->stack_offset, address_mode);
+            int src_address_reg = compiler.get_volatile_register();
+            int dest_address_reg = compiler.get_volatile_register();
+            int size = entry->datatype->size;
+
+            // Source: lowest address of the source struct
+            builder.build_instruction(OP_SUB, src_address_reg, 24, entry->stack_offset + size - 1, _10);
+
+            // Destination: lowest address of the dest struct
+            builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size - 1, _10);
+
+            builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
             break;
         }
         case VisitorResultState::REGISTER: {

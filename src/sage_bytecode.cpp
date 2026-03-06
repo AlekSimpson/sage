@@ -111,8 +111,14 @@ string Command::print(const map<int, string> *label_names) {
             return sen(opcode_map[instruction.opcode], operand_string_1, operand_string_2);
         }
 
+        case OP_LOADA: {
+            string operand_string_0 = to_string(operands[0]);
+            string operand_string_1 = str("r", to_string(operands[1]));
+            string operand2 = address_mode[1] == 1 ? str("r", to_string(operands[2])) : to_string(operands[2]);
+            string operand_string_2 = str("$", operand2);
+            return sen(opcode_map[instruction.opcode], operand_string_0, operand_string_1, operand_string_2);
+        }
         case OP_LOADP:
-        case OP_LOADA:
         case OP_LOAD: {
             string operand_string_0 = to_string(operands[0]);
             string operand_string_1 = str("r", to_string(operands[1]));

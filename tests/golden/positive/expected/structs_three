@@ -19,7 +19,7 @@ mov r16 0
 add r16 r16 0
 add r16 r16 8
 sub r17 r24 r16
-loada 8 r18 ($fp - r17)
+loada 8 r18 $r17
 mul r19 r18 2
 storea 8 $r15 r19
 mov r10 0
@@ -30,14 +30,14 @@ mov r12 0
 add r12 r12 0
 add r12 r12 8
 sub r13 r24 r12
-loada 8 r14 ($fp - r13)
+loada 8 r14 $r13
 add r15 r14 20
 storea 8 $r11 r15
 mov r16 0
 add r16 r16 0
 add r16 r16 0
 sub r17 r24 r16
-loada 8 r18 ($fp - r17)
+loada 8 r18 $r17
 mov r0 r18
 mov r1 2
 call @2090629895

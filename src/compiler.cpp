@@ -387,11 +387,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                     }
 
                     if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
-                        Token token = node_manager->get_token(branch);
-                        logger.log_error_unsafe(
-                            token,
-                            "Cannot use pointer operator on temporary value.",
-                            GENERAL);
+                        scan_all_program_symbols(branch);
                         return;
                     }
 
