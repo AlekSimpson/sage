@@ -142,7 +142,7 @@ function run_test(test::CompilerTest)
 
     bytecode_diff = compute_diff(test.expected_bytecode, bytecode_output)
     stdout_diff = compute_diff(test.expected_stdout, result.stdout)
-    diff = bytecode_diff * stdout_diff
+    diff = bytecode_diff * "\nstdout diff:\n" * stdout_diff
 
     return TestResult(test.name, false, diff, result.stdout, result.stderr)
 end
