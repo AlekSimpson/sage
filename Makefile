@@ -4,22 +4,21 @@ UNAME_S := $(shell uname -s)
 # Set compiler and flags based on the OS
 ifeq ($(UNAME_S), Darwin)  # macOS
     LLVM_PATH := /opt/homebrew/opt/llvm@19/lib/
-    CXX      := clang++
-    CXXFLAGS := /opt/homebrew/Cellar/llvm/19.1.7_1/include -std=c++17 -stdlib=libc++ -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
-    # LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVMCore -lLLVMSupport -lLLVM-19
+    LLVM_INCLUDE := /opt/homebrew/Cellar/llvm/19.1.7_1/include
+    CXX      := clang++ -stdlib=libc++
     LDFLAGS  := -L/usr/lib -L/opt/homebrew/lib -L$(LLVM_PATH) -lstdc++ -lm -lboost_system -lLLVM-19
-    INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(CXXFLAGS)
+    INCLUDE  := -Iinclude/ -I/opt/homebrew/include -I$(LLVM_INCLUDE)
+    DEBUG_FLAGS := -gdwarf-4 -fno-omit-frame-pointer -fstandalone-debug
 else  # Assume Linux
     LLVM_PATH := /usr/lib/llvm-14/lib
     CXX      := g++
     LDFLAGS  := -L/usr/lib -L/usr/local/lib -L$(LLVM_PATH) $(llvm-config --ldflags --libs core remarks debuginfodwarf support) -lstdc++ -lm -lboost_system -lLLVM-14 -ltinfo
-    INCLUDE  := -Iinclude/ -I/usr/local/include -I/usr/lib/llvm-14/include -std=c++17
+    INCLUDE  := -Iinclude/ -I/usr/local/include -I/usr/lib/llvm-14/include
+    DEBUG_FLAGS := -gdwarf-4 -fno-omit-frame-pointer
 endif
 
 # Common flags
-# CXXFLAGS := -fsanitize=address -Wall -Werror -std=c++17
-# CXXFLAGS := -fsanitize=address -Wall -std=c++17
-CXXFLAGS := -Wall -g -std=c++17
+CXXFLAGS := -Wall -std=c++17 -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/bin
@@ -38,21 +37,40 @@ $(OBJ_DIR)/%.o: %.cpp
 $(APP_DIR)/$(TARGET): $(OBJECTS)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -o $(APP_DIR)/$(TARGET) $^ $(LDFLAGS)
+ifeq ($(UNAME_S), Darwin)
+ifdef DEBUG_BUILD
+	dsymutil $(APP_DIR)/$(TARGET)
+endif
+endif
 
 -include $(DEPENDENCIES)
 
-.PHONY: all build clean debug release info
+.PHONY: all build clean debug release info rebuild-debug memdebug test test-update create-test
 
 build:
 	@mkdir -p $(APP_DIR)
 	@mkdir -p $(OBJ_DIR)
 
+test: build
+	julia tests/run_tests.jl
+
+test-update: build
+	julia tests/run_tests.jl --update
+
+create-test: build
+ifndef NAME
+	$(error NAME is required. Usage: make create-test NAME=my_test_name)
+endif
+	julia tests/run_tests.jl --create $(NAME)
+
 # Memory debugging target with Address and Leak sanitizers
-memdebug: CXXFLAGS += -fsanitize=address,leak -fno-omit-frame-pointer
+memdebug: CXXFLAGS += $(DEBUG_FLAGS) -fsanitize=address,leak
 memdebug: LDFLAGS += -fsanitize=address,leak
+memdebug: DEBUG_BUILD=1
 memdebug: all
 
-debug: CXXFLAGS += -g
+debug: CXXFLAGS += $(DEBUG_FLAGS)
+debug: DEBUG_BUILD=1
 debug: all
 
 release: CXXFLAGS += -O2
@@ -61,6 +79,9 @@ release: all
 clean:
 	-@rm -rvf $(OBJ_DIR)/*
 	-@rm -rvf $(APP_DIR)/*
+	-@rm -rvf $(APP_DIR)/$(TARGET).dSYM
+
+rebuild-debug: clean debug
 
 info:
 	@echo "[*] Detected OS:      ${UNAME_S}     "

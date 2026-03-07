@@ -3,24 +3,35 @@
 #include "lexer.h"
 #include "node_manager.h"
 #include "token.h"
+#include "scope_manager.h"
 
 #include <vector>
 #include <string>
 
 class SageParser {
 public:
-  SageLexer* lexer;
-  Token* current_token;
+  SageLexer *lexer;
+  Token *current_token;
   NodeIndex node_cache;
-  vector<Token> errors;
-  string filename;
-  NodeManager* node_manager;
+  string sourcename;
+  NodeManager *node_manager;
+  ScopeManager *scope_manager;
+  int symbol_count;
+  stack<string> function_parsing_tracker;
+  map<string, int> function_to_max_return_count;
+  bool fragment_mode = false;
+  int insertion_scope_id = 0;
+
 
   SageParser();
-  SageParser(NodeManager*, string filename);
+  SageParser(ScopeManager *scope_manager, NodeManager *node_manager);
   ~SageParser();
 
-  NodeIndex parse_program(bool debug_lexer);
+
+  void set_insertion_scope(int scope_id) { insertion_scope_id = scope_id; }
+
+  NodeIndex parse_fragment(const string &source, const string &fragment_name, bool debug_lexer = false);
+  NodeIndex parse_program(string filename, bool debug_lexer = false);
 
 private:
   // parsing methods
@@ -28,7 +39,7 @@ private:
   NodeIndex parse_statement();
   NodeIndex parse_run_directive();
   NodeIndex parse_value_dec();
-  NodeIndex parse_value_dec_list();
+  NodeIndex parse_value_dec_list(bool for_struct = false);
   NodeIndex parse_assign();
   NodeIndex parse_keyword_statement();
   NodeIndex parse_if_statement();
@@ -43,18 +54,16 @@ private:
   NodeIndex parse_type();
   NodeIndex parse_expression();
   NodeIndex parse_operator(NodeIndex left, int min_precedence);
+  NodeIndex parse_unary_operator();
+  NodeIndex parse_postfix_operator();
   NodeIndex parse_primary();
-  NodeIndex parse_struct_field_access();
 
   // util methods
-  void raise_error(string message);
   bool match_types(TokenType type_a, TokenType type_b);
-  bool matches_any(TokenType type_a, TokenType* possible_types, int type_amount);
+  bool matches_any(TokenType type_a, TokenType *possible_types, int type_amount);
   void consume(TokenType expected_type, string message);
   void advance();
   Token peek();
-  bool current_token_type_is(TokenType token_type);
-  bool is_ending_token();
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
 

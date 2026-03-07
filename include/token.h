@@ -13,6 +13,12 @@ typedef enum {
     TT_SUB,
     TT_MUL,
     TT_DIV,
+    TT_AND,
+    TT_OR,
+    TT_BIT_AND,
+    TT_BIT_OR,
+    TT_EXPONENT,
+    TT_MODULO,
     TT_NUM,
     TT_IDENT,
     TT_FLOAT,
@@ -29,6 +35,7 @@ typedef enum {
     TT_FUNC_RETURN_TYPE,
     TT_INCLUDE,
     TT_STRING,
+    TT_CHARACTER_LITERAL,
     TT_EOF,
     TT_SPACE,
     TT_STAR,
@@ -36,16 +43,15 @@ typedef enum {
     TT_BINDING,
     TT_RANGE,
     TT_COMPILER_CREATED,
-    TT_BIT_AND,
-    TT_BIT_OR,
     TT_DECREMENT,
     TT_INCREMENT,
-    TT_AND,
-    TT_OR,
-    TT_FIELD_ACCESSOR, // 'struct_name.value'
     TT_POUND,
-    TT_COLON, // used for denoting array type length, ex: `ages [int:5] = ...`
+    TT_COLON,
     TT_VARARG,
+    TT_FIELD_ACCESSOR, // 'struct_name.value'
+    TT_POINTER_DEREFERENCE,
+    TT_POINTER_REFERENCE,
+    TT_NOT,
 } TokenType;
 
 class Token {
@@ -59,7 +65,6 @@ public:
     Token(TokenType type, string lexeme, int linenum);
     Token(string err_message, int linenum);
     Token();
-    // ~Token();
     void fill_with(Token copy_token);
     string to_string();
     void print();

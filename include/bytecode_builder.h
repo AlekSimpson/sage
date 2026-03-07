@@ -1,0 +1,80 @@
+#pragma once
+#include "sage_bytecode.h"
+#include <map>
+#include <stack>
+#include <set>
+
+struct ProcedureFrame {
+    string name;
+    bytecode procedure_instructions;
+    bytecode stack_memory_setup_instructions;
+    bool is_comptime = false;
+
+    // this holds space for function calls whose return values can only fit on the stack
+    vector<SageType *> stack_frame_memory_requirements;
+
+    ProcedureFrame() : name("") {
+    }
+
+    ProcedureFrame(string name) : name(name) {
+    }
+};
+
+int get_procedure_frame_id(const std::string &str);
+
+struct BytecodeBuilder {
+    map<int, ProcedureFrame> comptime_procedures;
+    map<int, ProcedureFrame> runtime_procedures;
+    stack<int> runtime_procedure_stack;
+    stack<int> comptime_procedure_stack;
+    int comptime_total_instructions = 0;
+    int runtime_total_instructions = 0;
+    bool runtime_has_main_function = false;
+    bool emitting_comptime = false;
+    set<string> builtins;
+
+    BytecodeBuilder();
+
+    void print_bytecode(bytecode &code);
+    map<int, ProcedureFrame> &get_active_procedures();
+    stack<int> &get_active_procedure_stack();
+    int &get_total_instruction_count();
+    void increment_total_instruction_count(int delta);
+
+    void enter_comptime();
+    void reset_and_exit_comptime();
+
+    void build_instruction(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
+    void build_instruction(SageOpCode, int64_t, int64_t, AddressMode);
+    void build_instruction(SageOpCode, int64_t, AddressMode);
+
+    void build_builtin_instruction(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
+    void build_builtin_instruction(SageOpCode, int64_t, int64_t, AddressMode);
+    void build_builtin_instruction(SageOpCode, int64_t, AddressMode);
+
+    void build_int_to_float_move_register(int dest_float_register, int src_int_register);
+
+    void build_load(int sage_register, int offset, int bytes);
+    void build_store_immediate(int offset, int64_t immediate, int bytes);
+    void build_store_register(int offset, int sage_register, int bytes);
+
+    void build_fmove_immediate(int destination_register, int64_t immediate_value);
+    void build_fmove_register(int destination_register, int source_register);
+
+    void build_move_immediate(int sage_register, int64_t immediate);
+    void build_move_register(int destination_register, int source_register);
+
+    void build_not(int sage_register);
+
+    void build_puti();
+    void build_puts();
+
+    void new_frame(string name);
+    void exit_frame();
+    void reset();
+
+    bytecode finalize_comptime_bytecode(map<int, int> &procedure_line_locations);
+    bytecode finalize_runtime_bytecode(map<int, int> &procedure_line_locations);
+
+    string emit();
+};
