@@ -8,7 +8,6 @@
 #include "../include/bytecode_builder.h"
 #include "../include/symbols.h"
 #include "../include/interpreter.h"
-#include "../include/node_manager.h"
 #include "../include/codegen.h"
 #include "../include/sage_bytecode.h"
 
@@ -606,7 +605,6 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     break;
                 default:
                     assertm(false, "This visitor combination shouldn't happen. Type checking failed somehow probably.");
-                    break;
             }
             break;
         }

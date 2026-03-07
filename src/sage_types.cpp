@@ -1,7 +1,7 @@
-#include "../include/sage_types.h"
 #include <cstring>
 #include <error_logger.h>
-#include "sage_value.h"
+#include "../include/sage_value.h"
+#include "../include/sage_types.h"
 
 // builtin_type
 SageBuiltinType::SageBuiltinType(CanonicalType type, int size, int alignment) {
