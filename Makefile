@@ -51,13 +51,13 @@ build:
 	@mkdir -p $(APP_DIR)
 	@mkdir -p $(OBJ_DIR)
 
-test: build
+test: $(APP_DIR)/$(TARGET)
 	julia tests/run_tests.jl
 
-test-update: build
+test-update: $(APP_DIR)/$(TARGET)
 	julia tests/run_tests.jl --update
 
-create-test: build
+create-test: $(APP_DIR)/$(TARGET)
 ifndef NAME
 	$(error NAME is required. Usage: make create-test NAME=my_test_name)
 endif
