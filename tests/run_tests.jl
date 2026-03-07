@@ -1,7 +1,10 @@
+
+using JSON3, StructTypes
+
 const COMPILER = get(ENV, "COMPILER", "./build/bin/sage")
-const TEST_DIR = get(ENV, "TEST_DIR", "tests/golden")
 const TIMEOUT  = parse(Float64, get(ENV, "TEST_TIMEOUT", "10.0"))
 const UPDATE   = "--update" in ARGS
+const CREATE   = "--create" in ARGS
 
 const SIGNAL_NAMES = Dict(
     4  => "SIGILL (illegal instruction)",
@@ -31,6 +34,16 @@ struct TestResult
     compiler_stderr::String
 end
 
+struct CompilerTest
+    index::Int
+    name::String
+    source::String
+    category::String
+    expected_exit_code::Int
+    expected_bytecode::String
+    expected_stdout::String
+end
+
 function run_compiler(source_path::String)
     out = Pipe()
     err = Pipe()
@@ -51,30 +64,13 @@ function run_compiler(source_path::String)
     wait(proc)
     close(timer)
 
-    CompilerResult(
+    return CompilerResult(
         proc.exitcode,
         proc.termsignal,
         fetch(stdout_str),
         fetch(stderr_str),
         timed_out[],
     )
-end
-
-function expected_exit_code(category::String)
-    category == "positive" && return 0
-    category == "negative" && return 1
-    return 0
-end
-
-function relevant_output(result::CompilerResult, category::String)
-    if category == "negative"
-        return result.stderr
-    elseif category == "warnings"
-        return result.stderr * result.stdout
-    else
-        return read(".sage/bytecode/s.asm", String)
-        # return result.stdout
-    end
 end
 
 function compute_diff(expected::String, actual::String)
@@ -87,80 +83,58 @@ function compute_diff(expected::String, actual::String)
     wait(proc)
     rm(exp_file, force=true)
     rm(act_file, force=true)
-    String(take!(diff_buf))
+    return String(take!(diff_buf))
 end
 
 function signal_name(sig::Int)
-    get(SIGNAL_NAMES, sig, "signal $sig")
+    return get(SIGNAL_NAMES, sig, "signal $sig")
 end
 
-function check_crash(result::CompilerResult)
+function test_did_crash(result::CompilerResult)
     if result.timed_out
-        return "compiler timed out after $(TIMEOUT)s (possible infinite loop)"
+        return (true, "compiler timed out after $(TIMEOUT)s (possible infinite loop)")
     end
     if result.signal != 0
-        return "compiler crashed: $(signal_name(result.signal))"
+        return (true, "compiler crashed: $(signal_name(result.signal))")
     end
-    nothing
+    return (false, "")
 end
 
-function run_test(source::String, category::String)
-    base_path = dirname(source) * "/expected"
-    target_filename = split(basename(source), ".")[1]
-    expected_file = base_path * "/" * target_filename
+function run_test(test::CompilerTest)
+    write("./tests/test_file.sage", test.source)
+    result = run_compiler("./tests/test_file.sage")
+    bytecode_output = read(".sage/bytecode/s.asm", String)
 
-    name = relpath(source, TEST_DIR)
-
-    result = run_compiler(source)
-
-    crash = check_crash(result)
-    if !isnothing(crash)
-        return TestResult(name, false, crash, result.stdout, result.stderr)
+    result_tuple = test_did_crash(result)
+    did_crash = result_tuple[0]
+    if did_crash
+        crashout_message = result_tuple[1]
+        return TestResult(test.name, false, crashout_message, result.stdout, result.stderr)
     end
 
-    if result.exit_code != expected_exit_code(category)
-        detail = "exit code: expected $(expected_exit_code(category)), got $(result.exit_code)"
-        return TestResult(name, false, detail, result.stdout, result.stderr)
+    if result.exit_code != test.expected_exit_code
+        detail = "exit code: expected $(test.expected_exit_code), got $(result.exit_code)"
+        return TestResult(test.name, false, detail, result.stdout, result.stderr)
     end
-
-    actual = relevant_output(result, category)
 
     if UPDATE
-        write(expected_file, actual)
-        return TestResult(name, true, "", result.stdout, result.stderr)
+        # update json file expected bytecode with
     end
 
-    if !isfile(expected_file)
-        return TestResult(name, false, "missing expected file: $expected_file", result.stdout, result.stderr)
+    if test.expected_bytecode == actual_output && test.expected_stdout == result.stdout
+        return TestResult(test.name, true, "", result.stdout, result.stderr)
     end
 
-    expected = read(expected_file, String)
-    if expected == actual
-        return TestResult(name, true, "", result.stdout, result.stderr)
-    end
-
-    diff = compute_diff(expected, actual)
-    TestResult(name, false, diff, result.stdout, result.stderr)
+    diff = compute_diff(test.expected_bytecode, actual_output)
+    return TestResult(test.name, false, diff, result.stdout, result.stderr)
 end
 
-function discover_tests()
-    tests = Tuple{String,String}[]
-    for category in readdir(TEST_DIR)
-        cat_dir = joinpath(TEST_DIR, category)
-        if !isdir(cat_dir)
-            continue
-        end
-
-        for f in readdir(cat_dir)
-            if isdir(joinpath(cat_dir, f)) || f in DISABLED_TESTS
-                continue
-            end
-
-            push!(tests, (joinpath(cat_dir, f), category))
-        end
-    end
+function load_tests()
+    StructTypes.StructType(::Type{CompilerTest}) = StructTypes.Struct()
+    json_data = read("./tests/tests.json", String)
+    tests = JSON3.read(json_data, Vector{CompilerTest})
     sort!(tests, by=first)
-    tests
+    return tests
 end
 
 function print_output_block(label::String, content::String)
@@ -216,12 +190,14 @@ function report_results(results::Vector{TestResult})
 end
 
 function main()
-    tests = discover_tests()
+    tests = load_tests()
+    active_tests = filter(test -> !(test.name in DISABLED_TESTS), tests)
+
     if isempty(tests)
-        printstyled("no tests found in $TEST_DIR\n", color=:yellow)
+        printstyled("no tests found.\n", color=:yellow)
         exit(0)
     end
-    results = [run_test(src, cat) for (src, cat) in tests]
+    results = [run_test(test) for test in active_tests]
     report_results(results)
 end
 
