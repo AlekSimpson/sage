@@ -1,10 +1,8 @@
-
 using JSON3, StructTypes
 
 const COMPILER = get(ENV, "COMPILER", "./build/bin/sage")
 const TIMEOUT  = parse(Float64, get(ENV, "TEST_TIMEOUT", "10.0"))
 const UPDATE   = "--update" in ARGS
-const CREATE   = "--create" in ARGS
 
 const SIGNAL_NAMES = Dict(
     4  => "SIGILL (illegal instruction)",
@@ -44,9 +42,20 @@ mutable struct CompilerTest
     expected_stdout::String
 end
 
-ALL_TESTS = Vector{CompilerTest}[]
+ALL_TESTS = CompilerTest[]
 
 StructTypes.StructType(::Type{CompilerTest}) = StructTypes.Struct()
+
+function get_create_name()
+    for (i, arg) in enumerate(ARGS)
+        if arg == "--create" && i < length(ARGS)
+            return ARGS[i + 1]
+        end
+    end
+    return nothing
+end
+
+const CREATE_NAME = get_create_name()
 
 function run_compiler(source_path::String)
     out = Pipe()
@@ -122,7 +131,6 @@ function run_test(test::CompilerTest)
     end
 
     if UPDATE
-        # update json file expected bytecode with
         ALL_TESTS[test.index].expected_bytecode = bytecode_output
         ALL_TESTS[test.index].expected_stdout = result.stdout
         return TestResult(test.name, true, "", result.stdout, result.stderr)
@@ -198,8 +206,45 @@ function report_results(results::Vector{TestResult})
     exit(isempty(failed) ? 0 : 1)
 end
 
+function create_test(name::String)
+    source = read("./tests/test_file.sage", String)
+    result = run_compiler("tests/test_file.sage")
+
+    crashed, msg = test_did_crash(result)
+    if crashed
+        printstyled("error: $msg\n", color=:red)
+        exit(1)
+    end
+
+    bytecode_output = read(".sage/bytecode/s.asm", String)
+
+    new_test = CompilerTest(
+        length(ALL_TESTS) + 1,
+        name,
+        source,
+        "positive",
+        0,
+        bytecode_output,
+        result.stdout
+    )
+
+    push!(ALL_TESTS, new_test)
+
+    open("./tests/tests.json", "w") do file
+        JSON3.pretty(file, ALL_TESTS)
+    end
+
+    printstyled("created test: $name\n", color=:green)
+end
+
 function main()
     global ALL_TESTS = load_tests()
+
+    if CREATE_NAME !== nothing
+        create_test(CREATE_NAME)
+        return
+    end
+
     active_tests = filter(test -> !(test.name in DISABLED_TESTS), ALL_TESTS)
     if isempty(active_tests)
         printstyled("no active tests found.\n", color=:yellow)

@@ -45,7 +45,7 @@ endif
 
 -include $(DEPENDENCIES)
 
-.PHONY: all build clean debug release info rebuild-debug memdebug test test-update
+.PHONY: all build clean debug release info rebuild-debug memdebug test test-update create-test
 
 build:
 	@mkdir -p $(APP_DIR)
@@ -56,6 +56,12 @@ test: build
 
 test-update: build
 	julia tests/run_tests.jl --update
+
+create-test: build
+ifndef NAME
+	$(error NAME is required. Usage: make create-test NAME=my_test_name)
+endif
+	julia tests/run_tests.jl --create $(NAME)
 
 # Memory debugging target with Address and Leak sanitizers
 memdebug: CXXFLAGS += $(DEBUG_FLAGS) -fsanitize=address,leak
