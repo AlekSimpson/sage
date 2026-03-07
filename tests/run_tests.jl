@@ -34,7 +34,7 @@ struct TestResult
     compiler_stderr::String
 end
 
-struct CompilerTest
+mutable struct CompilerTest
     index::Int
     name::String
     source::String
@@ -43,6 +43,10 @@ struct CompilerTest
     expected_bytecode::String
     expected_stdout::String
 end
+
+ALL_TESTS = Vector{CompilerTest}[]
+
+StructTypes.StructType(::Type{CompilerTest}) = StructTypes.Struct()
 
 function run_compiler(source_path::String)
     out = Pipe()
@@ -102,13 +106,13 @@ end
 
 function run_test(test::CompilerTest)
     write("./tests/test_file.sage", test.source)
-    result = run_compiler("./tests/test_file.sage")
+    result = run_compiler("tests/test_file.sage")
     bytecode_output = read(".sage/bytecode/s.asm", String)
 
     result_tuple = test_did_crash(result)
-    did_crash = result_tuple[0]
+    did_crash = result_tuple[1]
     if did_crash
-        crashout_message = result_tuple[1]
+        crashout_message = result_tuple[2]
         return TestResult(test.name, false, crashout_message, result.stdout, result.stderr)
     end
 
@@ -119,21 +123,26 @@ function run_test(test::CompilerTest)
 
     if UPDATE
         # update json file expected bytecode with
-    end
-
-    if test.expected_bytecode == actual_output && test.expected_stdout == result.stdout
+        ALL_TESTS[test.index].expected_bytecode = bytecode_output
+        ALL_TESTS[test.index].expected_stdout = result.stdout
         return TestResult(test.name, true, "", result.stdout, result.stderr)
     end
 
-    diff = compute_diff(test.expected_bytecode, actual_output)
+    if test.expected_bytecode == bytecode_output && test.expected_stdout == result.stdout
+        return TestResult(test.name, true, "", result.stdout, result.stderr)
+    end
+
+    bytecode_diff = compute_diff(test.expected_bytecode, bytecode_output)
+    stdout_diff = compute_diff(test.expected_stdout, result.stdout)
+    diff = bytecode_diff * stdout_diff
+
     return TestResult(test.name, false, diff, result.stdout, result.stderr)
 end
 
 function load_tests()
-    StructTypes.StructType(::Type{CompilerTest}) = StructTypes.Struct()
     json_data = read("./tests/tests.json", String)
     tests = JSON3.read(json_data, Vector{CompilerTest})
-    sort!(tests, by=first)
+    sort!(tests, by=test -> test.name)
     return tests
 end
 
@@ -190,14 +199,20 @@ function report_results(results::Vector{TestResult})
 end
 
 function main()
-    tests = load_tests()
-    active_tests = filter(test -> !(test.name in DISABLED_TESTS), tests)
-
-    if isempty(tests)
-        printstyled("no tests found.\n", color=:yellow)
+    global ALL_TESTS = load_tests()
+    active_tests = filter(test -> !(test.name in DISABLED_TESTS), ALL_TESTS)
+    if isempty(active_tests)
+        printstyled("no active tests found.\n", color=:yellow)
         exit(0)
     end
     results = [run_test(test) for test in active_tests]
+
+    if UPDATE
+        open("./tests/tests.json", "w") do file
+            JSON3.pretty(file, ALL_TESTS)
+        end
+    end
+
     report_results(results)
 end
 
