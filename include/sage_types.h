@@ -3,7 +3,6 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
-#include <cstdint>
 #include <string>
 
 using namespace std;
@@ -38,7 +37,9 @@ public:
     virtual bool is_struct() = 0;
     virtual bool is_function() = 0;
     virtual string to_string() = 0;
-    // TODO: virtual SageValue get_default_value() = 0;
+    virtual string get_base_type_string() = 0;
+    virtual SageValue get_default_value() = 0;
+    virtual bool is_callable() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -54,6 +55,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SagePointerType : public SageType {
@@ -69,6 +73,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageArrayType : public SageType {
@@ -85,6 +92,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageFunctionType : public SageType {
@@ -104,6 +114,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageStructType : public SageType {
@@ -125,6 +138,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageDynamicArrayType : public SageType {
@@ -143,6 +159,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class SageReferenceType : public SageType {
@@ -160,13 +179,9 @@ public:
     bool is_struct() override;
     bool is_function() override;
     string to_string() override;
-};
-
-union primitive_union {
-    int int_value; // TODO: this also needs to have the other bit size types also
-    float float_value;
-    char char_value;
-    bool bool_value;
+    string get_base_type_string() override;
+    SageValue get_default_value() override;
+    bool is_callable() override;
 };
 
 class TypeRegistery {
@@ -190,11 +205,13 @@ public:
     static SageType *get_dyn_array_type(SageType *element_type);
     static SageType *get_dyn_array_type(SageType *element_type, int starting_element_size); // initializes dyn array type with 1.7x mem based on starting_element_size
     static SageType *get_array_type(SageType *element_type, int size);
-    static SageType *get_reference_type(SageType *base_type);
     static SageType *get_reference_type(SageType *base_type, int size);
     static SageType *get_function_type(std::vector<SageType *> parameter_tyeps, std::vector<SageType *> function_types);
+
+
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);
 
+    static bool is_builtin_primitive(SageType *type);
     static bool is_float64_type(SageType *type);
     static bool is_float32_type(SageType *type);
     static bool is_int64_type(SageType *type);
@@ -202,38 +219,6 @@ public:
     static bool is_bool_type(SageType *type);
     static bool is_char_type(SageType *type);
     static bool is_null_type(SageType *type);
-};
-
-class SageValue {
-public:
-    primitive_union value;
-    SageType *valuetype = TypeRegistery::get_byte_type(VOID);
-    bool nullvalue = true;
-
-    SageValue();
-    SageValue(int);
-    SageValue(float);
-    SageValue(char);
-    SageValue(bool);
-    ~SageValue();
-
-    int load();
-
-    bool is_null();
-
-    bool equals(const SageValue &other);
-
-    operator int() { return load(); }
-
-    // Convenience getters with automatic conversion
-    int32_t as_i32() const { return value.int_value; }
-    int64_t as_i64() const { return value.int_value; }
-    uint64_t as_u64() const { return value.int_value; }
-    uint32_t as_u32() const { return value.int_value; }
-    float as_float() const { return value.float_value; }
-    double as_float64() const { return value.float_value; }
-    bool as_bool() const { return value.bool_value; }
-    char as_char() const { return value.char_value; }
 };
 
 namespace std {

@@ -4,12 +4,10 @@
 
 #include "../include/platform.h"
 #include <cstring>
-#include <boost/preprocessor/arithmetic/add.hpp>
 
 #include "../include/bytecode_builder.h"
 #include "../include/symbols.h"
 #include "../include/interpreter.h"
-#include "../include/node_manager.h"
 #include "../include/codegen.h"
 #include "../include/sage_bytecode.h"
 
@@ -31,11 +29,11 @@ int get_procedure_frame_id(const std::string &str) {
 }
 
 BytecodeBuilder::BytecodeBuilder() {
-    int global_id = get_procedure_frame_id("GLOBAL");
-    comptime_procedures[global_id] = ProcedureFrame("GLOBAL");
+    int global_id = get_procedure_frame_id(GLOBAL_NAME);
+    comptime_procedures[global_id] = ProcedureFrame(GLOBAL_NAME);
     comptime_procedure_stack.push(global_id);
 
-    runtime_procedures[global_id] = ProcedureFrame("GLOBAL");
+    runtime_procedures[global_id] = ProcedureFrame(GLOBAL_NAME);
     runtime_procedure_stack.push(global_id);
 
     builtins = {"puts", "puti"};
@@ -145,8 +143,8 @@ void BytecodeBuilder::reset() {
     procedures.clear();
     procedure_stack = stack<int>();
 
-    int global_id = get_procedure_frame_id("GLOBAL");
-    procedures[global_id] = ProcedureFrame("GLOBAL");
+    int global_id = get_procedure_frame_id(GLOBAL_NAME);
+    procedures[global_id] = ProcedureFrame(GLOBAL_NAME);
     procedure_stack.push(global_id);
 
     build_puts();
@@ -160,7 +158,7 @@ bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_li
 
     for (const auto &[id, frame]: comptime_procedures) {
         string procedure_name = frame.name;
-        if (procedure_name == "GLOBAL") continue;
+        if (procedure_name == GLOBAL_NAME) continue;
 
         bytecode current_instructions = frame.procedure_instructions;
         procedure_line_locations[id] = result.size();
@@ -168,7 +166,7 @@ bytecode BytecodeBuilder::finalize_comptime_bytecode(map<int, int> &procedure_li
         result.insert(result.end(), current_instructions.begin(), current_instructions.end());
     }
 
-    int global_id = get_procedure_frame_id("GLOBAL");
+    int global_id = get_procedure_frame_id(GLOBAL_NAME);
     auto global_instructions = comptime_procedures[global_id].procedure_instructions;
     procedure_line_locations[global_id] = result.size();
     result.insert(result.end(), global_instructions.begin(), global_instructions.end());
@@ -183,7 +181,7 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
 
     for (const auto &[id, frame]: runtime_procedures) {
         string procedure_name = frame.name;
-        if (procedure_name == "GLOBAL") continue;
+        if (procedure_name == GLOBAL_NAME) continue;
 
         bytecode current_instructions = frame.procedure_instructions;
         procedure_line_locations[id] = result.size();
@@ -191,21 +189,25 @@ bytecode BytecodeBuilder::finalize_runtime_bytecode(map<int, int> &procedure_lin
         result.insert(result.end(), current_instructions.begin(), current_instructions.end());
     }
 
-    int global_id = get_procedure_frame_id("GLOBAL");
+    int global_id = get_procedure_frame_id(GLOBAL_NAME);
     auto global_instructions = runtime_procedures[global_id].procedure_instructions;
 
+    // Global initialization code always runs first
+    procedure_line_locations[global_id] = result.size();
+    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
+
     if (runtime_has_main_function) {
-        // interpreter program pointer always starts at procedure_line_locations[id("GLOBAL")]
-        // but we want runtime execution to start at "main" function so we point the global starter to the main func line location
-        procedure_line_locations[global_id] = procedure_line_locations[get_procedure_frame_id("main")];
+        // After global init, call main
+        int main_id = get_procedure_frame_id("main");
+        result.push_back(Command(OP_CALL, main_id, _00));
     }
 
-    result.insert(result.end(), global_instructions.begin(), global_instructions.end());
     result.push_back(Command(VOP_EXIT, -1, _00));
     return result;
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int operand2, int operand3, AddressMode mode) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, int64_t operand3,
+                                        AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -219,7 +221,7 @@ void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int ope
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int operand2, AddressMode mode) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -232,7 +234,7 @@ void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand1, int ope
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand, AddressMode mode) {
+void BytecodeBuilder::build_instruction(SageOpCode opcode, int64_t operand, AddressMode mode) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -244,7 +246,7 @@ void BytecodeBuilder::build_instruction(SageOpCode opcode, int operand, AddressM
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, int operand3,
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2, int64_t operand3,
                                                 AddressMode mode) {
     runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
         opcode,
@@ -265,7 +267,8 @@ void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1,
     comptime_total_instructions++;
 }
 
-void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1, int operand2, AddressMode mode) {
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t operand1, int64_t operand2,
+                                                AddressMode mode) {
     runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
         opcode,
         operand1,
@@ -283,7 +286,7 @@ void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand1,
     comptime_total_instructions++;
 }
 
-void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand, AddressMode mode) {
+void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int64_t operand, AddressMode mode) {
     runtime_procedures[runtime_procedure_stack.top()].procedure_instructions.push_back(Command(
         opcode,
         operand,
@@ -299,25 +302,13 @@ void BytecodeBuilder::build_builtin_instruction(SageOpCode opcode, int operand, 
     comptime_total_instructions++;
 }
 
-void BytecodeBuilder::build_fload(int float_register, int offset) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
-        OP_FLOAD,
-        float_register,
-        offset,
-        _00
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_load(int sage_register, int offset) {
+void BytecodeBuilder::build_load(int sage_register, int offset, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_LOAD,
+        bytes,
         sage_register,
         offset,
         _00
@@ -325,12 +316,13 @@ void BytecodeBuilder::build_load(int sage_register, int offset) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_store_immediate(int offset, int immediate) {
+void BytecodeBuilder::build_store_immediate(int offset, int64_t immediate, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_STORE,
+        bytes,
         offset,
         immediate,
         _00
@@ -338,12 +330,13 @@ void BytecodeBuilder::build_store_immediate(int offset, int immediate) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_store_register(int offset, int sage_register) {
+void BytecodeBuilder::build_store_register(int offset, int sage_register, int bytes) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_STORE,
+        bytes,
         offset,
         sage_register,
         _01
@@ -351,22 +344,9 @@ void BytecodeBuilder::build_store_register(int offset, int sage_register) {
     increment_total_instruction_count(1);
 }
 
-void BytecodeBuilder::build_fstore_register(int offset, int float_register) {
-    auto &procedures = get_active_procedures();
-    auto &procedure_stack = get_active_procedure_stack();
-
-    procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
-        OP_FSTORE,
-        offset,
-        float_register,
-        _01
-    ));
-    increment_total_instruction_count(1);
-}
-
-void BytecodeBuilder::build_fmove_immediate(int destination_register, double immediate_value) {
-    int double_bitcast_value;
-    std::memcpy(&double_bitcast_value, &immediate_value, sizeof(double_bitcast_value));
+void BytecodeBuilder::build_fmove_immediate(int destination_register, int64_t immediate_value) {
+    double debugvalue;
+    std::memcpy(&debugvalue, &immediate_value, sizeof(double));
 
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
@@ -374,7 +354,7 @@ void BytecodeBuilder::build_fmove_immediate(int destination_register, double imm
     procedures[procedure_stack.top()].procedure_instructions.push_back(Command(
         OP_FMOV,
         destination_register,
-        double_bitcast_value,
+        immediate_value,
         _00
     ));
     increment_total_instruction_count(1);
@@ -405,7 +385,7 @@ void BytecodeBuilder::build_int_to_float_move_register(int dest_float_register, 
     ));
 }
 
-void BytecodeBuilder::build_move_immediate(int sage_register, int immediate) {
+void BytecodeBuilder::build_move_immediate(int sage_register, int64_t immediate) {
     auto &procedures = get_active_procedures();
     auto &procedure_stack = get_active_procedure_stack();
 
@@ -483,22 +463,21 @@ void BytecodeBuilder::build_puts() {
     comptime_procedure_stack.pop();
 }
 
-VisitorResult SageCompiler::build_store(VisitorResult right_value, symbol_entry *var_symbol) {
+VisitorResult SageCompiler::build_store(VisitorResult right_value, SymbolEntry *var_symbol) {
     // var_symbol in register ==> LOAD/MOVE
     // var_symbol on stack    ==> STORE
-    auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_id);
+    auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_index);
     switch (variable_result.state) {
         case VisitorResultState::SPILLED: {
-            right_value.to_stack_instruction(*this, var_symbol->spill_offset, var_symbol->type);
+            right_value.to_stack_instruction(*this, var_symbol->stack_offset);
             break;
         }
         case VisitorResultState::REGISTER: {
-            right_value.to_register_instruction(*this, var_symbol->assigned_register, var_symbol->type);
+            right_value.to_register_instruction(*this, var_symbol->assigned_register, var_symbol->datatype);
             break;
         }
         default:
-            ErrorLogger::get().log_internal_error_unsafe("builders.cpp", current_linenum,
-                                                         "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
+            assertm(false, "Attempted to build invalid store instruction. Can only store to variable symbols which are in registers or on the stack.");
     }
     return VisitorResult();
 }
@@ -509,9 +488,9 @@ VisitorResult SageCompiler::build_function_with_block(string function_name) {
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::build_alloca(symbol_entry *var_symbol) {
+VisitorResult SageCompiler::build_alloca(SymbolEntry *var_symbol) {
     if (var_symbol->spilled) {
-        int offset = var_symbol->type->alignment;
+        int offset = var_symbol->datatype->size;
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
     }
 
@@ -527,11 +506,11 @@ VisitorResult SageCompiler::build_operator(
     AddressMode mode = _11;
     int result_register = get_volatile_register();
     auto material_result1 = value1.materialize_register(*this);
-    int register1 = material_result1.first;
+    int64_t register1 = material_result1.first;
     bool one_is_immediate = material_result1.second;
 
     auto material2 = value2.materialize_register(*this);
-    int register2 = material2.first;
+    int64_t register2 = material2.first;
     bool two_is_immediate = material2.second;
 
     if (one_is_immediate && two_is_immediate) {
@@ -584,15 +563,6 @@ VisitorResult SageCompiler::build_or(VisitorResult value1, VisitorResult value2)
     return build_operator(value1, value2, OP_OR);
 }
 
-VisitorResult SageCompiler::build_load(NodeIndex reference_node) {
-    string reference_name = node_manager->get_identifier(reference_node);
-    int scope_id = node_manager->get_scope_id(reference_node);
-    auto symbol = symbol_table.lookup(reference_name, scope_id);
-    VisitorResult load_result = VisitorResult(symbol_table, symbol->symbol_id);
-    return load_result;
-}
-
-
 void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument_register,
                                             SageType *argument_type) {
     // generate instructions which stores this visitor result into an argument register
@@ -610,27 +580,22 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
         }
         case VisitorResultState::SPILLED: {
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-            if (argument_type->identify() == FLOAT) {
-                // moving value from stack into float register
-                builder.build_fload(argument_register, entry->spill_offset);
+            if (entry->datatype->size > 8) {
+                // can't fit raw value in register so just move pointer into register
+                builder.build_move_immediate(argument_register, entry->stack_offset);
             } else {
-                // moving value from stack into normal register
-                builder.build_load(argument_register, entry->spill_offset);
+                builder.build_load(argument_register, entry->stack_offset, 8);
             }
             break;
         }
         case VisitorResultState::REGISTER: {
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-            int combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->identify() == FLOAT;
+            int combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->datatype->identify() ==
+                              FLOAT;
 
             switch (combination) {
                 case 0: /* arg=int, vis=int */
                     builder.build_move_register(argument_register, entry->assigned_register);
-                    break;
-                case 1: /* arg=int, vis=float */
-                    //builder.build_move_register(argument_register, );
-                    compiler.logger.log_internal_error_unsafe("builders.cpp", current_linenum,
-                                                              "This visitor combination shouldn't happen.");
                     break;
                 case 2: /* arg=float, vis=int */
                     builder.build_int_to_float_move_register(argument_register, entry->assigned_register);
@@ -639,35 +604,14 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
                     builder.build_fmove_register(argument_register, entry->assigned_register);
                     break;
                 default:
-                    break;
+                    assertm(false, "This visitor combination shouldn't happen. Type checking failed somehow probably.");
             }
             break;
         }
         case VisitorResultState::VALUE: {
-            auto *entry = symbol_table.lookup_by_index(symbol_table_index);
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            if (argument_type->is_array() || argument_type->is_pointer() || argument_type->is_struct()) {
-                builder.build_move_immediate(argument_register, static_pointer);
-                break;
-            }
-
-            if (argument_type->identify() == FLOAT) {
-                // we are either moving a static literal or an immediate value into a float register
-                if (static_pointer == -1) {
-                    int temporary_register = compiler.get_volatile_register();
-                    builder.build_move_immediate(temporary_register, entry->value);
-                    builder.build_int_to_float_move_register(argument_register, temporary_register);
-                    break;
-                }
-                builder.build_fload(argument_register, static_pointer);
-            } else {
-                // we are either moving a static literal or an immediate value into a register
-                if (static_pointer == -1) {
-                    builder.build_move_immediate(argument_register, entry->value);
-                    break;
-                }
-                builder.build_load(argument_register, static_pointer);
-            }
+            //assert(static_pointer != -1);
+            builder.build_move_immediate(argument_register, static_pointer);
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
@@ -682,58 +626,74 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
     }
 }
 
-void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, SageType *argument_type,
-                                         AddressMode offset_mode) {
-    // generate instructions which stores this visitor result into an argument register
+void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int absolute_address, AddressMode address_mode) {
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
     auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-
-    map<int, SageOpCode> register_state_combination_map = {
-        {0, OP_STORE},
-        {1, OP_FSTORE},
-        {2, OP_STORE},
-        {3, OP_FSTORE}
-    };
+    assertm(entry != nullptr, "symbol entry was nullptr");
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
-            int temporary_register = immediate_value; // if its not a float then we can just directly store the immediate int value
-            auto opcode = OP_STORE;
-            if (result_type->identify() == FLOAT) {
-                temporary_register = compiler.get_volatile_register();
-                builder.build_fmove_immediate(temporary_register, immediate_value);
-                opcode = OP_FSTORE;
+            int store_size = result_type != nullptr ? result_type->size : 8;
+            if (result_type != nullptr && result_type->identify() == FLOAT) {
+                builder.build_fmove_immediate(compiler.get_volatile_register(), immediate_value);
             }
-            builder.build_instruction(opcode, offset, temporary_register, offset_mode);
+            builder.build_instruction(OP_STOREA, store_size, absolute_address, immediate_value, address_mode);
             break;
         }
         case VisitorResultState::SPILLED: {
-            builder.build_instruction(OP_MEMCPY, offset, entry->spill_offset, offset_mode);
+            int src_address_reg = compiler.get_volatile_register();
+            int dest_address_reg = compiler.get_volatile_register();
+            int size = entry->datatype->size;
+
+            // note: we need to think about lowest and highest address because std::memcpy copies up instead of down like our stack works
+            // source: lowest address of the source struct
+            builder.build_instruction(OP_SUB, src_address_reg, 24, entry->stack_offset + size - 1, _10);
+
+            // destination: lowest address of the dest struct
+            builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size - 1, _10);
+
+            builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
             break;
         }
         case VisitorResultState::REGISTER: {
-            int type_state_combination = (((int) argument_type->identify() == FLOAT) * 2) + (int) entry->type->
-                                         identify() == FLOAT;
-            auto opcode = register_state_combination_map[type_state_combination];
-            AddressMode argument_mode = _01;
-
-            builder.build_instruction(opcode, offset, entry->assigned_register, offset_mode + argument_mode);
+            builder.build_instruction(OP_STOREA, entry->datatype->size, absolute_address, entry->assigned_register,
+                                      address_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            if (static_pointer == -1) {
-                builder.build_instruction(OP_STORE, offset, entry->value, offset_mode);
+
+            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
+            if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
+                int64_t first_chunk = 0, second_chunk = 0;
+                std::memcpy(&first_chunk, entry->data.byte_data, 8);
+                std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+
+                // Store first 8 bytes (pointer) at offset
+                builder.build_instruction(OP_STOREA, 8, absolute_address, first_chunk, address_mode);
+
+                // Store second 8 bytes (length) at offset + 8
+                if (address_mode == _10) {
+                    int temp_reg = compiler.get_volatile_register();
+                    builder.build_instruction(OP_SUB, temp_reg, absolute_address, 8, _10);
+                    builder.build_instruction(OP_STOREA, 8, temp_reg, second_chunk, _10);
+                } else {
+                    builder.build_instruction(OP_STOREA, 8, absolute_address + 8, second_chunk, _00);
+                }
                 break;
             }
-            builder.build_instruction(OP_MEMCPY, offset, static_pointer, offset_mode);
+
+            if (static_pointer != -1) {
+                builder.build_instruction(OP_STOREA, 8, absolute_address, static_pointer, address_mode);
+            } else {
+                builder.build_instruction(OP_ADDR_MEMCPY, entry->datatype->size, absolute_address, static_pointer, address_mode);
+            }
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            auto opcode = result_type->identify() == FLOAT ? OP_FSTORE : OP_STORE;
-            AddressMode argument_mode = _01;
-            builder.build_instruction(opcode, offset, temporary_result_register, offset_mode + argument_mode);
+            builder.build_instruction(OP_STOREA, entry->datatype->size, absolute_address, temporary_result_register,
+                                      address_mode + _01);
             break;
         }
         case VisitorResultState::LIST: {
@@ -743,24 +703,89 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Sag
     }
 }
 
-pair<int, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
+void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode) {
+    auto &builder = compiler.builder;
+    auto &symbol_table = compiler.symbol_table;
+    auto *entry = symbol_table.lookup_by_index(symbol_table_index);
+    assertm(entry != nullptr, "symbol entry was nullptr");
+
+    switch (state) {
+        case VisitorResultState::IMMEDIATE: {
+            int store_size = result_type != nullptr ? result_type->size : 8;
+            if (result_type != nullptr && result_type->identify() == FLOAT) {
+                builder.build_fmove_immediate(compiler.get_volatile_register(), immediate_value);
+            }
+            builder.build_instruction(OP_STORE, store_size, offset, immediate_value, offset_mode);
+            break;
+        }
+        case VisitorResultState::SPILLED: {
+            builder.build_instruction(OP_MEMCPY, entry->datatype->size, offset, entry->stack_offset, offset_mode);
+            break;
+        }
+        case VisitorResultState::REGISTER: {
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->assigned_register,
+                                      offset_mode + _01);
+            break;
+        }
+        case VisitorResultState::VALUE: {
+            int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+
+            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
+            if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
+                int64_t first_chunk = 0, second_chunk = 0;
+                std::memcpy(&first_chunk, entry->data.byte_data, 8);
+                std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+
+                // Store first 8 bytes (pointer) at offset
+                builder.build_instruction(OP_STORE, 8, offset, first_chunk, offset_mode);
+
+                // Store second 8 bytes (length) at offset + 8
+                if (offset_mode == _10) {
+                    int temp_reg = compiler.get_volatile_register();
+                    builder.build_instruction(OP_SUB, temp_reg, offset, 8, _10);
+                    builder.build_instruction(OP_STORE, 8, temp_reg, second_chunk, _10);
+                } else {
+                    builder.build_instruction(OP_STORE, 8, offset + 8, second_chunk, _00);
+                }
+                break;
+            }
+
+            if (static_pointer != -1) {
+                builder.build_instruction(OP_STORE, 8, offset, static_pointer, offset_mode);
+            } else {
+                builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
+            }
+            break;
+        }
+        case VisitorResultState::TEMP_REGISTER: {
+            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_result_register,
+                                      offset_mode + _01);
+            break;
+        }
+        case VisitorResultState::LIST: {
+            // TODO
+            break;
+        }
+    }
+}
+
+pair<int64_t, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
     auto &builder = compiler.builder;
     auto *entry = compiler.symbol_table.lookup_by_index(symbol_table_index);
-
-    auto opcode = entry->type->identify() == FLOAT ? OP_FLOAD : OP_LOAD;
+    auto opcode = OP_LOAD;
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
             if (result_type->identify() == FLOAT) {
                 int output_register = compiler.get_volatile_register();
-                builder.build_fmove_immediate(output_register, entry->value);
+                builder.build_fmove_immediate(output_register, entry->data);
                 return make_pair<int, bool>(std::move(output_register), false);
             }
-            return make_pair<int, bool>(immediate_value, true);
+            return make_pair<int64_t, bool>(immediate_value, true);
         }
         case VisitorResultState::SPILLED: {
             int output_register = compiler.get_volatile_register();
-            builder.build_instruction(opcode, output_register, entry->spill_offset, _00);
+            builder.build_instruction(opcode, output_register, entry->stack_offset, _00);
             return make_pair<int, bool>(std::move(output_register), false);
         }
         case VisitorResultState::REGISTER: {
@@ -769,7 +794,7 @@ pair<int, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
         case VisitorResultState::VALUE: {
             int output_register = compiler.get_volatile_register();
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            if (entry->type->is_array() || entry->type->is_pointer() || entry->type->is_struct()) {
+            if (entry->datatype->is_array() || entry->datatype->is_pointer() || entry->datatype->is_struct()) {
                 return make_pair<int, bool>(std::move(static_pointer), true);
             }
             builder.build_instruction(opcode, output_register, static_pointer, _00);
@@ -780,10 +805,10 @@ pair<int, bool> VisitorResult::materialize_register(SageCompiler &compiler) {
         }
         case VisitorResultState::LIST: {
             // TODO:
-            return make_pair<int, bool>(std::move(immediate_value), true);
+            return make_pair<int64_t, bool>(std::move(immediate_value), true);
         }
         default:
-            return make_pair<int, bool>(std::move(immediate_value), true);
+            return make_pair<int64_t, bool>(std::move(immediate_value), true);
     }
 }
 

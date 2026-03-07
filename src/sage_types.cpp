@@ -1,5 +1,7 @@
-#include "../include/sage_types.h"
+#include <cstring>
 #include <error_logger.h>
+#include "../include/sage_value.h"
+#include "../include/sage_types.h"
 
 // builtin_type
 SageBuiltinType::SageBuiltinType(CanonicalType type, int size, int alignment) {
@@ -39,6 +41,30 @@ string SageBuiltinType::to_string() {
     }
 }
 
+string SageBuiltinType::get_base_type_string() {
+    return to_string();
+}
+
+SageValue SageBuiltinType::get_default_value() {
+    switch (canonical_type) {
+        case BOOL:
+            return SageValue(false);
+        case CHAR:
+            return SageValue('\0');
+        case INT:
+            return SageValue(0);
+        case FLOAT:
+            return SageValue(0.0);
+        case VOID:
+        default:
+            return SageValue();
+    }
+}
+
+bool SageBuiltinType::is_callable() {
+    return false;
+}
+
 // pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
     this->size = 8;
@@ -66,6 +92,18 @@ bool SagePointerType::is_function() {return false;}
 
 string SagePointerType::to_string() {
     return str(pointer_type->to_string(), "*");
+}
+
+string SagePointerType::get_base_type_string() {
+    return pointer_type->to_string();
+}
+
+SageValue SagePointerType::get_default_value() {
+    return SageValue(TypeRegistery::get_builtin_type(INT, 8), ByteVector({0,0,0,0,0,0,0,0}));
+}
+
+bool SagePointerType::is_callable() {
+    return true;
 }
 
 // dynamic_array_type
@@ -113,6 +151,23 @@ string SageDynamicArrayType::to_string() {
     return str(array_type->to_string(), "[..]");
 }
 
+string SageDynamicArrayType::get_base_type_string() {
+    return array_type->to_string();
+}
+
+SageValue SageDynamicArrayType::get_default_value() {
+    ByteVector bytes;
+    bytes.reserve(this->size);
+    for (int i = 0; i < this->size; ++i) {
+        bytes[i] = 0;
+    }
+    return SageValue(TypeRegistery::get_dyn_array_type(this->array_type, this->size), bytes);
+}
+
+bool SageDynamicArrayType::is_callable() {
+    return true;
+}
+
 // array_type
 SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
     this->size = length * element_type->size;
@@ -140,6 +195,23 @@ bool SageArrayType::is_function() {return false;}
 
 string SageArrayType::to_string() {
     return str(array_type->to_string(), "[", length, "]");
+}
+
+string SageArrayType::get_base_type_string() {
+    return array_type->to_string();
+}
+
+SageValue SageArrayType::get_default_value() {
+    ByteVector bytes;
+    bytes.reserve(this->size);
+    for (int i = 0; i < this->size; ++i) {
+        bytes[i] = 0;
+    }
+    return SageValue(TypeRegistery::get_array_type(this->array_type, this->size), bytes);
+}
+
+bool SageArrayType::is_callable() {
+    return true;
 }
 
 // reference_type
@@ -188,6 +260,23 @@ bool SageReferenceType::is_function() {
 string SageReferenceType::to_string() {
     SagePointerType *pointer_type_casted = dynamic_cast<SagePointerType *>(pointer_type);
     return str(pointer_type_casted->pointer_type->to_string(), "[]");
+}
+
+string SageReferenceType::get_base_type_string() {
+    return pointer_type->to_string();
+}
+
+SageValue SageReferenceType::get_default_value() {
+    ByteVector default_bytes = ByteVector({0,0,0,0,0,0,0,0});
+    ByteVector size_bytes;
+    std::memcpy(size_bytes.data(), &this->window_size, sizeof(int64_t));
+    default_bytes.insert(default_bytes.begin(), size_bytes.begin(), size_bytes.end());
+
+    return SageValue(TypeRegistery::get_reference_type(pointer_type, this->window_size), default_bytes);
+}
+
+bool SageReferenceType::is_callable() {
+    return true;
 }
 
 // function_type
@@ -261,6 +350,18 @@ string SageFunctionType::to_string() {
     return value;
 }
 
+string SageFunctionType::get_base_type_string() {
+    return "";
+}
+
+SageValue SageFunctionType::get_default_value() {
+    return SageValue(TypeRegistery::get_function_type(this->parameter_types, this->return_type));
+}
+
+bool SageFunctionType::is_callable() {
+    return false;
+}
+
 // struct_type
 SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
     member_types(member_types) {
@@ -301,86 +402,24 @@ string SageStructType::to_string() {
     return name;
 }
 
-SageValue::SageValue(char _value) : valuetype(TypeRegistery::get_byte_type(CHAR)) {
-    value.char_value = _value;
-    nullvalue = false;
+string SageStructType::get_base_type_string() {
+    return name;
 }
 
-SageValue::SageValue(bool _value) : valuetype(TypeRegistery::get_byte_type(BOOL)) {
-    value.bool_value = _value;
-    nullvalue = false;
-}
-
-SageValue::SageValue(int _value) : valuetype(TypeRegistery::get_integer_type(8)) {
-    value.int_value = _value;
-    nullvalue = false;
-}
-
-SageValue::SageValue(float _value) : valuetype(TypeRegistery::get_float_type(8)) {
-    value.float_value = _value;
-    nullvalue = false;
-}
-
-// Constructor from register
-SageValue::SageValue() {
-}
-
-SageValue::~SageValue() {
-}
-
-int SageValue::load() {
-    switch (valuetype->identify()) {
-        case CHAR:
-            return value.char_value;
-        case BOOL:
-            return value.bool_value;
-        case INT:
-        case POINTER:
-        case ARRAY:
-            return value.int_value;
-        case FUNC:
-            break;
-        default:
-            break;
+SageValue SageStructType::get_default_value() {
+    ByteVector struct_default_bytes;
+    int byte_pointer = 0;
+    for (auto *type: this->member_types) {
+        auto default_type_value = type->get_default_value();
+        struct_default_bytes.resize(struct_default_bytes.size() + default_type_value.type->size);
+        std::memcpy(struct_default_bytes.data() + byte_pointer, default_type_value.byte_data, default_type_value.type->size);
     }
-    ErrorLogger::get().log_internal_error_safe(
-        "sage_types.cpp",
-        current_linenum,
-        sen("unimplemented load() for", valuetype->to_string(),"types"));
-
-    return 0;
+    return SageValue(TypeRegistery::get_struct_type(name, member_types), struct_default_bytes);
 }
 
-bool SageValue::is_null() {
-    return nullvalue;
+bool SageStructType::is_callable() {
+    return true;
 }
-
-bool SageValue::equals(const SageValue &other) {
-    auto this_type = valuetype->identify();
-    switch (this_type) {
-        case CHAR:
-            return value.char_value == other.value.char_value && this_type == other.valuetype->identify();
-        case BOOL:
-            return value.bool_value == other.value.bool_value && this_type == other.valuetype->identify();
-        case POINTER:
-        case ARRAY:
-        case INT:
-            return value.int_value == other.value.int_value && this_type == other.valuetype->identify();
-        case FLOAT:
-            return value.float_value == other.value.float_value && this_type == other.valuetype->identify();
-        case FUNC:
-            break;
-        default:
-            break;
-    }
-    ErrorLogger::get().log_internal_error_safe(
-        "sage_types.cpp",
-        current_linenum,
-        "Unknown sage type encountered");
-
-    return false;
-}
-
 
 /// Type Registery
 SageType *TypeRegistery::get_builtin_type(CanonicalType canonical_type, int bytesize) {
@@ -482,18 +521,6 @@ SageType *TypeRegistery::get_dyn_array_type(SageType *element_type, int length) 
     return dyn_array_types[key].get();
 }
 
-SageType *TypeRegistery::get_reference_type(SageType *base_type) {
-    auto key = std::make_pair(base_type, 0);
-    auto it = reference_types.find(key);
-    if (it != reference_types.end()) {
-        return it->second.get();
-    }
-
-    auto type = std::make_unique<SageArrayType>(base_type, 0);
-    reference_types[key] = std::move(type);
-    return reference_types[key].get();
-}
-
 SageType *TypeRegistery::get_reference_type(SageType *base_type, int size) {
     auto key = std::make_pair(base_type, size);
     auto it = reference_types.find(key);
@@ -537,6 +564,11 @@ SageType *TypeRegistery::get_function_type(std::vector<SageType *> parameter_typ
     return function_types[key].get();
 }
 
+
+bool TypeRegistery::is_builtin_primitive(SageType *type) {
+    auto it = builtin_types.find(make_pair<CanonicalType, int>(type->identify(), std::move(type->size)));
+    return it != builtin_types.end();
+}
 
 bool TypeRegistery::is_float64_type(SageType *type) {
     auto *float_type = get_builtin_type(FLOAT, 8);

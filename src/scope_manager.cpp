@@ -1,7 +1,4 @@
-//
-// Created by alek on 1/3/26.
-//
-
+#include "../include/symbols.h"
 #include "../include/node_manager.h"
 #include "../include/scope_manager.h"
 
@@ -17,7 +14,7 @@ ScopeManager::Scope::Scope(int id, int parent_id, const string &name, int start_
 // ScopeManager constructor
 ScopeManager::ScopeManager() : current_scope_id(0), next_scope_id(1) {
     // Create global scope (scope 0)
-    scopes[0] = Scope(0, -1, "global", 0);
+    scopes[0] = Scope(0, -1, GLOBAL_NAME, 0);
 }
 
 int ScopeManager::enter_scope(const string &name, int start_line) {

@@ -39,17 +39,13 @@ public:
     // - 0-5  = function parameter registers
     // - 6-9  = return value registers
     // - 10-20 = volatile registers (hold results of temp values and stuff)
-    // - 21-23 = system registers
-    // - 24-124 = general
+    // - 21-24 = system registers
+    // - 25-124 = general
     //
     // sr21 = bool logical result register
     // sr22 = syscall register
     // sr23 = stack pointer
-    //
-    // fsr0-5  = function parameter registers
-    // fsr6-9  = return value registers
-    // fsr10-69 = float registers
-    // fsr70-99 = volatile float registers
+    // sr24 = frame pointer
     //
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
@@ -84,9 +80,6 @@ public:
     SageInterpreter(SageSymbolTable *table);
 
     // virtual memory operations
-    uint8_t *memory_read_bytes(uint8_t address);
-    void stack_write_i32(size_t addr, int32_t val);
-    int32_t stack_read_i32(size_t addr);
     size_t allocate_on_heap(size_t bytes);
     size_t allocate_on_stack(size_t bytes);
     void push_stack_scope(int func_id);
@@ -95,42 +88,46 @@ public:
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 
-    void open(const map<int, int> &, map<table_index, vector<uint8_t>> &static_section_components);
+    void open(const map<int, int> &, ByteVector &program_static_memory);
     void close();
     void load_program(bytecode program);
     void execute();
+    void print_static_memory();
+    void print_stack_memory();
 
     SageValue get_return_value() const;
 
-    inline void execute_add(std::array<int, 3> &, AddressMode &);
-    inline void execute_sub(std::array<int, 3> &, AddressMode &);
-    inline void execute_mul(std::array<int, 3> &, AddressMode &);
-    inline void execute_div(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_add(std::array<int, 3> &);
-    inline void execute_float_sub(std::array<int, 3> &);
-    inline void execute_float_mul(std::array<int, 3> &);
-    inline void execute_float_div(std::array<int, 3> &);
+    inline void execute_add(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_sub(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_mul(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_div(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_float_add(std::array<int64_t, 3> &);
+    inline void execute_float_sub(std::array<int64_t, 3> &);
+    inline void execute_float_mul(std::array<int64_t, 3> &);
+    inline void execute_float_div(std::array<int64_t, 3> &);
     inline void execute_stack_allocate(int operand);
-    inline void execute_load(std::array<int, 3> &);
-    inline void execute_float_load(std::array<int, 3> &);
-    inline void execute_store(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_float_store(std::array<int, 3> &);
-    inline void execute_move(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_int_to_float_move(std::array<int, 3> &operands);
-    inline void execute_float_move(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_call(std::array<int, 3> &);
+    inline void execute_load(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_load_reference(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_load_pointer(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_load_address(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_store(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_move(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_int_to_float_move(std::array<int64_t, 3> &operands);
+    inline void execute_float_move(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_call(std::array<int64_t, 3> &);
     inline void execute_return();
-    inline void execute_equality_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_less_than_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_greater_than_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_and(std::array<int, 3> &, AddressMode &);
-    inline void execute_or(std::array<int, 3> &, AddressMode &);
-    inline void execute_float_equality_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_float_less_than_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_float_greater_than_comparison(std::array<int, 3> &, AddressMode &mode);
-    inline void execute_not(std::array<int, 3> &);
+    inline void execute_equality_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_less_than_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_greater_than_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_and(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_or(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_float_equality_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_float_less_than_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_float_greater_than_comparison(std::array<int64_t, 3> &, AddressMode &mode);
+    inline void execute_not(std::array<int64_t, 3> &);
     inline void execute_system_call();
-    inline void execute_pointer_reference(std::array<int, 3> &);
-    inline void execute_pointer_dereference(std::array<int, 3> &);
-    inline void execute_mem_copy(std::array<int, 3> &, AddressMode &);
+    inline void execute_mem_copy(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_static_copy(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_mem_copy_address(std::array<int64_t, 3> &, AddressMode &);
+    inline void execute_store_address(std::array<int64_t, 3> &, AddressMode &);
 };

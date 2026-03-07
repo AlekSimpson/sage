@@ -18,7 +18,9 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         }
 
         case PN_FUNCDEF:
+            return visit_statement(node);
         case PN_STRUCT:
+            return VisitorResult();
         case PN_IF:
         case PN_WHILE:
         case PN_FOR:
@@ -35,13 +37,10 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_FUNCCALL:
             return visit_expression(node);
         default:
-            ErrorLogger::get().log_internal_error_unsafe(
-                "codegen.cpp",
-                current_linenum,
-                sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)));
-            break;
+            assertm(false,
+                    sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)).data(
+                    ));
     }
-    return VisitorResult();
 }
 
 /*
@@ -54,8 +53,6 @@ VisitorResult SageCompiler::visit_statement(NodeIndex node) {
     switch (node_manager->get_nodetype(node)) {
         case PN_FUNCDEF:
             return visit_function_definition(node);
-        case PN_STRUCT:
-            return visit_struct(node);
         case PN_IF:
             return visit_if(node);
         case PN_WHILE:
@@ -92,30 +89,34 @@ VisitorResult SageCompiler::visit_keyword(NodeIndex node) {
     if (lexeme == "break") {
         return VisitorResult();
     }
-    ErrorLogger::get().log_internal_error_unsafe(
-        "codegen.cpp",
-        current_linenum,
-        sen("found unrecognized keyword:", node_manager->get_lexeme(node)));
-    return VisitorResult();
+    assertm(false, sen("found unrecognized keyword:", node_manager->get_lexeme(node)).data());
 }
 
 VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     NodeIndex LHS = node_manager->get_left(node);
     auto lhs_nodetype = node_manager->get_nodetype(LHS);
-    if (lhs_nodetype != PN_FIELD_ACCESS && lhs_nodetype != PN_IDENTIFIER && lhs_nodetype != PN_VAR_REF) {
-        Token token = node_manager->get_token(node);
-        logger.log_error_unsafe(token, sen("Can only assign values to structure members or to variables."), SYNTAX);
+    if (lhs_nodetype == PN_FIELD_ACCESS) {
+        auto field_access_result = visit_struct_field_access(LHS, 24, get_volatile_register(), nullptr, true, false);
+        if (logger.has_errors()) {
+            return VisitorResult();
+        }
+
+        NodeIndex right_node_index = node_manager->get_right(node);
+        VisitorResult right_node_result = visit_expression(right_node_index);
+        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, _10);
+        return VisitorResult();
     }
 
-    // Use hybrid symbol resolution - fast path if early-bound, else scope-based lookup
+    if (lhs_nodetype != PN_IDENTIFIER && lhs_nodetype != PN_VAR_REF) {
+        Token token = node_manager->get_token(node);
+        logger.log_error_unsafe(token, sen("Can only assign values to structure members or to variables."), GENERAL);
+        return VisitorResult();
+    }
+
     auto lhs_identifier = node_manager->get_identifier(LHS);
     auto scope_id = node_manager->get_scope_id(LHS);
     auto variable_symbol = symbol_table.lookup(lhs_identifier, scope_id);
-    if (variable_symbol == nullptr) {
-        // should be an assert
-        logger.log_internal_error_unsafe("codegen.cpp", current_linenum, str("variable_symbol was nullptr"));
-        return VisitorResult();
-    }
+    assertm(variable_symbol != nullptr, str("variable_symbol was nullptr").data());
 
     NodeIndex right_node_index = node_manager->get_right(node);
     VisitorResult right_node_result = visit_expression(right_node_index);
@@ -124,28 +125,23 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 
 VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
     string function_name = node_manager->get_lexeme(node_manager->get_left(node));
-    symbol_entry *function_entry = symbol_table.lookup(function_name, node_manager->get_scope_id(node));
-    symbol_table.function_visitor_state.push(&function_entry->function_info);
+    SymbolEntry *function_entry = symbol_table.lookup(function_name, node_manager->get_scope_id(node));
+
+    symbol_table.push_function_processing_context(function_entry->symbol_index);
 
     NodeIndex function_signature_node = node_manager->get_right(node);
     auto right_host = node_manager->get_host_nodetype(function_signature_node);
-    if (right_host != PN_TRINARY) {
-        // TODO: checks like this really should be asserts that aren't generated in production mode
-        logger.log_internal_error_unsafe(
-            "codegen.cpp",
-            current_linenum,
-            str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host));
-        return VisitorResult();
-    }
+    assertm(right_host == PN_TRINARY,
+            str("visitor expected node (", node, ") to be TRINARY, instead was: ", right_host).data());
 
     build_function_with_block(function_name);
     auto body_node = node_manager->get_right(function_signature_node);
     visit(body_node);
 
-    if (!symbol_table.function_visitor_state.top()->has_returned()) {
+    if (!symbol_table.function_being_processed().has_returned()) {
         // auto return on void functions
         bool is_main = function_name == "main";
-        bool is_global = function_name == "global";
+        bool is_global = function_name == GLOBAL_NAME;
         bool is_final_program_return = symbol_table.program_uses_main_function ? is_main : is_global;
 
         SageOpCode opcode = OP_RET;
@@ -156,11 +152,10 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
         builder.exit_frame();
     }
 
-    symbol_table.function_visitor_state.pop();
+    symbol_table.pop_function_processing_context();
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::visit_struct(NodeIndex node) { return VisitorResult(); }
 VisitorResult SageCompiler::visit_if(NodeIndex node) { return VisitorResult(); }
 VisitorResult SageCompiler::visit_while(NodeIndex node) { return VisitorResult(); }
 VisitorResult SageCompiler::visit_for(NodeIndex node) { return VisitorResult(); }
@@ -171,7 +166,11 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         // left is variable identifier
         auto lhs = node_manager->get_left(node);
         string variable_name = node_manager->get_lexeme(lhs);
-        symbol_entry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
+        SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
+
+        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
+        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
+
 
         return build_alloca(var_symbol);
     }
@@ -181,11 +180,16 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         auto lhs = node_manager->get_left(node);
         string variable_name = node_manager->get_lexeme(lhs);
         int scope_id = node_manager->get_scope_id(node);
-        symbol_entry *var_symbol = symbol_table.lookup(variable_name, scope_id);
+        SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
 
         auto rightnode = node_manager->get_right(node);
-        auto rhs = visit_expression(rightnode);
         build_alloca(var_symbol);
+        auto rhs = visit_expression(rightnode);
+
+        // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
+        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
+        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
+
         return build_store(rhs, var_symbol);
     }
 
@@ -194,13 +198,13 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
 
 VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     // TODO: doesn't yet support multiple return values
-    symbol_table.function_visitor_state.top()->return_statement_count++;
-    int function_symbol_index = symbol_table.function_visitor_state.top()->symbol_index;
-    symbol_entry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
-    vector<SageType *> return_types = ((SageFunctionType *) function_entry->type)->return_type;
+    symbol_table.function_being_processed().return_statement_count++;
+    int function_symbol_index = symbol_table.function_being_processed().symbol_index;
+    SymbolEntry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
+    vector<SageType *> return_types = ((SageFunctionType *) function_entry->datatype)->return_type;
 
-    bool is_main = function_entry->identifier == "main";
-    bool is_global = function_entry->identifier == "global";
+    bool is_main = function_entry->name == "main";
+    bool is_global = function_entry->name == GLOBAL_NAME;
     bool is_program_exit = symbol_table.program_uses_main_function ? is_main : is_global;
 
     SageOpCode opcode = OP_RET;
@@ -210,7 +214,7 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
         if (is_program_exit) {
             builder.build_instruction(VOP_EXIT, 0, _00);
         }
-        if (function_entry->function_info.return_statement_count == function_entry->function_info.max_return_count) {
+        if (function_entry->return_statement_count == function_entry->max_return_count) {
             builder.exit_frame();
         }
         return VisitorResult();
@@ -218,10 +222,10 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
 
 
     VisitorResult return_value = visit_expression(branch_id);
-    if (symbol_table.needs_return_stack_pointer(function_entry->symbol_id)) {
-        return_value.to_stack_instruction(*this, 6, return_types[0], _10);
+    if (symbol_table.needs_return_stack_pointer(function_entry->symbol_index)) {
+        return_value.to_stack_instruction(*this, 6, _10);
         function_entry->spilled = true;
-    }else {
+    } else {
         return_value.to_register_instruction(*this, 6, return_types[0]);
     }
 
@@ -229,104 +233,287 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     if (is_program_exit) {
         builder.build_instruction(VOP_EXIT, 0, _00);
     }
-    if (function_entry->function_info.return_statement_count == function_entry->function_info.max_return_count) {
+    if (function_entry->return_statement_count == function_entry->max_return_count) {
         builder.exit_frame();
     }
-    return VisitorResult(symbol_table, function_entry->symbol_id);
+    return VisitorResult(symbol_table, function_entry->symbol_index);
 }
 
-
-/*
- *
- * Expression Codegen
- *
- */
-
-
 VisitorResult SageCompiler::visit_expression(NodeIndex node) {
-    if (node_manager->get_host_nodetype(node) == PN_BINARY) {
+    if (node_manager->get_host_nodetype(node) == PN_BINARY &&
+        node_manager->get_nodetype(node) != PN_FIELD_ACCESS) {
         return visit_binary_operator(node);
     }
 
     return visit_literal(node);
 }
 
+VisitorResult SageCompiler::visit_struct_field_access(
+    NodeIndex binary_access_node,
+    int base_address_register,
+    int offset_register,
+    SageNamespace *current_namespace,
+    bool struct_field_is_being_assigned_to,
+    bool taking_address_of_field
+) {
+    int scope_id = node_manager->get_scope_id(binary_access_node);
 
-VisitorResult SageCompiler::visit_literal(NodeIndex node) {
+    if (node_manager->get_host_nodetype(binary_access_node) != PN_BINARY) {
+        // base case
+        assert(current_namespace != nullptr);
+
+        NodeIndex current_node = binary_access_node;
+        auto current_nodetype = node_manager->get_nodetype(current_node);
+
+        if (current_nodetype == PN_VAR_REF || current_nodetype == PN_IDENTIFIER) {
+            string name = node_manager->get_identifier(current_node);
+            auto *type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
+            if (!current_namespace->is_field_member(name)) {
+                // error
+                Token token = node_manager->get_token(current_node);
+                logger.log_error_unsafe(token, sen(token.lexeme, "is not a member of",
+                                                   type_entry->get_base_type_string()), GENERAL);
+                return VisitorResult();
+            }
+
+            int member_offset = current_namespace->is_builtin()
+                                    ? ((BuiltinNamespace *) current_namespace)->get_field_offset(name)
+                                    : current_namespace->get_field_offset(&symbol_table, name);
+            int result_pointer_register = get_volatile_register();
+            builder.build_instruction(OP_ADD, offset_register, offset_register, member_offset, _10);
+            builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+
+            if (struct_field_is_being_assigned_to || taking_address_of_field) {
+                return VisitorResult(result_pointer_register, type_entry, true);
+            }
+
+            int value_result_register = get_volatile_register();
+            builder.build_instruction(OP_LOADA, 8, value_result_register, result_pointer_register, _01);
+            return VisitorResult(value_result_register, type_entry, true);
+        }
+
+        if (current_nodetype == PN_FUNCCALL) {
+            int result_pointer_register = get_volatile_register();
+            builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+            return visit_function_call(current_node, result_pointer_register);
+        }
+
+        Token token = node_manager->get_token(current_node);
+        logger.log_error_unsafe(token, sen(token.lexeme, " is not callable."), GENERAL);
+        return VisitorResult();
+    }
+
+    NodeIndex current_node = node_manager->get_left(binary_access_node);
+    auto current_nodetype = node_manager->get_nodetype(current_node);
+
+    if (current_nodetype == PN_VAR_REF || current_nodetype == PN_IDENTIFIER) {
+        string name = node_manager->get_identifier(current_node);
+        if (current_namespace == nullptr) {
+            builder.build_move_immediate(offset_register, 0);
+
+            auto *entry = symbol_table.lookup(name, scope_id);
+            auto *type_entry = symbol_table.lookup(entry->datatype->get_base_type_string(), scope_id);
+
+            if (entry->datatype->is_pointer()) {
+                builder.build_instruction(OP_ADD, offset_register, offset_register, entry->stack_offset, _10);
+                int temporary_address = get_volatile_register();
+                builder.build_instruction(OP_SUB, temporary_address, base_address_register, offset_register, _11);
+                int new_base = get_volatile_register();
+                builder.build_instruction(OP_LOADA, 8, new_base, temporary_address, _01);
+                builder.build_move_immediate(offset_register, 0);
+
+                string base_type_name = entry->datatype->get_base_type_string();
+                auto *base_type = symbol_table.lookup(base_type_name, scope_id);
+
+                return visit_struct_field_access(
+                    node_manager->get_right(binary_access_node),
+                    new_base,
+                    offset_register,
+                    base_type->type_namespace,
+                    struct_field_is_being_assigned_to,
+                    taking_address_of_field
+                );
+            }
+
+            builder.build_instruction(OP_ADD, offset_register, offset_register, entry->stack_offset, _10);
+            return visit_struct_field_access(
+                node_manager->get_right(binary_access_node),
+                base_address_register,
+                offset_register,
+                type_entry->type_namespace,
+                struct_field_is_being_assigned_to,
+                taking_address_of_field
+            );
+        }
+
+        auto *entry = symbol_table.lookup_by_index(current_namespace->fields[name]);
+        auto *type_entry = symbol_table.lookup(entry->datatype->get_base_type_string(), scope_id);
+
+        if (!current_namespace->is_field_member(name)) {
+            // error
+            Token token = node_manager->get_token(current_node);
+            logger.log_error_unsafe(token, sen(token.lexeme, "is not a member of",
+                                               type_entry->datatype->get_base_type_string()), GENERAL);
+            return VisitorResult();
+        }
+
+        if (entry->datatype->is_pointer()) {
+            builder.build_instruction(OP_ADD, offset_register, offset_register, entry->stack_offset, _10);
+            int temporary_address = get_volatile_register();
+            builder.build_instruction(OP_SUB, temporary_address, base_address_register, offset_register, _11);
+            int new_base = get_volatile_register();
+            builder.build_instruction(OP_LOADA, 8, new_base, temporary_address, _01);
+            builder.build_move_immediate(offset_register, 0);
+
+            string base_type_name = entry->datatype->get_base_type_string();
+            auto *base_type = symbol_table.lookup(base_type_name, scope_id);
+
+            return visit_struct_field_access(
+                node_manager->get_right(binary_access_node),
+                new_base,
+                offset_register,
+                base_type->type_namespace,
+                struct_field_is_being_assigned_to,
+                taking_address_of_field
+            );
+        }
+
+        int member_offset = current_namespace->is_builtin()
+                                ? ((BuiltinNamespace *) current_namespace)->get_field_offset(name)
+                                : current_namespace->get_field_offset(&symbol_table, name);
+
+        builder.build_instruction(OP_ADD, offset_register, offset_register, member_offset, _10);
+        return visit_struct_field_access(
+            node_manager->get_right(binary_access_node),
+            base_address_register,
+            offset_register,
+            type_entry->type_namespace,
+            struct_field_is_being_assigned_to,
+            taking_address_of_field
+        );
+    }
+
+    if (current_nodetype == PN_FUNCCALL) {
+        int result_pointer_register = get_volatile_register();
+        builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+        VisitorResult result = visit_function_call(current_node, result_pointer_register);
+
+        // check if result is callable
+        if (!result.result_type->is_callable() ||
+            (result.result_type->is_pointer() &&
+             !((SagePointerType *) result.result_type)->pointer_type->is_callable())
+        ) {
+            Token token = node_manager->get_token(current_node);
+            logger.log_error_unsafe(token, sen(token.lexeme, "is not callable."), GENERAL);
+            return VisitorResult();
+        }
+
+        builder.build_move_register(base_address_register, result.temporary_result_register);
+        builder.build_move_immediate(offset_register, 0);
+
+        auto *type_entry = symbol_table.lookup(result.result_type->to_string(), scope_id);
+
+        return visit_struct_field_access(
+            node_manager->get_right(binary_access_node),
+            base_address_register,
+            offset_register,
+            type_entry->type_namespace,
+            struct_field_is_being_assigned_to,
+            taking_address_of_field
+        );
+    }
+
+    Token token = node_manager->get_token(current_node);
+    logger.log_error_unsafe(token, sen(token.lexeme, " is not callable."), GENERAL);
+    return VisitorResult();
+}
+
+VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of_field) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
         case PN_LIST: {
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
-                                             "TODO: List literal visitor unimplemented.");
-            return VisitorResult();
+            assertm(false, "TODO: List literal visitor unimplemented.");
         }
         case PN_VAR_REF:
-        case PN_IDENTIFIER:
-            return build_load(node);
+        case PN_IDENTIFIER: {
+            string reference_name = node_manager->get_identifier(node);
+            int scope_id = node_manager->get_scope_id(node);
+            auto symbol = symbol_table.lookup(reference_name, scope_id);
+            return VisitorResult(symbol_table, symbol->symbol_index);
+        }
         case PN_FUNCCALL:
             return visit_function_call(node);
         case PN_STRING: {
             auto identifier = node_manager->get_identifier(node);
-            table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
+            SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
             return VisitorResult(symbol_table, symbol_index);
         }
         case PN_CHARACTER_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
-            return VisitorResult(SageValue(identifier.c_str()[0]));
+            SageValue value = SageValue(identifier.c_str()[0]);
+            return VisitorResult(value);
         }
         case PN_NUMBER: {
-            return VisitorResult(stoi(node_manager->get_lexeme(node)));
+            SageValue int_result = SageValue((int64_t) stoll(node_manager->get_lexeme(node)));
+            return VisitorResult(int_result);
         }
         case PN_FLOAT: {
-            return VisitorResult(stof(node_manager->get_lexeme(node)));
-            //auto identifier = node_manager->get_identifier(node);
-            //table_index symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
-            //return VisitorResult(symbol_table, symbol_index);
+            SageValue float_result = SageValue((double) stof(node_manager->get_lexeme(node)));
+            return VisitorResult(float_result);
         }
         case PN_BOOL: {
             auto identifier = node_manager->get_identifier(node);
+            SageValue bool_result;
             if (identifier == "true") {
-                return VisitorResult(SageValue(true));
+                bool_result = SageValue(true);
+                return VisitorResult(bool_result);
             }
             if (identifier == "false") {
-                return VisitorResult(SageValue(false));
+                bool_result = SageValue(false);
+                return VisitorResult(bool_result);
             }
-            logger.log_internal_error_unsafe("codegen.cpp", current_linenum,
-                                             sen("Expected to find 'true' or 'false', found", identifier));
-            return VisitorResult();
+            assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
         }
-        case PN_FIELD_ACCESS: {
-            // TODO:
-            break;
-        }
+        case PN_FIELD_ACCESS:
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, taking_address_of_field);
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
-            auto visit_result = visit_literal(node_manager->get_branch(node));
-            auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
-            assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
-
-            if (symbol->type->identify() != POINTER) {
-                Token token = node_manager->get_token(node);
-                logger.log_error_unsafe(
-                    token,
-                    sen("Cannot dereference non-pointer type:", symbol->type->to_string()),
-                    SEMANTIC
-                );
+            auto branch_node = node_manager->get_branch(node);
+            auto visit_result = visit_literal(branch_node);
+            return build_dereference_instructions(visit_result, node_manager->get_token(node));
+        }
+        case PN_POINTER_REFERENCE: {
+            // move the full address of visit_result into a register
+            auto branch = node_manager->get_branch(node);
+            auto branch_nodetype = node_manager->get_nodetype(branch);
+            Token token = node_manager->get_token(branch);
+            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype != PN_FIELD_ACCESS) {
+                logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
                 return VisitorResult();
             }
 
-            int temporary_register = get_volatile_register();
-            builder.build_instruction(OP_DEREF, temporary_register, symbol->spill_offset, _00);
-            return VisitorResult(temporary_register, symbol->type, true);
-        }
-        case PN_POINTER_REFERENCE: {
-            auto visit_result = visit_literal(node_manager->get_branch(node));
-            auto *symbol = symbol_table.lookup_by_index(visit_result.symbol_table_index);
-            assertm(symbol->spilled, "Cannot have unspilled variable used in pointer dereference visit.");
+            auto visit_result = visit_literal(branch, branch_nodetype == PN_FIELD_ACCESS);
+            auto *symbol_entry = symbol_table.lookup_by_index(visit_result.symbol_table_index);
+            assert(symbol_entry != nullptr);
 
-            int temporary_register = get_volatile_register();
-            builder.build_instruction(OP_REF, temporary_register, symbol->spill_offset, _00);
-            return VisitorResult(temporary_register, symbol->type, true);
+            int dest_register = get_volatile_register();
+            if (symbol_entry->static_stack_pointer != -1) {
+                builder.build_move_immediate(dest_register, symbol_entry->static_stack_pointer);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            }
+
+            if (visit_result.state == VisitorResultState::SPILLED) {
+                builder.build_instruction(OP_LOADR, dest_register, symbol_entry->stack_offset, _00);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            }
+            if (visit_result.state == VisitorResultState::TEMP_REGISTER) {
+                // if its a temporary register this this MUST have been from referencing a struct field access
+                builder.build_move_register(dest_register, visit_result.temporary_result_register);
+                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+            }
+
+            logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
+            return VisitorResult();
         }
         case PN_NOT:
             break;
@@ -336,27 +523,56 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node) {
     return VisitorResult();
 }
 
-int SageCompiler::get_literal_static_pointer(table_index literal_symbol_table_index) {
-    auto static_stack_pointer = symbol_table.entries.get(literal_symbol_table_index).static_stack_pointer;
-    if (static_stack_pointer != -1) return static_stack_pointer;
+VisitorResult SageCompiler::build_dereference_instructions(
+    VisitorResult &operand_info,
+    Token dereference_token
+) {
+    if (operand_info.result_type->identify() != POINTER) {
+        logger.log_error_unsafe(
+            dereference_token,
+            sen("Cannot dereference non-pointer:", operand_info.result_type->to_string()),
+            GENERAL
+        );
+        return VisitorResult();
+    }
 
-    auto it = static_program_memory.find(literal_symbol_table_index);
-    if (it != static_program_memory.end()) {
-        int static_pointer = 0;
-        for (int insertion_order_index = 0; insertion_order_index < (int) static_program_memory_insertion_order.size();
-             ++insertion_order_index) {
-            if (static_program_memory_insertion_order[insertion_order_index] == literal_symbol_table_index) {
-                symbol_table.entries.get_pointer(literal_symbol_table_index)->static_stack_pointer = static_pointer;
-                return static_pointer;
-            }
-            static_pointer += (int) static_program_memory[static_program_memory_insertion_order[insertion_order_index]].
-                    size();
+    int result_register = get_volatile_register();
+    auto *result_pointer_type = dynamic_cast<SagePointerType *>(operand_info.result_type);
+    int result_size = result_pointer_type->pointer_type->size;
+
+    switch (operand_info.state) {
+        case VisitorResultState::SPILLED: {
+            auto *symbol = symbol_table.lookup_by_index(operand_info.symbol_table_index);
+            builder.build_instruction(OP_LOADP, result_size, result_register, symbol->stack_offset, _00);
+            break;
+        }
+        case VisitorResultState::TEMP_REGISTER: {
+            builder.build_instruction(OP_LOADA, result_size, result_register, operand_info.temporary_result_register,
+                        _01);
+            break;
+        }
+        case VisitorResultState::IMMEDIATE:
+        case VisitorResultState::REGISTER:
+        case VisitorResultState::VALUE:
+        case VisitorResultState::LIST:
+        default: {
+            logger.log_error_unsafe(
+                dereference_token,
+                str(dereference_token.lexeme, " cannot be dereferenced."),
+                GENERAL);
         }
     }
-    return -1;
+
+    auto *result_type = result_pointer_type->pointer_type;
+    return VisitorResult(result_register, result_type, true);
 }
 
-VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
+int SageCompiler::get_literal_static_pointer(SymbolIndex literal_symbol_table_index) {
+    auto *target_entry = symbol_table.lookup_by_index(literal_symbol_table_index);
+    return target_entry->static_stack_pointer;
+}
+
+VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parameter_pointer_register) {
     // TODO: more than 6 function parameters not supported
     // TODO: multiple return values not supported
     NodeIndex args_node = node_manager->get_branch(node);
@@ -368,20 +584,24 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         args.push_back(visit_expression(arg));
     }
 
-    auto identifier = node_manager->get_identifier(node);
+    auto function_name = node_manager->get_identifier(node);
     auto scoped_id = node_manager->get_scope_id(node);
-    symbol_entry *function_symbol = symbol_table.lookup(identifier, scoped_id);
-    string function_name = function_symbol->identifier;
-    if (args.size() > 6) {
-        logger.log_internal_error_unsafe(
-            "builders.cpp",
-            current_linenum,
-            sen(function_name, "with more than 6 arguments is unimplemented."));
+    SymbolEntry *function_symbol = symbol_table.lookup(function_name, scoped_id);
+    if (function_symbol == nullptr) {
+        Token token = node_manager->get_token(node);
+        logger.log_error_unsafe(token, sen("Call to undefined function: ", token.lexeme), GENERAL);
         return VisitorResult();
     }
 
+    assertm(args.size() <= 6, sen(function_name, "with more than 6 arguments is unimplemented.").data());
+
     int argument_register_address = 0;
-    vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->type)->parameter_types;
+    if (first_parameter_pointer_register != -1) {
+        builder.build_move_register(argument_register_address, first_parameter_pointer_register);
+        argument_register_address++;
+    }
+
+    vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->datatype)->parameter_types;
     for (VisitorResult arg_result: args) {
         int possible_literal_memory_pointer = get_literal_static_pointer(arg_result.symbol_table_index);
         if (possible_literal_memory_pointer != -1) {
@@ -396,23 +616,23 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node) {
         argument_register_address++;
     }
 
-    if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_id)) {
-        int pointer = symbol_table.function_visitor_state.top()->stack_return_pointer_counter;
+    if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
+        int pointer = symbol_table.function_being_processed().stack_return_pointer_counter;
         int return_bytesize = symbol_table.get_result_total_byte_size(
-            symbol_table.function_visitor_state.top()->symbol_index);
-        symbol_table.function_visitor_state.top()->stack_return_pointer_counter += return_bytesize;
+            symbol_table.function_being_processed().symbol_index);
+        symbol_table.function_being_processed().stack_return_pointer_counter += return_bytesize;
         builder.build_move_immediate(6, pointer);
         // if the function return is on the stack then we don't need to use the function return register
         function_symbol->spilled = true;
-    }else {
+    } else {
         function_symbol->spilled = false;
         function_symbol->assigned_register = 6;
     }
 
     builder.build_instruction(OP_CALL, get_procedure_frame_id(function_name), _00);
 
-    auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->type)->return_type[0];
-    return VisitorResult(6, return_type, true);
+    auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->datatype)->return_type[0];
+    return VisitorResult(6, return_type, function_symbol->symbol_index, true);
 }
 
 VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
@@ -472,12 +692,10 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             break;
         case TT_EQUALITY:
             break;
+        case TT_FIELD_ACCESSOR:
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, false);
         default:
-            ErrorLogger::get().log_internal_error_unsafe(
-                "codegen.cpp",
-                current_linenum,
-                str("Node", node, "recieved incorrect node type for binary operation."));
-            break;
+            assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());
     }
     return VisitorResult();
 }

@@ -39,10 +39,16 @@ Token *SageLexer::check_for_string() {
         char_buffer->get(current_char);
         linedepth++;
 
-        while (current_char != '"') {
+        while (current_char != '"' && current_char != '\n' && !char_buffer->eof()) {
             lexeme += current_char;
             char_buffer->get(current_char);
             linedepth++;
+            if (char_buffer->eof() || char_buffer->fail()) break;
+        }
+
+        if (current_char != '"') {
+            Token tok = Token(TT_STRING, lexeme, linenum);
+            ErrorLogger::get().log_error_unsafe(tok, "Unterminated string literal.", SYNTAX);
         }
 
         lexeme += '"';
@@ -227,7 +233,7 @@ Token *SageLexer::lex_for_numbers() {
     int dot_count = 0;
     string lexeme = "";
     TokenType tok_type = TT_NUM;
-    while (isdigit(current_char) || (current_char == '.' && dot_count == 0)) {
+    while ((isdigit(current_char) || (current_char == '.' && dot_count == 0)) && !char_buffer->eof()) {
         if (current_char == '.') {
             tok_type = TT_FLOAT;
             dot_count++;
@@ -236,6 +242,10 @@ Token *SageLexer::lex_for_numbers() {
         lexeme += string(1, current_char);
         char_buffer->get(current_char);
         linedepth++;
+
+        if (char_buffer->eof() || char_buffer->fail()) {
+            break;
+        }
     }
 
     // if the number ends in a '.' then this is a number before the range operator and not actually a float number
@@ -284,10 +294,14 @@ Token *SageLexer::lex_for_identifiers() {
     };
 
     int starting_linedepth = linedepth;
-    while (isalpha(current_char) || isdigit(current_char) || current_char == '_') {
+    while ((isalpha(current_char) || isdigit(current_char) || current_char == '_') && !char_buffer->eof()) {
         lexeme += string(1, current_char);
         char_buffer->get(current_char);
         linedepth++;
+
+        if (char_buffer->eof() || char_buffer->fail()) {
+            break;
+        }
     }
 
     char_buffer->putback(current_char);
@@ -301,6 +315,7 @@ Token *SageLexer::lex_for_identifiers() {
 }
 
 Token *SageLexer::get_token() {
+    char_buffer->clear();
     Token *tok;
 
     // we check that the size is greater than one because the last_token will be held inside the buffer
@@ -312,18 +327,19 @@ Token *SageLexer::get_token() {
         return current_token;
     }
 
+    // note: CRITICAL!! We have to call get() before we check eof() becaus eof only updates to eof after a *failed* get() call.
+    char_buffer->get(current_char);
+    linedepth++;
+    while ((current_char == ' ' || current_char == '\t') && !char_buffer->eof()) {
+        char_buffer->get(current_char);
+        linedepth++;
+        if (char_buffer->eof() || char_buffer->fail()) break;
+    }
+
     if (char_buffer->eof()) {
         tok = lexer_make_token(TT_EOF, "eof");
         last_token = *tok;
         return tok;
-    }
-
-    char_buffer->get(current_char);
-    linedepth++;
-
-    while (current_char == ' ' || current_char == '\t') {
-        char_buffer->get(current_char);
-        linedepth++;
     }
 
     if (current_char == '\n') {

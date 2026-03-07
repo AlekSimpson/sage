@@ -39,26 +39,20 @@ enum SageOpCode {
     OP_FMUL,    // _xx | fmul freg, op, op
     OP_FDIV,    // _xx | fdiv freg, op, op
 
-    OP_MEMCPY,  // _xx | memcpy bytes, ($fp - op), ($fp - op)
-    OP_ALLOC,   // _00 | alloc bytesize
-    OP_FLOAD,   // _00 | load freg, ($fp - offset)
-                // build_fload(register, offset)
-    OP_LOAD,    // _00 | load reg, ($fp - offset)
-                // build_load(register, offset)
-    OP_STORE,   // _0x | store ($fp - offset), op
-                // build_store_immediate(offset, immediate)
-                // build_store_register(offset, register)
-    OP_FSTORE,  // _0x | fstore ($fp - offset), op
-                // build_fstore_register(offset, register)
-    OP_REF,     // _00 | ref ptr_dest_reg ($fp - offset)
-    OP_DEREF,   // _00 | deref dest_pointer ($fp - src_offset)
+    OP_STATIC_COPY, // _xx | scpy bytes, ($fp, - op), $static_pointer
+    OP_MEMCPY,      // _xx | mcpy bytes, ($fp - op), ($fp - op)
+    OP_ADDR_MEMCPY, // _xx | acpy bytes, $pointer, $pointer
+    OP_ALLOC,       // _00 | allc bytesize
+    OP_LOAD,        // _00 | load bytes, reg, ($fp - offset)
+    OP_STORE,       // _0x | store bytes, ($fp - offset), op
+    OP_STOREA,      // _xx | storea bytes, ($pointer), op
+    OP_LOADR,       // _0x | loadr reg, ($fp - op)
+    OP_LOADP,       // _0x | loadp bytes, reg, (pointer)
+    OP_LOADA,       // _xx | loada bytes, reg, address
 
     OP_ITF_MOV, // _01 | itfmov freg, ireg
     OP_FMOV,    // _0x | mov freg, op
-                // build_fmove_register(register, register)
     OP_MOV,     // _0x | mov reg, op
-                // build_move_immediate(register, immediate)
-                // build_move_register(register, register)
 
     OP_JZ,      // _00 | jz reg immediate  | jump if zero
     OP_JNZ,     // _00 | jnz reg immediate | jump if not zero
@@ -77,7 +71,6 @@ enum SageOpCode {
     OP_AND,     // _xx | and op, op
     OP_OR,      // _xx | or op, op
     OP_NOT,     // _00 | not reg
-                // build_not(int register)
 
     OP_NOP,     // _00 | nop
 
@@ -89,13 +82,13 @@ enum SageOpCode {
 
 struct Instruction {
     SageOpCode opcode = SageOpCode::OP_NOP;
-    std::array<int, 3> operands = {0, 0, 0};
+    std::array<int64_t, 3> operands = {0, 0, 0};
     int operand_count = 0;
 
     Instruction();
-    Instruction(SageOpCode, int);
-    Instruction(SageOpCode, int, int);
-    Instruction(SageOpCode, int, int, int);
+    Instruction(SageOpCode, int64_t);
+    Instruction(SageOpCode, int64_t, int64_t);
+    Instruction(SageOpCode, int64_t, int64_t, int64_t);
 };
 
 struct Command {
@@ -105,9 +98,9 @@ struct Command {
     // 1 - deref register
 
     Command();
-    Command(SageOpCode, int, AddressMode);
-    Command(SageOpCode, int, int, AddressMode);
-    Command(SageOpCode, int, int, int, AddressMode);
+    Command(SageOpCode, int64_t, AddressMode);
+    Command(SageOpCode, int64_t, int64_t, AddressMode);
+    Command(SageOpCode, int64_t, int64_t, int64_t, AddressMode);
 
     string print(const map<int, string>* label_names = nullptr);
 };

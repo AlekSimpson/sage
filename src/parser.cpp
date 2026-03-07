@@ -40,6 +40,7 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
     symbol_count = 0;
     fragment_mode = true;
     lexer = new SageLexer(&charbuffer, sourcename);
+    advance();
 
     // Global scope is already created in ScopeManager constructor
 
@@ -87,6 +88,7 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
     NodeIndex program_root = parse_statements();
 
     // Global scope doesn't need to be exited
+    scope_manager->scope_to_astroot[0] = program_root;
 
     return program_root;
 }
@@ -94,18 +96,12 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
 NodeIndex SageParser::parse_statements() {
     NodeIndex list_node = node_manager->create_block();
 
-    while (!ErrorLogger::get().has_errors()) {
-        while (match_types(current_token->token_type, TT_NEWLINE)) {
-            advance();
-        }
-        if (match_types(current_token->token_type, TT_EOF)) {
-            break;
-        }
+    while (!ErrorLogger::get().has_errors() && current_token->token_type != TT_EOF) {
+        while (match_types(current_token->token_type, TT_NEWLINE)) advance();
 
         NodeIndex next_statement = parse_statement();
-        if (next_statement == NULL_INDEX) {
-            break; // don't want to add nullptr to children list if an error is found
-        }
+        // don't want to add nullptr to children list if an error is found
+        if (next_statement == NULL_INDEX) break;
 
         node_manager->add_child(list_node, next_statement);
     }
@@ -222,7 +218,7 @@ NodeIndex SageParser::parse_value_dec() {
     return node_manager->create_binary(token, nodetype, name_identifier_node, type_identifier_node);
 }
 
-NodeIndex SageParser::parse_value_dec_list() {
+NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
     if (match_types(current_token->token_type, TT_RPAREN)) {
         Token token = Token(TT_COMPILER_CREATED, "empty parameter list", current_token->linenum);
         return node_manager->create_block(token, PN_PARAM_LIST);
@@ -264,7 +260,11 @@ NodeIndex SageParser::parse_value_dec_list() {
             break;
         }
 
-        consume(TT_COMMA, "Expected comma symbol after value declaration list.");
+        if (for_struct) {
+            consume(TT_NEWLINE, "Expected struct members to be separated by newline characters.");
+        }else {
+            consume(TT_COMMA, "Expected comma symbol after value declaration list.");
+        }
         list_token_lexeme += node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
 
@@ -540,7 +540,7 @@ NodeIndex SageParser::parse_struct() {
 
     consume(TT_LBRACE, "Expected LBRACE in structure definition.");
 
-    NodeIndex struct_contents = parse_value_dec_list();
+    NodeIndex struct_contents = parse_value_dec_list(true);
 
     consume(TT_RBRACE, "Expected RBRACE in structure definition.");
     scope_manager->exit_scope(current_token->linenum, struct_contents);
@@ -632,7 +632,7 @@ NodeIndex SageParser::parse_function_call() {
     NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
 
     while (true) {
-        NodeIndex param = parse_postfix_operator();
+        NodeIndex param = parse_unary_operator();
         node_manager->add_child(params_node, param);
 
         if (!match_types(current_token->token_type, TT_COMMA)) {
@@ -821,37 +821,39 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
 }
 
 NodeIndex SageParser::parse_postfix_operator() {
-    bool has_a_postfix_operator = peek().token_type == TT_FIELD_ACCESSOR;
+    Token next_token = peek();
+    bool has_a_postfix_operator = next_token.token_type == TT_FIELD_ACCESSOR;
     if (!has_a_postfix_operator) {
         return parse_primary();
     }
 
     // note: in the future if we choose to keep the '++'/'--' postfix operators, their parsing would also happen here
 
-    Token postfix_token;
-    NodeIndex current_postfix_target_node = parse_primary();
-    while (has_a_postfix_operator) {
-        postfix_token = *current_token;
-        advance(); // advance past '.' token
-        current_postfix_target_node = node_manager->create_binary(
-            postfix_token,
-            PN_FIELD_ACCESS,
-            current_postfix_target_node,
-            parse_primary()
-        );
+    const int MAX_ITERATION_GUARD = 256;
+    int iteration_count = 0;
+    NodeIndex current_binary_node = node_manager->create_empty_binary(next_token, PN_FIELD_ACCESS);
+    NodeIndex root_binary_node = current_binary_node;
+    NodeIndex current_member_variable_node;
+    while (iteration_count < MAX_ITERATION_GUARD) {
+        current_member_variable_node = parse_primary();
 
-        has_a_postfix_operator = true;
+        consume(TT_FIELD_ACCESSOR, "Expected '.' character in structure field access expression.");
+
         if (peek().token_type != TT_FIELD_ACCESSOR) {
-            has_a_postfix_operator = false;
-            ErrorLogger::get().log_error_unsafe(
-                *current_token,
-                str("Expected a field accessor character, '.', instead found: ", current_token->lexeme, ". Only a field accessor operator can be used to access data in a structure."),
-                SYNTAX
-            );
+            // last field access in the chain
+            node_manager->set_binary_left(current_binary_node, current_member_variable_node);
+            node_manager->set_binary_right(current_binary_node, parse_primary());
+            break;
         }
+
+        node_manager->set_binary_left(current_binary_node, current_member_variable_node);
+        NodeIndex next_binary_node = node_manager->create_empty_binary(next_token, PN_FIELD_ACCESS);
+        node_manager->set_binary_right(current_binary_node, next_binary_node);
+        current_binary_node = next_binary_node;
+        iteration_count++;
     }
 
-    return current_postfix_target_node;
+    return root_binary_node;
 }
 
 NodeIndex SageParser::parse_unary_operator() {
@@ -880,18 +882,17 @@ NodeIndex SageParser::parse_primary() {
     Token lookahead;
     NodeIndex ret = NULL_INDEX;
     NodeIndex expression = NULL_INDEX;
+    symbol_count += 1;
     switch (current_token->token_type) {
         case TT_NUM:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_NUMBER);
-            symbol_count += 1;
             advance();
             return ret;
 
         case TT_FLOAT:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_FLOAT);
-            symbol_count += 1;
             advance();
             return ret;
 
@@ -927,14 +928,12 @@ NodeIndex SageParser::parse_primary() {
         case TT_STRING:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_STRING);
-            symbol_count += 1;
             advance();
             return ret;
 
         case TT_CHARACTER_LITERAL:
             token.fill_with(*current_token);
             ret = node_manager->create_unary(token, PN_CHARACTER_LITERAL);
-            symbol_count += 1;
             advance();
             return ret;
 

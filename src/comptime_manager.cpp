@@ -24,18 +24,18 @@ int ComptimeManager::add_task(NodeIndex ast_index) {
     ComptimeTask new_task = ComptimeTask(tasks.size(), scope_id, ast_index, TaskResultType::VALUE);
     tasks.push_back(new_task);
     task_min_heap.push(&tasks.back());
-    node_to_task_id[ast_index] = tasks.size()-1;
-    return tasks.size()-1;
+    node_to_task_id[ast_index] = tasks.size() - 1;
+    return tasks.size() - 1;
 }
 
 void ComptimeManager::register_task_dependencies(SageSymbolTable &symbol_table) {
-    set<table_index> current_comptime_prerequisites;
+    set<SymbolIndex> current_comptime_prerequisites;
     NodeIndex current_ast_index;
     string current_identifier;
     int current_scope_id;
     ParseNodeType nodetype;
     NodeIndex unary_branch_id;
-    symbol_entry *found_symbol;
+    SymbolEntry *found_symbol;
 
     for (auto task: tasks) {
         current_comptime_prerequisites.clear();
@@ -54,7 +54,8 @@ void ComptimeManager::register_task_dependencies(SageSymbolTable &symbol_table) 
                     nodetype = node_man->get_nodetype(current_ast_index);
                     if (nodetype == PN_VAR_REF || nodetype == PN_IDENTIFIER) {
                         found_symbol = symbol_table.lookup(current_identifier, current_scope_id);
-                        if (found_symbol->is_comptime_constant) current_comptime_prerequisites.insert(found_symbol->symbol_id);
+                        if (symbol_table.is_comptime_value(found_symbol)) current_comptime_prerequisites.insert(
+                            found_symbol->symbol_index);
                         continue;
                     }
 
@@ -75,13 +76,14 @@ void ComptimeManager::register_task_dependencies(SageSymbolTable &symbol_table) 
             }
         }
 
-        task.prerequisite_tasks.insert(task.prerequisite_tasks.end(), current_comptime_prerequisites.begin(), current_comptime_prerequisites.end());
+        task.prerequisite_tasks.insert(task.prerequisite_tasks.end(), current_comptime_prerequisites.begin(),
+                                       current_comptime_prerequisites.end());
     }
 }
 
 void ComptimeManager::execute_task(ComptimeTask *task) {
     SageInterpreter interpreter = SageInterpreter(symbol_table);
-    interpreter.open(task->procedure_to_instruction_index, static_program_memory);
+    interpreter.open(task->procedure_to_instruction_index, *static_program_memory);
     interpreter.load_program(task->task_instructions);
     interpreter.execute();
     task->symbol_injection_value = interpreter.get_return_value();
@@ -97,8 +99,7 @@ void ComptimeManager::execute_tasks_in_parallel(int thread_count) {
     for (int i = 0; i < thread_count; ++i) {
         auto worker_function = [this, batch_size]() {
             while (tasks_completed < batch_size && !ErrorLogger::get().has_errors()) {
-                ComptimeTask *task;
-                {
+                ComptimeTask *task; {
                     unique_lock<mutex> lock(queue_mutex);
                     queue_condition_variable.wait(lock, [&]() {
                         return !staged_for_execution.empty() ||
@@ -125,15 +126,15 @@ bool ComptimeManager::modifies_runtime_ast() {
 
 int ComptimeManager::get_next_task_prerequisite_count() {
     if (task_min_heap.empty()) return 0;
-    return (int)task_min_heap.top()->prerequisite_tasks.size();
+    return (int) task_min_heap.top()->prerequisite_tasks.size();
 }
 
 bool ComptimeManager::verify_comptime_dependencies() {
     auto &logger = ErrorLogger::get();
 
-    stack<comptime_task_id> fringe;
-    set<comptime_task_id> explored;
-    comptime_task_id current_task_id;
+    stack<ComptimeTaskId> fringe;
+    set<ComptimeTaskId> explored;
+    ComptimeTaskId current_task_id;
 
     for (auto task: tasks) {
         if (task.prerequisite_tasks.empty()) fringe.push(task.task_id);
@@ -165,8 +166,3 @@ bool ComptimeManager::verify_comptime_dependencies() {
 void ComptimeManager::set_symbol_table(SageSymbolTable *table) {
     symbol_table = table;
 }
-
-
-
-
-
