@@ -1,5 +1,50 @@
 [
     {
+        "index": 27,
+        "name": "array_reference_one.sage",
+        "source": "\n\n\narray: int[5]\n\n\narr_reference: int[] = array\n\n\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "",
+        "expected_stdout": ""
+    },
+    {
+        "index": 25,
+        "name": "arrays_one.sage",
+        "source": "\n\n\nsome_array: int[4]\n\n\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "",
+        "expected_stdout": ""
+    },
+    {
+        "index": 28,
+        "name": "arrays_two.sage",
+        "source": "\n\nsome_array: int[5] = [1, 2, 3, 4, 5]\n\n\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": ""
+    },
+    {
+        "index": 26,
+        "name": "dynamic_array_one.sage",
+        "source": "\n\n\ndynamic_array: int[..]\n\n\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "",
+        "expected_stdout": ""
+    },
+    {
+        "index": 29,
+        "name": "dynamic_arrays_two.sage",
+        "source": "\n\ndyn_array: int[..] = [1, 2, 3, 4, 5]\n\n\nputi(some_array.length, 1)\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "\u001b[31m\u001b[1msyntax error: \u001b[0m\u001b[1munrecognized symbol: .\u001b[0m\n\u001b[34m --> \u001b[0mtests/test_file.sage:3:18\n\u001b[34m  |\u001b[0m\n\u001b[34m3 | \u001b[0mdyn_array: int[..] = [1, 2, 3, 4, 5]\n\u001b[34m  | \u001b[0m                 \u001b[31m^\u001b[0m\n\n"
+    },
+    {
         "index": 1,
         "name": "expressions_one.sage",
         "source": "\n\n\n\nnested_expression: int = ((23 * 90 + 2 - 0) * ((324 * 67) / 2)) / ((4 + 6 - 7) + 98 - 23 / 45 + 89)\n\n\n",
@@ -213,6 +258,15 @@
         "category": "positive",
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nmov r25 239\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": ""
+    },
+    {
+        "index": 30,
+        "name": "arrays_three.sage",
+        "source": "\n\narray: int[4] = [1, 2, 3, 4]\n\n\nputi(array.length, 1)\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     }
 ]
