@@ -23,7 +23,7 @@
         "source": "\n\nsome_array: int[5] = [1, 2, 3, 4, 5]\n\n\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "",
         "expected_stdout": ""
     },
     {
@@ -41,8 +41,8 @@
         "source": "\n\ndyn_array: int[..] = [1, 2, 3, 4, 5]\n\n\nputi(some_array.length, 1)\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
-        "expected_stdout": "\u001b[31m\u001b[1msyntax error: \u001b[0m\u001b[1munrecognized symbol: .\u001b[0m\n\u001b[34m --> \u001b[0mtests/test_file.sage:3:18\n\u001b[34m  |\u001b[0m\n\u001b[34m3 | \u001b[0mdyn_array: int[..] = [1, 2, 3, 4, 5]\n\u001b[34m  | \u001b[0m                 \u001b[31m^\u001b[0m\n\n"
+        "expected_bytecode": "",
+        "expected_stdout": ""
     },
     {
         "index": 1,
@@ -266,7 +266,7 @@
         "source": "\n\narray: int[4] = [1, 2, 3, 4]\n\n\nputi(array.length, 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "",
         "expected_stdout": ""
     }
 ]

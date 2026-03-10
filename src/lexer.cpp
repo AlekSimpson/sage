@@ -145,7 +145,7 @@ Token *SageLexer::lex_for_symbols() {
             }
             if (peekahead == '-') {
                 linedepth++;
-                return lexer_make_token(TT_DECREMENT, "--");
+                return lexer_make_token(TT_DOUBLE_MINUS, "--");
             }
 
             char_buffer->putback(peekahead);
@@ -163,16 +163,7 @@ Token *SageLexer::lex_for_symbols() {
             }
 
             if (first_peek == '.') {
-                char second_peek;
-                char_buffer->get(second_peek);
-                if (second_peek == '.') {
-                    TokenType tok_type = TT_RANGE;
-                    if (last_token.token_type == TT_IDENT) {
-                        tok_type = TT_VARARG;
-                    }
-
-                    return lexer_make_token(tok_type, "...");
-                }
+                return lexer_make_token(TT_DOUBLE_DOT, "..");
             }
 
             return nullptr;

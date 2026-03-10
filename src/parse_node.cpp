@@ -59,8 +59,14 @@ string nodetype_to_string(ParseNodeType nodetype) {
             return "LIST";
         case PN_INCLUDE:
             return "INCLUDE";
-        case PN_VARARG:
-            return "VARARG";
+        case PN_STATIC_ARRAY_TYPE:
+            return "STATIC_ARRAY_TYPE";
+        case PN_DYNAMIC_ARRAY_TYPE:
+            return "DYNAMIC_ARRAY_TYPE";
+        case PN_POINTER_TYPE:
+            return "POINTER_TYPE";
+        case PN_ARRAY_REFERENCE_TYPE:
+            return "ARRAY_REFERENCE_TYPE";
         default:
             return "Unknown Node Type (Could have forgot to add String() impl for new type)";
     }

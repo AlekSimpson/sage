@@ -198,14 +198,8 @@ NodeIndex SageParser::parse_value_dec() {
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;
 
-    // NOTE: probably could just make nodetype equal to ->get_nodetype() and don't need the this conditional
-    ParseNodeType nodetype = PN_VAR_DEC;
-    if (node_manager->get_nodetype(type_identifier_node) == PN_VARARG) {
-        nodetype = PN_VARARG;
-    }
-
     Token token = Token(TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.linenum);
-    return node_manager->create_binary(token, nodetype, name_identifier_node, type_identifier_node);
+    return node_manager->create_binary(token, PN_VAR_DEC, name_identifier_node, type_identifier_node);
 }
 
 NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
@@ -232,6 +226,13 @@ NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
     string list_token_lexeme = "";
     Token list_token = Token(TT_COMPILER_CREATED, "", current_token->linenum);
 
+    TokenType separator = for_struct ? TT_NEWLINE : TT_COMMA;
+    string separator_error_message = for_struct
+                                         ? "Expected struct members to be separated by newline characters."
+                                         : "Expected comma symbol after value declaration list.";
+
+    TokenType ending_token = for_struct ? TT_RBRACE : TT_RPAREN;
+
     while (match_types(current_token->token_type, TT_IDENT)) {
         NodeIndex value_dec = parse_value_dec();
 
@@ -243,20 +244,12 @@ NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
             return NULL_INDEX;
         }
 
-        TokenType condition_slice[2] = {TT_RBRACE, TT_RPAREN};
-        if (matches_any(current_token->token_type, condition_slice, 2)) {
-            list_token.lexeme = node_manager->get_lexeme(value_dec);
-            _list_node->children.push_back(value_dec);
-            break;
-        }
-
-        if (for_struct) {
-            consume(TT_NEWLINE, "Expected struct members to be separated by newline characters.");
-        }else {
-            consume(TT_COMMA, "Expected comma symbol after value declaration list.");
-        }
-        list_token_lexeme += node_manager->get_lexeme(value_dec);
+        list_token.lexeme = node_manager->get_lexeme(value_dec);
         _list_node->children.push_back(value_dec);
+
+        if (current_token->token_type == ending_token) break;
+
+        consume(separator, separator_error_message);
 
         while (match_types(current_token->token_type, TT_NEWLINE)) {
             advance();
@@ -455,11 +448,11 @@ NodeIndex SageParser::parse_range() {
     NodeIndex lhs = parse_expression();
     Token left_token = node_manager->get_token(lhs);
 
-    consume(TT_RANGE, "Expected '...' operator in range statement.");
+    consume(TT_DOUBLE_DOT, "Expected '..' operator in range statement.");
 
     NodeIndex rhs = parse_expression();
 
-    string range_lex = left_token.lexeme + "..." + node_manager->get_lexeme(rhs);
+    string range_lex = left_token.lexeme + ".." + node_manager->get_lexeme(rhs);
     Token range_token = Token(TT_COMPILER_CREATED, range_lex, left_token.linenum);
 
     return node_manager->create_binary(range_token, PN_RANGE, lhs, rhs);
@@ -668,6 +661,79 @@ NodeIndex SageParser::parse_body() {
     return body_node;
 }
 
+//NodeIndex SageParser::parse_type() {
+//    if (match_types(current_token->token_type, TT_LPAREN)) {
+//        NodeIndex function_type = parse_function();
+//        Token token = node_manager->get_token(function_type);
+//        return node_manager->create_unary(token, PN_TYPE, function_type);
+//    }
+//
+//    // parse type identifier
+//    Token type_token = Token();
+//    type_token.fill_with(*current_token);
+//    auto current_type_node = node_manager->create_unary(type_token, PN_TYPE);
+//    NodeIndex type_root_node = current_type_node;
+//    advance(); // advance past identifier
+//
+//    while (current_token->token_type == TT_STAR || current_token->token_type == TT_LBRACKET) {
+//        if (current_token->token_type == TT_STAR) {
+//            Token token = node_manager->get_token(current_type_node);
+//            Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
+//            auto pointer_type_node = node_manager->create_unary(new_token, PN_POINTER_TYPE);
+//            node_manager->set_branch(current_type_node, pointer_type_node);
+//            current_type_node = pointer_type_node;
+//
+//            advance();
+//            continue;
+//        }
+//
+//        if (current_token->token_type != TT_LBRACKET) {
+//            Token token = Token();
+//            token.fill_with(*current_token);
+//            ErrorLogger::get().log_error_unsafe(
+//                token, sen("Found unexpected character in type expression:", token.lexeme), SYNTAX);
+//            break;
+//        }
+//
+//        advance(); // move past '[' token
+//
+//        if (current_token->token_type != TT_NUM &&
+//            current_token->token_type != TT_DOUBLE_DOT &&
+//            current_token->token_type != TT_RBRACKET) {
+//            Token token = Token();
+//            token.fill_with(*current_token);
+//            ErrorLogger::get().log_error_unsafe(
+//                token, sen("Array type expression has only three variants: '[<digits>]', '[..]', '[]'.", token.lexeme,
+//                           "not allowed in array type expression."), SYNTAX);
+//            break;
+//        }
+//
+//        Token token = node_manager->get_token(current_type_node);
+//        string new_token_string = str(token.lexeme, "[]");
+//        ParseNodeType array_type = PN_ARRAY_REFERENCE_TYPE;
+//
+//        if (current_token->token_type == TT_NUM) {
+//            new_token_string = str(token.lexeme, "[", current_token->lexeme, "]");
+//            array_type = PN_STATIC_ARRAY_TYPE;
+//            advance();
+//        }else if (current_token->token_type == TT_DOUBLE_DOT) {
+//            new_token_string = str(token.lexeme, "[..]");
+//            array_type = PN_DYNAMIC_ARRAY_TYPE;
+//            advance();
+//        }
+//
+//        Token new_token = Token(token.token_type, new_token_string, token.linenum);
+//        NodeIndex new_array_node = node_manager->create_unary(new_token, array_type);
+//
+//        node_manager->set_branch(current_type_node, new_array_node);
+//        current_type_node = new_array_node;
+//
+//        consume(TT_RBRACKET, "Expected closing ']' for array type expression.");
+//    }
+//
+//    return type_root_node;
+//}
+
 NodeIndex SageParser::parse_type() {
     NodeIndex return_node = NULL_INDEX;
 
@@ -680,7 +746,6 @@ NodeIndex SageParser::parse_type() {
     }
     if (match_types(current_token->token_type, TT_LBRACKET)) {
         // keep track of how many dims this array has
-        // TODO: rework array syntax
         int lbracket_nest_count = 0;
         string token_lexeme = "";
         while (match_types(current_token->token_type, TT_LBRACKET)) {
@@ -732,12 +797,6 @@ NodeIndex SageParser::parse_type() {
 
         Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
         return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
-    } else if (match_types(current_token->token_type, TT_VARARG)) {
-        advance(); // advance past the vararg '...' notation
-        Token type_token = Token();
-        type_token.fill_with(*current_token);
-        return_node = node_manager->create_unary(type_token, PN_VARARG);
-        advance();
     } else {
         // just a normal type
         Token type_token = Token();
@@ -748,8 +807,8 @@ NodeIndex SageParser::parse_type() {
 
     if (current_token->token_type == TT_STAR) {
         advance(); // advance past the star
-        Token retnode_token = node_manager->get_token(return_node);
-        Token new_token = Token(retnode_token.token_type, retnode_token.lexeme + "*", retnode_token.linenum);
+        Token token = node_manager->get_token(return_node);
+        Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
         NodeIndex new_return_node = node_manager->create_unary(new_token, PN_TYPE, return_node);
 
         return new_return_node;
@@ -902,7 +961,8 @@ NodeIndex SageParser::parse_primary() {
             if (current_token->lexeme != "true" && current_token->lexeme != "false") {
                 ErrorLogger::get().log_error_unsafe(
                     token,
-                    sen("Found non-literal keyword,", token.lexeme,", while parsing expression. Only boolean literal keywords ('true'/'false') can be in expressions."),
+                    sen("Found non-literal keyword,", token.lexeme,
+                        ", while parsing expression. Only boolean literal keywords ('true'/'false') can be in expressions."),
                     SYNTAX);
             }
             ret = node_manager->create_unary(token, PN_BOOL);

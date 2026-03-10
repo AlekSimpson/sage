@@ -91,16 +91,14 @@ string Token::to_string() {
             return "TT_ERROR";
         case TT_BINDING:
             return "TT_BINDING";
-        case TT_RANGE:
-            return "TT_RANGE";
+        case TT_DOUBLE_DOT:
+            return "TT_DOUBLE_DOT";
         case TT_COMPILER_CREATED:
             return "TT_COMPILER_CREATED";
         case TT_BIT_AND:
             return "TT_BIT_AND";
         case TT_BIT_OR:
             return "TT_BIT_OR";
-        case TT_DECREMENT:
-            return "TT_DECREMENT";
         case TT_INCREMENT:
             return "TT_INCREMENT";
         case TT_AND:
@@ -113,10 +111,8 @@ string Token::to_string() {
             return "TT_POUND";
         case TT_COLON:
             return "TT_COLON";
-        case TT_VARARG:
-            return "TT_VARARG";
         default:
-            return "TT_VARARG";
+            return "TT_UNKNOWN";
     };
 }
 

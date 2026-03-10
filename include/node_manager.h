@@ -65,6 +65,7 @@ public:
     void set_children(NodeIndex, vector<NodeIndex>);
     void set_binary_left(NodeIndex target, NodeIndex new_left_node);
     void set_binary_right(NodeIndex target, NodeIndex new_right_node);
+    void set_branch(NodeIndex, NodeIndex);
 
     // NEW: Track modifications for incremental reanalysis
     set<NodeIndex> modified_subtrees;
