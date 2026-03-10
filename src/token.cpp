@@ -47,8 +47,8 @@ string Token::to_string() {
             return "TT_ADD";
         case TT_SUB:
             return "TT_SUB";
-        case TT_MUL:
-            return "TT_MUL";
+        case TT_STAR:
+            return "TT_STAR";
         case TT_DIV:
             return "TT_DIV";
         case TT_NUM:
@@ -87,8 +87,6 @@ string Token::to_string() {
             return "TT_EOF";
         case TT_SPACE:
             return "TT_SPACE";
-        case TT_STAR:
-            return "TT_STAR";
         case TT_ERROR:
             return "TT_ERROR";
         case TT_BINDING:
@@ -123,7 +121,8 @@ string Token::to_string() {
 }
 
 void Token::print() {
-    printf("Token{%s, %s, %d}", this->to_string().c_str(), lexeme.c_str(), linenum);
+    auto *lex_value = token_type != TT_NEWLINE ? lexeme.c_str() : "\\n";
+    printf("Token{%s, %s, %d}\n", this->to_string().c_str(), lex_value, linenum);
 }
 
 int Token::get_operator_precedence() {
@@ -145,7 +144,7 @@ int Token::get_operator_precedence() {
         case TT_ADD:
         case TT_SUB:
             return 3;
-        case TT_MUL:
+        case TT_STAR:
         case TT_DIV:
         case TT_MODULO: 
             return 4;

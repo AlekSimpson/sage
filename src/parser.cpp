@@ -34,7 +34,21 @@ SageParser::~SageParser() {
     }
 }
 
-NodeIndex SageParser::parse_fragment(const string &source, const string &fragment_name, bool debug_lexer) {
+void SageParser::print_lexer_output(string filename) {
+    ifstream charbuffer(filename);
+    this->sourcename = filename;
+    symbol_count = 0;
+    fragment_mode = false;
+    lexer = new SageLexer(&charbuffer, filename);
+    advance();
+
+    while (current_token->token_type != TT_EOF) {
+        current_token->print();
+        advance();
+    }
+}
+
+NodeIndex SageParser::parse_fragment(const string &source, const string &fragment_name) {
     istringstream charbuffer(source);
     this->sourcename = fragment_name;
     symbol_count = 0;
@@ -44,18 +58,6 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
 
     // Global scope is already created in ScopeManager constructor
 
-    if (debug_lexer) {
-        Token *walk_token = current_token;
-        int counter = 0;
-        while (walk_token != nullptr && walk_token->token_type != TT_EOF) {
-            printf("[%d] %s\n", counter, walk_token->to_string().c_str());
-            current_token = lexer->get_token();
-            counter++;
-        }
-
-        return NULL_INDEX;
-    }
-
     NodeIndex program_root = parse_statements();
 
     // Global scope doesn't need to be exited
@@ -63,7 +65,7 @@ NodeIndex SageParser::parse_fragment(const string &source, const string &fragmen
     return program_root;
 }
 
-NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
+NodeIndex SageParser::parse_program(string filename) {
     ifstream charbuffer(filename);
     this->sourcename = filename;
     symbol_count = 0;
@@ -72,18 +74,6 @@ NodeIndex SageParser::parse_program(string filename, bool debug_lexer) {
     advance();
 
     // Global scope is already created in ScopeManager constructor
-
-    if (debug_lexer) {
-        Token *walk_token = current_token;
-        int counter = 0;
-        while (walk_token != nullptr && walk_token->token_type != TT_EOF) {
-            printf("[%d] %s\n", counter, walk_token->to_string().c_str());
-            current_token = lexer->get_token();
-            counter++;
-        }
-
-        return NULL_INDEX;
-    }
 
     NodeIndex program_root = parse_statements();
 
@@ -756,7 +746,7 @@ NodeIndex SageParser::parse_type() {
         advance(); // advance past the identifier
     }
 
-    if (current_token->lexeme == "*") {
+    if (current_token->token_type == TT_STAR) {
         advance(); // advance past the star
         Token retnode_token = node_manager->get_token(return_node);
         Token new_token = Token(retnode_token.token_type, retnode_token.lexeme + "*", retnode_token.linenum);

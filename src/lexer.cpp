@@ -107,7 +107,7 @@ Token *SageLexer::lex_for_symbols() {
     unordered_map<char, TokenType> SYMBOLS = {
         {'(', TT_LPAREN},
         {')', TT_RPAREN},
-        {'*', TT_MUL},
+        {'*', TT_STAR},
         {'/', TT_DIV},
         {'%', TT_MODULO},
         {',', TT_COMMA},

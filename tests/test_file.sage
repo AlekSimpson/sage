@@ -1,9 +1,8 @@
 
 
-array: int[4] = [1, 2, 3, 4]
+some_variable: int = 239
 
 
-puti(array.length, 1)
 
 
 

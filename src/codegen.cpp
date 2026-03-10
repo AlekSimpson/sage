@@ -672,7 +672,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             return process_operator(_build_sub);
         case TT_DIV:
             return process_operator(_build_div);
-        case TT_MUL:
+        case TT_STAR:
             return process_operator(_build_mul);
         case TT_AND:
             return process_operator(_build_and);

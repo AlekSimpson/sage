@@ -30,10 +30,9 @@ public:
 
   void set_insertion_scope(int scope_id) { insertion_scope_id = scope_id; }
 
-  NodeIndex parse_fragment(const string &source, const string &fragment_name, bool debug_lexer = false);
-  NodeIndex parse_program(string filename, bool debug_lexer = false);
+  NodeIndex parse_fragment(const string &source, const string &fragment_name);
+  NodeIndex parse_program(string filename);
 
-private:
   // parsing methods
   NodeIndex parse_statements();
   NodeIndex parse_statement();
@@ -66,5 +65,6 @@ private:
   Token peek();
   bool op_is_left_associative(string op_literal);
   bool op_is_right_associative(string op_literal);
+  void print_lexer_output(string filename);
 
 };

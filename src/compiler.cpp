@@ -43,6 +43,11 @@ bool SageCompiler::generating_compile_time_bytecode() {
 void SageCompiler::compile_file(string mainfile) {
     assertm(options.compilation_target == SAGE_VM, sen("Support for compilation target", compilation_target_string(options.compilation_target), "is not implemented yet.").data());
 
+    if (options.debug == LEXING) {
+        parser.print_lexer_output(mainfile);
+        return;
+    }
+
     /// 1. INITIAL PROGRAM COMPILATION PASS
     string emit_string;
     NodeIndex ast_root = parser.parse_program(mainfile);

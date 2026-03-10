@@ -24,6 +24,7 @@
 
 enum debug_level {
     NONE,
+    LEXING,
     PARSING,
     COMPILATION,
     ALL
