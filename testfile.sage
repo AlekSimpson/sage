@@ -1,4 +1,4 @@
 
 
-array: int[1]
+array: int**
 

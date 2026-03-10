@@ -57,6 +57,8 @@ void SageCompiler::compile_file(string mainfile) {
         return;
     }
 
+    if (options.debug >= PARSING) node_manager->showtree(ast_root);
+
     int symbol_count = ceil((BUILTIN_COUNT + parser.symbol_count) * 1.5);
     symbol_table = SageSymbolTable(&scope_manager, node_manager, symbol_count);
     symbol_table.initialize();
