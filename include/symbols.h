@@ -163,7 +163,8 @@ public:
 
     bool is_comptime_value(SymbolEntry *);
 
-    SageType *resolve_type_identifier(string, int);
+    //SageType *resolve_type_identifier(string, int);
+    SageType *resolve_unknown_type_node(NodeIndex, int);
     SageType *resolve_variable_type(SymbolIndex);
     SageType *resolve_function_type(SymbolIndex);
     SageType *resolve_struct_type(SymbolIndex);
