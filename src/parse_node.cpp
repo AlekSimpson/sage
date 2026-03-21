@@ -67,6 +67,8 @@ string nodetype_to_string(ParseNodeType nodetype) {
             return "POINTER_TYPE";
         case PN_ARRAY_REFERENCE_TYPE:
             return "ARRAY_REFERENCE_TYPE";
+        case PN_FIELD_ACCESS:
+            return "FIELD_ACCESS";
         default:
             return "Unknown Node Type (Could have forgot to add String() impl for new type)";
     }

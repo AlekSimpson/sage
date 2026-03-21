@@ -106,11 +106,19 @@ bool SagePointerType::is_callable() {
     return true;
 }
 
+/*
+ * DynamicArray :: struct  {
+ *     first: void*
+ *     length: int
+ *     capacity: int
+ * }
+ */
+
 // dynamic_array_type
 SageDynamicArrayType::SageDynamicArrayType(SageType *basetype) {
     array_type = basetype;
     length = 0;
-    capacity = 15;
+    capacity = 10;
 
     size = capacity * basetype->size;
     alignment = basetype->alignment;
@@ -168,9 +176,26 @@ bool SageDynamicArrayType::is_callable() {
     return true;
 }
 
+/*
+ * array :: struct { // Static
+ *     first: T$*
+ *     length: int
+ * }
+ *
+ * this:
+ *      array: int[4]
+ * compiles to:
+ *      allocate stack memory for array struct: 16 bytes
+ *      store the stack pointer to array.first
+ *      store the length into array.length
+ *      allocate stack memory for the array
+ *
+ */
+
 // array_type
 SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
     this->size = length * element_type->size;
+    this->length = length;
     this->alignment = element_type->alignment;
 }
 
@@ -220,8 +245,8 @@ SageReferenceType::SageReferenceType(SageType *base_type) {
 
     // references are "fat pointers" to an array
     /*
-     *   reference :: struct {
-     *      array: void* // 8 bytes
+     *   Reference :: struct {
+     *      data: void* // 8 bytes
      *      window_size: int // 8 bytes
      *   }
      */

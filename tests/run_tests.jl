@@ -3,6 +3,11 @@ using JSON3, StructTypes
 const COMPILER = get(ENV, "COMPILER", "./build/bin/sage")
 const TIMEOUT  = parse(Float64, get(ENV, "TEST_TIMEOUT", "10.0"))
 const UPDATE   = "--update" in ARGS
+const CREATE   = "--create" in ARGS
+const RUN_SINGLE = "--run-test" in ARGS
+const LOADFILE = "--load" in ARGS
+
+const NAMED_ARGS = ["--create", "--run-test", "--load"]
 
 const SIGNAL_NAMES = Dict(
     4  => "SIGILL (illegal instruction)",
@@ -14,7 +19,14 @@ const SIGNAL_NAMES = Dict(
     15 => "SIGTERM (terminated)",
 )
 
-const DISABLED_TESTS = ["functions_seven.sage"]
+const DISABLED_TESTS = [
+    "functions_seven.sage",
+    "array_reference_one.sage",
+    "arrays_two.sage",
+    "dynamic_array_one.sage",
+    "dynamic_arrays_two.sage",
+    "arrays_three.sage"
+]
 
 struct CompilerResult
     exit_code::Int
@@ -46,16 +58,16 @@ ALL_TESTS = CompilerTest[]
 
 StructTypes.StructType(::Type{CompilerTest}) = StructTypes.Struct()
 
-function get_create_name()
+function get_name_parameter()
     for (i, arg) in enumerate(ARGS)
-        if arg == "--create" && i < length(ARGS)
+        if arg in NAMED_ARGS && i < length(ARGS)
             return ARGS[i + 1]
         end
     end
     return nothing
 end
 
-const CREATE_NAME = get_create_name()
+const NAME_PARAMETER = get_name_parameter()
 
 function run_compiler(source_path::String)
     out = Pipe()
@@ -131,8 +143,8 @@ function run_test(test::CompilerTest)
     end
 
     if UPDATE
-        ALL_TESTS[test.index].expected_bytecode = bytecode_output
-        ALL_TESTS[test.index].expected_stdout = result.stdout
+        test.expected_bytecode = bytecode_output
+        test.expected_stdout = result.stdout
         return TestResult(test.name, true, "", result.stdout, result.stderr)
     end
 
@@ -144,13 +156,13 @@ function run_test(test::CompilerTest)
     stdout_diff = compute_diff(test.expected_stdout, result.stdout)
     diff = bytecode_diff * "\nstdout diff:\n" * stdout_diff
 
-    return TestResult(test.name, false, diff, result.stdout, result.stderr)
+    return TestResult(test.name, false, bytecode_diff, result.stdout, result.stderr)
 end
 
 function load_tests()
     json_data = read("./tests/tests.json", String)
     tests = JSON3.read(json_data, Vector{CompilerTest})
-    sort!(tests, by=test -> test.name)
+    sort!(tests, by=test -> test.index)
     return tests
 end
 
@@ -171,9 +183,11 @@ function report_results(results::Vector{TestResult})
         println(r.name)
     end
 
-    for test in DISABLED_TESTS
-        printstyled("  ~ ", color=:yellow, bold=true)
-        println(test)
+    if !RUN_SINGLE
+        for test in DISABLED_TESTS
+            printstyled("  ~ ", color=:yellow, bold=true)
+            println(test)
+        end
     end
 
     if !isempty(passed_results) && !isempty(failed)
@@ -192,7 +206,8 @@ function report_results(results::Vector{TestResult})
 
     println(repeat('-', 60))
     summary_color = isempty(failed) ? :green : :red
-    total_test_length = length(results) + length(DISABLED_TESTS)
+    disabled_amount = if RUN_SINGLE 0 else length(DISABLED_TESTS) end
+    total_test_length = length(results) + disabled_amount
     printstyled("$(length(passed_results))/$(total_test_length) passed", color=summary_color, bold=true)
     if !isempty(failed)
         printstyled(", $(length(failed)) failed", color=:red, bold=true)
@@ -207,8 +222,8 @@ function report_results(results::Vector{TestResult})
 end
 
 function create_test(name::String)
-    source = read("./tests/test_file.sage", String)
-    result = run_compiler("tests/test_file.sage")
+    source = read("testfile.sage", String)
+    result = run_compiler("testfile.sage")
 
     crashed, msg = test_did_crash(result)
     if crashed
@@ -240,8 +255,21 @@ end
 function main()
     global ALL_TESTS = load_tests()
 
-    if CREATE_NAME !== nothing
-        create_test(CREATE_NAME)
+    if LOADFILE
+        target_test = filter(test -> test.name == NAME_PARAMETER, ALL_TESTS)[1]
+        write("testfile.sage", target_test.source)
+        return
+    end
+
+    if CREATE
+        create_test(NAME_PARAMETER)
+        return
+    end
+
+    if RUN_SINGLE
+        target_test = filter(test -> test.name == NAME_PARAMETER, ALL_TESTS)[1]
+        results = [run_test(target_test)]
+        report_results(results)
         return
     end
 

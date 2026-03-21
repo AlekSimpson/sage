@@ -1,6 +1,7 @@
 
 
-some_variable: int = 239
+
+some_array: int[4]
 
 
 

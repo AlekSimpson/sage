@@ -371,6 +371,21 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             symbol_table.declare_literal(current_node, string_value, static_pointer);
             break;
         }
+        case PN_STATIC_ARRAY_TYPE: {
+            auto static_length_node = node_manager->get_branch(current_node);
+
+            // need to support nested types, this doesnt
+
+            symbol_table.declare_type_symbol(static_length_node, TR::get_);
+
+            break;
+        }
+        case PN_DYNAMIC_ARRAY_TYPE: {
+            break;
+        }
+        case PN_ARRAY_REFERENCE_TYPE: {
+            break;
+        }
         default: {
             switch (node_manager->get_host_nodetype(current_node)) {
                 case PN_BLOCK: {

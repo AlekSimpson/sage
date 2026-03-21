@@ -319,7 +319,6 @@ void SageSymbolTable::initialize() {
     string_namespace->add_field_member("bytes", TR::get_pointer_type(TR::get_byte_type(CHAR)));
     string_namespace->add_field_member("length", TR::get_integer_type(8));
 
-
     // setup builtin functions
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),
@@ -341,8 +340,47 @@ void SageSymbolTable::initialize() {
     //function_visitor_state.push(&entry->function_info);
 }
 
-SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_id) {
-    return nullptr;
+SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_id, bool self_referential_pointer_detected) {
+    string type_identifier = nm->get_identifier(node);
+    auto *type_symbol = lookup(type_identifier, scope_id);
+    assert(type_symbol != nullptr);
+
+    auto *current_type = type_symbol->datatype;
+    if (self_referential_pointer_detected) {
+        current_type = TR::get_byte_type(VOID);
+    }
+    assert(current_type != nullptr);
+
+    auto branch = nm->get_branch(node);
+    if (branch == NULL_INDEX) return current_type;
+
+    while (branch != NULL_INDEX) {
+        switch (nm->get_nodetype(branch)) {
+            case PN_STATIC_ARRAY_TYPE: {
+                auto lexeme = nm->get_lexeme(branch);
+                current_type = TR::get_array_type(current_type, stoll(lexeme));
+                break;
+            }
+            case PN_DYNAMIC_ARRAY_TYPE:
+                current_type = TR::get_dyn_array_type(current_type, 10);
+                break;
+            case PN_ARRAY_REFERENCE_TYPE:
+                current_type = TR::get_reference_type(current_type, 0);
+                break;
+            case PN_POINTER_TYPE:
+                current_type = TR::get_pointer_type(current_type);
+                break;
+            default: {
+                // error
+                Token token = nm->get_token(branch);
+                ErrorLogger::get().log_error_unsafe(token, sen("Found unexpected symbol in type expression:", token.lexeme), SYNTAX);
+                return nullptr;
+            }
+        }
+        branch = nm->get_branch(branch);
+    }
+
+    return current_type;
 }
 
 SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
@@ -377,8 +415,37 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
             type_expression = nm->get_middle(member_expression);
         }
 
+        /*
+         *  check if member type is a recursive pointer, ex:
+         *  ListNode :: struct {
+         *      data: int
+         *      next: ListNode*
+         *  }
+         */
         auto identifier = nm->get_identifier(type_expression);
-        auto *member_type = resolve_unknown_type_node(type_expression, scope_id);
+        auto branch = nm->get_branch(type_expression);
+        bool self_referential_pointer_detected = false;
+        if (identifier == struct_entry.name && branch != NULL_INDEX) {
+            bool full_type_is_pointer = false;
+            while (branch != NULL_INDEX) {
+                auto next_branch = nm->get_branch(branch);
+                if (next_branch == NULL_INDEX) { // is last node in type expression
+                    full_type_is_pointer = nm->get_nodetype(branch) == PN_POINTER_TYPE;
+                    break;
+                }
+                branch = nm->get_branch(branch);
+            }
+
+            if (!full_type_is_pointer) {
+                Token token = nm->get_token(type_expression);
+                ErrorLogger::get().log_error_unsafe(token, sen("Recursive type definition."), GENERAL);
+                continue;
+            }
+
+            self_referential_pointer_detected = true;
+        }
+
+        auto *member_type = resolve_unknown_type_node(type_expression, scope_id, self_referential_pointer_detected);
         member_types.push_back(member_type);
 
         auto member_symbol_node = nm->get_left(member_expression);

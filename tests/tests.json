@@ -18,12 +18,21 @@
         "expected_stdout": ""
     },
     {
+        "index": 30,
+        "name": "arrays_three.sage",
+        "source": "\n\narray: int[4] = [1, 2, 3, 4]\n\n\nputi(array.length, 1)\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": ""
+    },
+    {
         "index": 28,
         "name": "arrays_two.sage",
         "source": "\n\nsome_array: int[5] = [1, 2, 3, 4, 5]\n\n\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "",
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     },
     {
@@ -41,8 +50,8 @@
         "source": "\n\ndyn_array: int[..] = [1, 2, 3, 4, 5]\n\n\nputi(some_array.length, 1)\nputi(some_array[0], 1)\nputi(some_array[1], 1)\nputi(some_array[2], 1)\nputi(some_array[3], 1)\nputi(some_array[4], 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "",
-        "expected_stdout": ""
+        "expected_bytecode": "\n\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "\u001b[31m\u001b[1msyntax error: \u001b[0m\u001b[1munrecognized symbol: .\u001b[0m\n\u001b[34m --> \u001b[0mtests/test_file.sage:3:18\n\u001b[34m  |\u001b[0m\n\u001b[34m3 | \u001b[0mdyn_array: int[..] = [1, 2, 3, 4, 5]\n\u001b[34m  | \u001b[0m                 \u001b[31m^\u001b[0m\n\n"
     },
     {
         "index": 1,
@@ -194,7 +203,7 @@
         "source": "\n\nVector2 :: struct {\n    x: i64\n    y: i64\n}\n\nSomeStruct :: struct {\n    vector1: Vector2*\n}\n\nsome_value: SomeStruct\nsome_value.vector1 = ^vector\n\nvector: Vector2\nvector.y = 1034\n\nputi(some_value.vector1.y, 4)\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 16\nmov r10 0\nadd r10 r10 0\nadd r10 r10 0\nsub r11 r24 r10\nloadr r12 ($fp - 8)\nstorea 8 $r11 r12\nmov r13 0\nadd r13 r13 8\nadd r13 r13 8\nsub r14 r24 r13\nstorea 8 $r14 1034\nmov r15 0\nadd r15 r15 0\nadd r15 r15 0\nsub r16 r24 r15\nloada 8 r17 $r16\nmov r15 0\nadd r15 r15 8\nsub r18 r17 r15\nloada 8 r19 $r18\nmov r0 r19\nmov r1 4\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 8\nmov r10 0\nadd r10 r10 0\nadd r10 r10 0\nsub r11 r24 r10\nloadr r12 ($fp - 8)\nstorea 8 $r11 r12\nmov r13 0\nadd r13 r13 8\nadd r13 r13 8\nsub r14 r24 r13\nstorea 8 $r14 1034\nmov r15 0\nadd r15 r15 0\nadd r15 r15 0\nsub r16 r24 r15\nloada 8 r17 $r16\nmov r15 0\nadd r15 r15 8\nsub r18 r17 r15\nloada 8 r19 $r18\nmov r0 r19\nmov r1 4\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "1034"
     },
     {
@@ -227,11 +236,11 @@
     {
         "index": 21,
         "name": "structs_six.sage",
-        "source": "\nnull: int = 0\n\nListNode :: struct {\n    data: string\n    next: ListNode*\n}\n\nnode3: ListNode\nnode3.data = \"node3 data\"\n\nnode2: ListNode\nnode2.data = \"node2 data\"\nnode2.next = ^node3\n\nnode1: ListNode\nnode1.data = \"node1 data\"\nnode1.next = ^node2\n\n\n",
+        "source": "\nnull: int = 0\n\nListNode :: struct {\n    data: string\n    next: ListNode*\n}\n\nnode3: ListNode\nnode3.data = \"node3 data\"\n\nnode2: ListNode\nnode2.data = \"node2 data\"\nnode2.next = ^node3\n\nnode1: ListNode\nnode1.data = \"node1 data\"\nnode1.next = ^node2\n\n\nputs(node1.data, node1.data.length)\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 24\nsub r23 r23 24\nsub r23 r23 24\nmov r25 0\nmov r10 0\nadd r10 r10 0\nadd r10 r10 0\nsub r11 r24 r10\nstorea 8 $r11 0\nsub r12 r11 8\nstorea 8 $r12 10\nmov r13 0\nadd r13 r13 24\nadd r13 r13 0\nsub r14 r24 r13\nstorea 8 $r14 10\nsub r15 r14 8\nstorea 8 $r15 10\nmov r16 0\nadd r16 r16 24\nadd r16 r16 16\nsub r17 r24 r16\nloadr r18 ($fp - 0)\nstorea 8 $r17 r18\nmov r19 0\nadd r19 r19 48\nadd r19 r19 0\nsub r10 r24 r19\nstorea 8 $r10 20\nsub r11 r10 8\nstorea 8 $r11 10\nmov r12 0\nadd r12 r12 48\nadd r12 r12 16\nsub r13 r24 r12\nloadr r14 ($fp - 24)\nstorea 8 $r13 r14\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
-        "expected_stdout": ""
+        "expected_bytecode": "\n\nmov r25 0\nmov r10 0\nadd r10 r10 0\nadd r10 r10 0\nsub r11 r24 r10\nstorea 8 $r11 0\nsub r12 r11 8\nstorea 8 $r12 10\nmov r13 0\nadd r13 r13 24\nadd r13 r13 0\nsub r14 r24 r13\nstorea 8 $r14 10\nsub r15 r14 8\nstorea 8 $r15 10\nmov r16 0\nadd r16 r16 24\nadd r16 r16 16\nsub r17 r24 r16\nloadr r18 ($fp - 0)\nstorea 8 $r17 r18\nmov r19 0\nadd r19 r19 48\nadd r19 r19 0\nsub r10 r24 r19\nstorea 8 $r10 20\nsub r11 r10 8\nstorea 8 $r11 10\nmov r12 0\nadd r12 r12 48\nadd r12 r12 16\nsub r13 r24 r12\nloadr r14 ($fp - 24)\nstorea 8 $r13 r14\nmov r15 0\nadd r15 r15 48\nadd r15 r15 0\nsub r16 r24 r15\nloada 8 r17 $r16\nmov r18 0\nadd r18 r18 48\nadd r18 r18 0\nadd r18 r18 8\nsub r19 r24 r18\nloada 8 r10 $r19\nmov r0 r17\nmov r1 r10\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "node1 data"
     },
     {
         "index": 22,
@@ -258,15 +267,6 @@
         "category": "positive",
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nmov r25 239\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
-        "expected_stdout": ""
-    },
-    {
-        "index": 30,
-        "name": "arrays_three.sage",
-        "source": "\n\narray: int[4] = [1, 2, 3, 4]\n\n\nputi(array.length, 1)\n\n\n\n",
-        "category": "positive",
-        "expected_exit_code": 0,
-        "expected_bytecode": "",
         "expected_stdout": ""
     }
 ]

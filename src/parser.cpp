@@ -661,161 +661,161 @@ NodeIndex SageParser::parse_body() {
     return body_node;
 }
 
-//NodeIndex SageParser::parse_type() {
-//    if (match_types(current_token->token_type, TT_LPAREN)) {
-//        NodeIndex function_type = parse_function();
-//        Token token = node_manager->get_token(function_type);
-//        return node_manager->create_unary(token, PN_TYPE, function_type);
-//    }
-//
-//    // parse type identifier
-//    Token type_token = Token();
-//    type_token.fill_with(*current_token);
-//    auto current_type_node = node_manager->create_unary(type_token, PN_TYPE);
-//    NodeIndex type_root_node = current_type_node;
-//    advance(); // advance past identifier
-//
-//    while (current_token->token_type == TT_STAR || current_token->token_type == TT_LBRACKET) {
-//        if (current_token->token_type == TT_STAR) {
-//            Token token = node_manager->get_token(current_type_node);
-//            Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
-//            auto pointer_type_node = node_manager->create_unary(new_token, PN_POINTER_TYPE);
-//            node_manager->set_branch(current_type_node, pointer_type_node);
-//            current_type_node = pointer_type_node;
-//
-//            advance();
-//            continue;
-//        }
-//
-//        if (current_token->token_type != TT_LBRACKET) {
-//            Token token = Token();
-//            token.fill_with(*current_token);
-//            ErrorLogger::get().log_error_unsafe(
-//                token, sen("Found unexpected character in type expression:", token.lexeme), SYNTAX);
-//            break;
-//        }
-//
-//        advance(); // move past '[' token
-//
-//        if (current_token->token_type != TT_NUM &&
-//            current_token->token_type != TT_DOUBLE_DOT &&
-//            current_token->token_type != TT_RBRACKET) {
-//            Token token = Token();
-//            token.fill_with(*current_token);
-//            ErrorLogger::get().log_error_unsafe(
-//                token, sen("Array type expression has only three variants: '[<digits>]', '[..]', '[]'.", token.lexeme,
-//                           "not allowed in array type expression."), SYNTAX);
-//            break;
-//        }
-//
-//        Token token = node_manager->get_token(current_type_node);
-//        string new_token_string = str(token.lexeme, "[]");
-//        ParseNodeType array_type = PN_ARRAY_REFERENCE_TYPE;
-//
-//        if (current_token->token_type == TT_NUM) {
-//            new_token_string = str(token.lexeme, "[", current_token->lexeme, "]");
-//            array_type = PN_STATIC_ARRAY_TYPE;
-//            advance();
-//        }else if (current_token->token_type == TT_DOUBLE_DOT) {
-//            new_token_string = str(token.lexeme, "[..]");
-//            array_type = PN_DYNAMIC_ARRAY_TYPE;
-//            advance();
-//        }
-//
-//        Token new_token = Token(token.token_type, new_token_string, token.linenum);
-//        NodeIndex new_array_node = node_manager->create_unary(new_token, array_type);
-//
-//        node_manager->set_branch(current_type_node, new_array_node);
-//        current_type_node = new_array_node;
-//
-//        consume(TT_RBRACKET, "Expected closing ']' for array type expression.");
-//    }
-//
-//    return type_root_node;
-//}
-
 NodeIndex SageParser::parse_type() {
-    NodeIndex return_node = NULL_INDEX;
-
     if (match_types(current_token->token_type, TT_LPAREN)) {
         NodeIndex function_type = parse_function();
-
-        return_node = node_manager->create_unary(node_manager->get_token(function_type), PN_TYPE, function_type);
-
-        return return_node;
+        Token token = node_manager->get_token(function_type);
+        return node_manager->create_unary(token, PN_TYPE, function_type);
     }
-    if (match_types(current_token->token_type, TT_LBRACKET)) {
-        // keep track of how many dims this array has
-        int lbracket_nest_count = 0;
-        string token_lexeme = "";
-        while (match_types(current_token->token_type, TT_LBRACKET)) {
-            advance(); // move past lbracket
-            lbracket_nest_count++;
-            token_lexeme += "[";
-        }
 
-        TokenType slice[2] = {TT_KEYWORD, TT_IDENT};
-        if (!matches_any(current_token->token_type, slice, 2)) {
-            ErrorLogger::get().log_error_unsafe(*current_token, "Expected valid type identifier in array type.", SYNTAX);
-            return NULL_INDEX;
-        }
+    // parse type identifier
+    Token type_token = Token();
+    type_token.fill_with(*current_token);
+    auto current_type_node = node_manager->create_unary(type_token, PN_TYPE);
+    NodeIndex type_root_node = current_type_node;
+    advance(); // advance past identifier
 
-        Token array_type_token = Token();
-        array_type_token.fill_with(*current_token);
-        NodeIndex array_type_node = node_manager->create_unary(array_type_token, PN_TYPE);
-        token_lexeme += array_type_token.lexeme;
-        advance(); // advance past the identifier
+    while (current_token->token_type == TT_STAR || current_token->token_type == TT_LBRACKET) {
+        if (current_token->token_type == TT_STAR) {
+            Token token = node_manager->get_token(current_type_node);
+            Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
+            auto pointer_type_node = node_manager->create_unary(new_token, PN_POINTER_TYPE);
+            node_manager->set_branch(current_type_node, pointer_type_node);
+            current_type_node = pointer_type_node;
 
-        if (match_types(current_token->token_type, TT_COLON)) {
-            advance(); // advance past the colon
-
-            if (!match_types(current_token->token_type, TT_NUM)) {
-                ErrorLogger::get().log_error_unsafe(
-                    *current_token,
-                    "Expected a number to define the length of the array type declaration.",
-                    SYNTAX);
-                node_manager->delete_node(array_type_node);
-                return NULL_INDEX;
-            }
-
-            advance(); // advance past the number
-        }
-
-        while (match_types(current_token->token_type, TT_RBRACKET)) {
             advance();
-            lbracket_nest_count--;
-            token_lexeme += "]";
+            continue;
         }
 
-        if (lbracket_nest_count != 0) {
+        if (current_token->token_type != TT_LBRACKET) {
+            Token token = Token();
+            token.fill_with(*current_token);
             ErrorLogger::get().log_error_unsafe(
-                *current_token,
-                "Unambiguous array nesting found, please ensure all '[' have a matching ']'.",
-                SYNTAX);
-            return NULL_INDEX;
+                token, sen("Found unexpected character in type expression:", token.lexeme), SYNTAX);
+            break;
         }
 
-        Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
-        return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
-    } else {
-        // just a normal type
-        Token type_token = Token();
-        type_token.fill_with(*current_token);
-        return_node = node_manager->create_unary(type_token, PN_TYPE);
-        advance(); // advance past the identifier
+        advance(); // move past '[' token
+
+        if (current_token->token_type != TT_NUM &&
+            current_token->token_type != TT_DOUBLE_DOT &&
+            current_token->token_type != TT_RBRACKET) {
+            Token token = Token();
+            token.fill_with(*current_token);
+            ErrorLogger::get().log_error_unsafe(
+                token, sen("Array type expression has only three variants: '[<digits>]', '[..]', '[]'.", token.lexeme,
+                           "not allowed in array type expression."), SYNTAX);
+            break;
+        }
+
+        Token token = node_manager->get_token(current_type_node);
+        string new_token_string = str(token.lexeme, "[]");
+        ParseNodeType array_type = PN_ARRAY_REFERENCE_TYPE;
+
+        if (current_token->token_type == TT_NUM) {
+            new_token_string = current_token->lexeme;
+            array_type = PN_STATIC_ARRAY_TYPE;
+            advance();
+        }else if (current_token->token_type == TT_DOUBLE_DOT) {
+            new_token_string = str(token.lexeme, "[..]");
+            array_type = PN_DYNAMIC_ARRAY_TYPE;
+            advance();
+        }
+
+        Token new_token = Token(token.token_type, new_token_string, token.linenum);
+        NodeIndex new_array_node = node_manager->create_unary(new_token, array_type);
+
+        node_manager->set_branch(current_type_node, new_array_node);
+        current_type_node = new_array_node;
+
+        consume(TT_RBRACKET, "Expected closing ']' for array type expression.");
     }
 
-    if (current_token->token_type == TT_STAR) {
-        advance(); // advance past the star
-        Token token = node_manager->get_token(return_node);
-        Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
-        NodeIndex new_return_node = node_manager->create_unary(new_token, PN_TYPE, return_node);
-
-        return new_return_node;
-    }
-
-    return return_node;
+    return type_root_node;
 }
+
+//NodeIndex SageParser::parse_type() {
+//    NodeIndex return_node = NULL_INDEX;
+//
+//    if (match_types(current_token->token_type, TT_LPAREN)) {
+//        NodeIndex function_type = parse_function();
+//
+//        return_node = node_manager->create_unary(node_manager->get_token(function_type), PN_TYPE, function_type);
+//
+//        return return_node;
+//    }
+//    if (match_types(current_token->token_type, TT_LBRACKET)) {
+//        // keep track of how many dims this array has
+//        int lbracket_nest_count = 0;
+//        string token_lexeme = "";
+//        while (match_types(current_token->token_type, TT_LBRACKET)) {
+//            advance(); // move past lbracket
+//            lbracket_nest_count++;
+//            token_lexeme += "[";
+//        }
+//
+//        TokenType slice[2] = {TT_KEYWORD, TT_IDENT};
+//        if (!matches_any(current_token->token_type, slice, 2)) {
+//            ErrorLogger::get().log_error_unsafe(*current_token, "Expected valid type identifier in array type.", SYNTAX);
+//            return NULL_INDEX;
+//        }
+//
+//        Token array_type_token = Token();
+//        array_type_token.fill_with(*current_token);
+//        NodeIndex array_type_node = node_manager->create_unary(array_type_token, PN_TYPE);
+//        token_lexeme += array_type_token.lexeme;
+//        advance(); // advance past the identifier
+//
+//        if (match_types(current_token->token_type, TT_COLON)) {
+//            advance(); // advance past the colon
+//
+//            if (!match_types(current_token->token_type, TT_NUM)) {
+//                ErrorLogger::get().log_error_unsafe(
+//                    *current_token,
+//                    "Expected a number to define the length of the array type declaration.",
+//                    SYNTAX);
+//                node_manager->delete_node(array_type_node);
+//                return NULL_INDEX;
+//            }
+//
+//            advance(); // advance past the number
+//        }
+//
+//        while (match_types(current_token->token_type, TT_RBRACKET)) {
+//            advance();
+//            lbracket_nest_count--;
+//            token_lexeme += "]";
+//        }
+//
+//        if (lbracket_nest_count != 0) {
+//            ErrorLogger::get().log_error_unsafe(
+//                *current_token,
+//                "Unambiguous array nesting found, please ensure all '[' have a matching ']'.",
+//                SYNTAX);
+//            return NULL_INDEX;
+//        }
+//
+//        Token new_token = Token(array_type_token.token_type, token_lexeme, array_type_token.linenum);
+//        return_node = node_manager->create_unary(new_token, PN_TYPE, array_type_node);
+//    } else {
+//        // just a normal type
+//        Token type_token = Token();
+//        type_token.fill_with(*current_token);
+//        return_node = node_manager->create_unary(type_token, PN_TYPE);
+//        advance(); // advance past the identifier
+//    }
+//
+//    if (current_token->token_type == TT_STAR) {
+//        advance(); // advance past the star
+//        Token token = node_manager->get_token(return_node);
+//        Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
+//        NodeIndex new_return_node = node_manager->create_unary(new_token, PN_TYPE, return_node);
+//
+//        return new_return_node;
+//    }
+//
+//    return return_node;
+//}
 
 NodeIndex SageParser::parse_expression() {
     // if the node cache isn't empty then that means we were previously parsing,

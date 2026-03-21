@@ -1,6 +1,6 @@
 
 
-mov r25 239
+sub r23 r23 32
 label @2090629895
 mov r22 1
 mov r10 r1
