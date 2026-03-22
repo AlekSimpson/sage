@@ -343,6 +343,61 @@ void SageSymbolTable::initialize() {
     //function_visitor_state.push(&entry->function_info);
 }
 
+SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) {
+    // entry lexeme ex: 'int[5][..]' | 'float[..]' | 'string[]'
+    auto *entry = entries.get_pointer(entry_index);
+    assert(entry != nullptr);
+
+    NodeIndex current_node = entry->definition_ast_index;
+    SageType *resolved_type = nullptr;
+    int scope_id = nm->get_scope_id(current_node);
+    while (current_node != NULL_INDEX) {
+        switch (nm->get_nodetype(current_node)) {
+            case PN_STATIC_ARRAY_TYPE: {
+                int array_length = stoll(nm->get_lexeme(current_node));
+                resolved_type = TR::get_array_type(resolved_type, array_length);
+                break;
+            }
+            case PN_DYNAMIC_ARRAY_TYPE: {
+                resolved_type = TR::get_dyn_array_type(resolved_type);
+                break;
+            }
+            case PN_ARRAY_REFERENCE_TYPE: {
+                resolved_type = TR::get_reference_type(resolved_type, 0);
+                break;
+            }
+            default:
+                resolved_type = resolve_unknown_type_node(current_node, scope_id);
+        }
+        current_node = nm->get_branch(current_node);
+    }
+
+    BuiltinNamespace *namespace_ = (BuiltinNamespace *)entry->type_namespace;
+    SageType *basetype = nullptr;
+    switch (resolved_type->identify()) {
+        case ARRAY:
+            basetype = ((SageArrayType *)resolved_type)->array_type;
+            namespace_->add_field_member("first", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("length", TR::get_integer_type(8));
+            break;
+        case DYN_ARRAY:
+            basetype = ((SageDynamicArrayType *)resolved_type)->array_type;
+            namespace_->add_field_member("first", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("length", TR::get_integer_type(8));
+            namespace_->add_field_member("capacity", TR::get_integer_type(8));
+            break;
+        case REFERENCE:
+            basetype = ((SageReferenceType *)resolved_type)->pointer_type;
+            namespace_->add_field_member("data", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("window_size", TR::get_integer_type(8));
+            break;
+        default:
+            break;
+    }
+
+    return resolved_type;
+}
+
 SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_id, bool self_referential_pointer_detected) {
     if (node == NULL_INDEX) return nullptr;
 

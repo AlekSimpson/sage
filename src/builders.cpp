@@ -512,6 +512,7 @@ void SageCompiler::build_alloca(SymbolEntry *var_symbol) {
         builder.build_instruction(OP_STOREA, 8, array_struct_start, array_memory_start, _11);
         builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
 
+        var_symbol->stack_offset = array_byte_size;
         return;
     }
 

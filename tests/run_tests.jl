@@ -22,7 +22,6 @@ const SIGNAL_NAMES = Dict(
 const DISABLED_TESTS = [
     "functions_seven.sage",
     "array_reference_one.sage",
-    "arrays_two.sage",
     "dynamic_array_one.sage",
     "dynamic_arrays_two.sage",
     "arrays_three.sage"

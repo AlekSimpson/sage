@@ -204,7 +204,7 @@ public:
     bool generating_compile_time_bytecode();
     void register_allocation();
     int get_volatile_register();
-    void scan_program_type_symbol(NodeIndex, NodeIndex, string, SymbolIndex, NodeIndex);
+    void scan_program_type_symbol(NodeIndex, NodeIndex, string, SymbolIndex);
     void scan_all_program_symbols(NodeIndex root, int function_paramter_register = 0, string parent_function_name = "");
     void perform_type_resolution();
     void forward_declaration_resolution(int program_root);

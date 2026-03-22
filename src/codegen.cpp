@@ -268,7 +268,12 @@ VisitorResult SageCompiler::visit_struct_field_access(
 
         if (current_nodetype == PN_VAR_REF || current_nodetype == PN_IDENTIFIER) {
             string name = node_manager->get_identifier(current_node);
-            auto *type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
+            SageType *type_entry;
+            if (current_namespace->is_builtin()) {
+                type_entry = ((BuiltinNamespace *)current_namespace)->get_field_type(name);
+            } else {
+                type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
+            }
             if (!current_namespace->is_field_member(name)) {
                 // error
                 Token token = node_manager->get_token(current_node);
@@ -313,7 +318,10 @@ VisitorResult SageCompiler::visit_struct_field_access(
             builder.build_move_immediate(offset_register, 0);
 
             auto *entry = symbol_table.lookup(name, scope_id);
-            auto *type_entry = symbol_table.lookup(entry->datatype->get_base_type_string(), scope_id);
+            string type_string = entry->datatype->is_array()
+                                     ? entry->datatype->to_string()
+                                     : entry->datatype->get_base_type_string();
+            auto *type_entry = symbol_table.lookup(type_string, scope_id);
 
             if (entry->datatype->is_pointer()) {
                 builder.build_instruction(OP_ADD, offset_register, offset_register, entry->stack_offset, _10);
@@ -476,7 +484,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
         }
         case PN_FIELD_ACCESS:
-            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, taking_address_of_field);
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false,
+                                             taking_address_of_field);
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
             auto branch_node = node_manager->get_branch(node);
@@ -488,7 +497,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             auto branch = node_manager->get_branch(node);
             auto branch_nodetype = node_manager->get_nodetype(branch);
             Token token = node_manager->get_token(branch);
-            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype != PN_FIELD_ACCESS) {
+            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype !=
+                PN_FIELD_ACCESS) {
                 logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
                 return VisitorResult();
             }
@@ -549,7 +559,7 @@ VisitorResult SageCompiler::build_dereference_instructions(
         }
         case VisitorResultState::TEMP_REGISTER: {
             builder.build_instruction(OP_LOADA, result_size, result_register, operand_info.temporary_result_register,
-                        _01);
+                                      _01);
             break;
         }
         case VisitorResultState::IMMEDIATE:

@@ -238,8 +238,7 @@ void SageCompiler::scan_program_type_symbol(
     NodeIndex root_type_node,
     NodeIndex working_node,
     string working_type_name,
-    SymbolIndex declared_variable_symbol = -1,
-    NodeIndex definition_right_hand_side = NULL_INDEX
+    SymbolIndex declared_variable_symbol = -1
 ) {
     if (working_node == NULL_INDEX) {
         /*
@@ -261,7 +260,11 @@ void SageCompiler::scan_program_type_symbol(
          *
          */
 
-        symbol_table.declare_type_symbol(root_type_node, nullptr);
+        // TODO: need to figure out a way to resolve the type for arrays here
+        auto index = symbol_table.declare_builtin_type_symbol(working_type_name, nullptr);
+        auto *entry = symbol_table.entries.get_pointer(index);
+        entry->type_namespace = new BuiltinNamespace();
+        entry->definition_ast_index = root_type_node;
 
         return;
     };
@@ -330,6 +333,16 @@ void SageCompiler::scan_program_type_symbol(
 }
 
 void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register, string parent_function_name) {
+    map<string, string> resolution_map = {
+        {"float", "f64"},
+        {"int", "i64"},
+    };
+    auto resolve_identifier = [&](NodeIndex node) -> string{
+        string identifier = node_manager->get_identifier(node);
+        if (resolution_map.find(identifier) != resolution_map.end()) return resolution_map[identifier];
+        return identifier;
+    };
+
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
         case PN_STRUCT: {
@@ -364,7 +377,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             scan_program_type_symbol(
                 middle_node,
                 middle_node,
-                node_manager->get_identifier(middle_node),
+                resolve_identifier(middle_node),
                 table_index
             );
 
@@ -385,9 +398,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 scan_program_type_symbol(
                     right_most_node,
                     right_most_node,
-                    node_manager->get_identifier(right_most_node),
-                    new_variable_symbol,
-                    NULL_INDEX
+                    resolve_identifier(right_most_node),
+                    new_variable_symbol
                 );
 
             }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
@@ -397,9 +409,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 scan_program_type_symbol(
                     declaration_type_node,
                     declaration_type_node,
-                    node_manager->get_identifier(declaration_type_node),
-                    new_variable_symbol,
-                    assigned_value_node
+                    resolve_identifier(declaration_type_node),
+                    new_variable_symbol
                 );
 
                 if (node_manager->get_nodetype(assigned_value_node) == PN_RUN_DIRECTIVE) {
@@ -531,7 +542,12 @@ void SageCompiler::perform_type_resolution() {
 
     for (SymbolIndex index: program_symbols) {
         auto *entry = symbol_table.entries.get_pointer(index);
-        if (symbol_table.builtins.find(index) != symbol_table.builtins.end()) continue;
+        if (symbol_table.builtins.find(index) != symbol_table.builtins.end()) {
+            if (entry->type_namespace != nullptr && !entry->type_is_resolved()) {
+                entry->datatype = symbol_table.resolve_builtin_struct_type(index);
+            }
+            continue;
+        }
         if (entry->type_is_resolved()) continue;
 
         auto nodetype = node_manager->get_nodetype(entry->definition_ast_index);
@@ -896,7 +912,8 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
         if (ast_id == -1) continue;
 
         auto nodetype = node_manager->get_nodetype(ast_id);
-        assert(nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT);
+        if (nodetype != PN_FUNCDEF && nodetype != PN_VAR_DEC && nodetype != PN_STRUCT) continue;
+        //assert(nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT);
 
         NodeIndex definition_contents = nodetype == PN_STRUCT ?
             node_manager->get_branch(node_manager->get_right(ast_id)) :
