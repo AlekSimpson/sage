@@ -172,7 +172,8 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
 
 
-        return build_alloca(var_symbol);
+        build_alloca(var_symbol);
+        return VisitorResult();
     }
 
     if (concrete_node_type == PN_TRINARY) {

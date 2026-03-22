@@ -204,6 +204,7 @@ public:
     bool generating_compile_time_bytecode();
     void register_allocation();
     int get_volatile_register();
+    void scan_program_type_symbol(NodeIndex, NodeIndex, string, SymbolIndex, NodeIndex);
     void scan_all_program_symbols(NodeIndex root, int function_paramter_register = 0, string parent_function_name = "");
     void perform_type_resolution();
     void forward_declaration_resolution(int program_root);
@@ -214,7 +215,7 @@ public:
     /* builders */
     VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
     VisitorResult build_function_with_block(string);
-    VisitorResult build_alloca(SymbolEntry *var_symbol);
+    void build_alloca(SymbolEntry *var_symbol);
     VisitorResult build_add(VisitorResult, VisitorResult);
     VisitorResult build_sub(VisitorResult, VisitorResult);
     VisitorResult build_div(VisitorResult, VisitorResult);

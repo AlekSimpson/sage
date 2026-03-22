@@ -234,6 +234,101 @@ void SageCompiler::compile_file(string mainfile) {
     }
 }
 
+void SageCompiler::scan_program_type_symbol(
+    NodeIndex root_type_node,
+    NodeIndex working_node,
+    string working_type_name,
+    SymbolIndex declared_variable_symbol = -1,
+    NodeIndex definition_right_hand_side = NULL_INDEX
+) {
+    if (working_node == NULL_INDEX) {
+        /*
+         * reference :: struct {
+         *     window_start: generic*
+         *     window_size: i64
+         * }
+         *
+         * array :: struct {
+         *     data: generic*,
+         *     length: i64
+         * }
+         *
+         * dynamic_array :: struct {
+         *     data: generic*,
+         *     length: i64,
+         *     capacity: i64
+         * }
+         *
+         */
+
+        symbol_table.declare_type_symbol(root_type_node, nullptr);
+
+        return;
+    };
+
+    switch (node_manager->get_nodetype(working_node)) {
+        case PN_ARRAY_REFERENCE_TYPE: {
+            scan_program_type_symbol(
+                root_type_node,
+                node_manager->get_branch(working_node),
+                str(working_type_name, "[]"),
+                declared_variable_symbol
+            );
+            break;
+        }
+        case PN_STATIC_ARRAY_TYPE: {
+            int array_static_length = stoll(node_manager->get_lexeme(working_node));
+            scan_program_type_symbol(
+                root_type_node,
+                node_manager->get_branch(working_node),
+                str(working_type_name, "[", array_static_length, "]"),
+                declared_variable_symbol
+            );
+
+            break;
+        }
+        case PN_DYNAMIC_ARRAY_TYPE: {
+            scan_program_type_symbol(
+                root_type_node,
+                node_manager->get_branch(working_node),
+                str(working_type_name, "[..]"),
+                declared_variable_symbol
+            );
+
+            break;
+        }
+        case PN_POINTER_TYPE: {
+            if (declared_variable_symbol > -1) return;
+
+            if (node_manager->get_branch(working_node) == NULL_INDEX) {
+                symbol_table.entries.get_pointer(declared_variable_symbol)->spilled = true;
+                return;
+            }
+            scan_program_type_symbol(
+                root_type_node,
+                node_manager->get_branch(working_node),
+                str(working_type_name, "*"),
+                declared_variable_symbol
+            );
+
+            break;
+        }
+        case PN_TYPE: {
+            auto branch = node_manager->get_branch(working_node);
+            if (branch == NULL_INDEX) return;
+
+            scan_program_type_symbol(
+                root_type_node,
+                node_manager->get_branch(working_node),
+                working_type_name,
+                declared_variable_symbol
+            );
+        }
+        default:
+            return;
+    }
+}
+
 void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register, string parent_function_name) {
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
@@ -245,7 +340,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 scan_all_program_symbols(child);
             }
 
-            break;
+            return;
         }
         case PN_FUNCDEF: {
             auto table_index = symbol_table.declare_function(current_node, nullptr);
@@ -265,13 +360,19 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             }
 
             // scan the return type node
-            scan_all_program_symbols(node_manager->get_middle(signature_trinary_node));
+            auto middle_node = node_manager->get_middle(signature_trinary_node);
+            scan_program_type_symbol(
+                middle_node,
+                middle_node,
+                node_manager->get_identifier(middle_node),
+                table_index
+            );
 
             for (auto child: node_manager->get_children(bodynode)) {
                 scan_all_program_symbols(child);
             }
 
-            break;
+            return;
         }
         case PN_VAR_DEC: {
             auto identifier = node_manager->get_identifier(current_node);
@@ -281,19 +382,26 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
 
             auto right_most_node = node_manager->get_right(current_node);
             if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
-                if (node_manager->get_nodetype(right_most_node) == PN_TYPE) {
-                    string type_identifier = node_manager->get_identifier(right_most_node);
-                    symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find("*") != std::string::npos;
-                }
+                scan_program_type_symbol(
+                    right_most_node,
+                    right_most_node,
+                    node_manager->get_identifier(right_most_node),
+                    new_variable_symbol,
+                    NULL_INDEX
+                );
 
             }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
                 auto declaration_type_node = node_manager->get_middle(current_node);
-                if (declaration_type_node != NULL_INDEX && node_manager->get_nodetype(declaration_type_node) == PN_TYPE) {
-                    string type_identifier = node_manager->get_identifier(declaration_type_node);
-                    symbol_table.entries.get_pointer(new_variable_symbol)->spilled = type_identifier.find("*") != std::string::npos;
-                }
-
                 auto assigned_value_node = node_manager->get_right(current_node);
+
+                scan_program_type_symbol(
+                    declaration_type_node,
+                    declaration_type_node,
+                    node_manager->get_identifier(declaration_type_node),
+                    new_variable_symbol,
+                    assigned_value_node
+                );
+
                 if (node_manager->get_nodetype(assigned_value_node) == PN_RUN_DIRECTIVE) {
                     symbol_table.register_comptime_value(comptime_manager, current_node, new_variable_symbol);
 
@@ -302,12 +410,12 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                         scan_all_program_symbols(child);
                     }
 
-                    break;
+                    return;
                 }
             }
 
             scan_all_program_symbols(right_most_node);
-            break;
+            return;
         }
         case PN_FOR:
         case PN_IF:
@@ -319,7 +427,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 scan_all_program_symbols(child);
             }
 
-            break;
+            return;
         }
         case PN_RUN_DIRECTIVE: {
             comptime_manager.add_task(current_node);
@@ -328,18 +436,18 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 scan_all_program_symbols(child);
             }
 
-            break;
+            return;
         }
         case PN_FUNCCALL: {
             auto identifier = node_manager->get_identifier(current_node);
 
             scan_all_program_symbols(node_manager->get_branch(current_node));
-            break;
+            return;
         }
         case PN_KEYWORD: {
             if (node_manager->get_branch(current_node) == NULL_INDEX) return;
             scan_all_program_symbols(node_manager->get_branch(current_node));
-            break;
+            return;
         }
         case PN_STRING: {
             auto node_lexeme = node_manager->get_lexeme(current_node);
@@ -369,65 +477,51 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
 
             SageValue string_value = SageValue(string_type, string_instance_data);
             symbol_table.declare_literal(current_node, string_value, static_pointer);
+            return;
+        }
+        default:
+            break;
+    }
+
+    switch (node_manager->get_host_nodetype(current_node)) {
+        case PN_BLOCK: {
+            for (auto child: node_manager->get_children(current_node)) {
+                scan_all_program_symbols(child);
+            }
             break;
         }
-        case PN_STATIC_ARRAY_TYPE: {
-            auto static_length_node = node_manager->get_branch(current_node);
-
-            // need to support nested types, this doesnt
-
-            symbol_table.declare_type_symbol(static_length_node, TR::get_);
-
+        case PN_TRINARY:
+        case PN_BINARY: {
+            scan_all_program_symbols(node_manager->get_right(current_node));
             break;
         }
-        case PN_DYNAMIC_ARRAY_TYPE: {
-            break;
-        }
-        case PN_ARRAY_REFERENCE_TYPE: {
-            break;
-        }
-        default: {
-            switch (node_manager->get_host_nodetype(current_node)) {
-                case PN_BLOCK: {
-                    for (auto child: node_manager->get_children(current_node)) {
-                        scan_all_program_symbols(child);
-                    }
-                    break;
-                }
-                case PN_TRINARY:
-                case PN_BINARY: {
-                    scan_all_program_symbols(node_manager->get_right(current_node));
-                    break;
-                }
-                case PN_UNARY: {
-                    auto branch = node_manager->get_branch(current_node);
-                    if (branch == NULL_INDEX) return;
+        case PN_UNARY: {
+            auto branch = node_manager->get_branch(current_node);
+            if (branch == NULL_INDEX) return;
 
-                    if (nodetype != PN_POINTER_DEREFERENCE && nodetype != PN_POINTER_REFERENCE) {
-                        scan_all_program_symbols(branch);
-                        return;
-                    }
+            if (nodetype != PN_POINTER_DEREFERENCE && nodetype != PN_POINTER_REFERENCE) {
+                scan_all_program_symbols(branch);
+                return;
+            }
 
-                    if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
-                        scan_all_program_symbols(branch);
-                        return;
-                    }
+            if (node_manager->get_nodetype(branch) != PN_VAR_REF) {
+                scan_all_program_symbols(branch);
+                return;
+            }
 
-                    auto identifier = node_manager->get_identifier(current_node);
+            auto identifier = node_manager->get_identifier(current_node);
 
-                    auto variable_reference_identifier = node_manager->get_identifier(branch);
-                    auto scope_id = node_manager->get_scope_id(branch);
-                    auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
-                    if (search_entry != nullptr) {
-                        search_entry->spilled = true;
-                    }else {
-                        symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
-                    }
-                }
-                default:
-                    break;
+            auto variable_reference_identifier = node_manager->get_identifier(branch);
+            auto scope_id = node_manager->get_scope_id(branch);
+            auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
+            if (search_entry != nullptr) {
+                search_entry->spilled = true;
+            }else {
+                symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
             }
         }
+        default:
+            break;
     }
 }
 

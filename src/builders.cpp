@@ -488,13 +488,35 @@ VisitorResult SageCompiler::build_function_with_block(string function_name) {
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::build_alloca(SymbolEntry *var_symbol) {
-    if (var_symbol->spilled) {
-        int offset = var_symbol->datatype->size;
+void SageCompiler::build_alloca(SymbolEntry *var_symbol) {
+    if (!var_symbol->spilled) return;
+
+    auto datatype_identity = var_symbol->datatype->identify();
+    if (datatype_identity == ARRAY ||
+        datatype_identity == DYN_ARRAY) {
+
+        int array_memory_start = get_volatile_register();
+        builder.build_move_register(array_memory_start, STACK_POINTER);
+
+        int array_byte_size = ((SageArrayType *)var_symbol->datatype)->array_size;
+        int offset = array_byte_size + var_symbol->datatype->size;
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
+
+        int array_struct_start = get_volatile_register();
+        int array_struct_length_address = get_volatile_register();
+        int array_length = array_byte_size / 8;
+
+        builder.build_instruction(OP_SUB, array_struct_start, array_memory_start, array_byte_size, _10);
+        builder.build_instruction(OP_SUB, array_struct_length_address, array_memory_start, array_byte_size + 8, _10);
+
+        builder.build_instruction(OP_STOREA, 8, array_struct_start, array_memory_start, _11);
+        builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
+
+        return;
     }
 
-    return VisitorResult();
+    int offset = var_symbol->datatype->size;
+    builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
 }
 
 bool SageCompiler::is_float_operation(VisitorResult &one, VisitorResult &two) {

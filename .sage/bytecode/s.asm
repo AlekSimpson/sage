@@ -1,6 +1,11 @@
 
 
-sub r23 r23 32
+mov r10 r23
+sub r23 r23 48
+sub r11 r10 32
+sub r12 r10 40
+storea 8 $r11 r10
+storea 8 $r12 4
 label @2090629895
 mov r22 1
 mov r10 r1

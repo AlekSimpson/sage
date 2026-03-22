@@ -69,6 +69,9 @@ void SageSymbolTable::declare_null_symbol() {
 }
 
 SymbolIndex SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
+    auto symbol_check = lookup(name, 0);
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
+
     SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
     entry.type_namespace = nullptr;
@@ -341,6 +344,8 @@ void SageSymbolTable::initialize() {
 }
 
 SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_id, bool self_referential_pointer_detected) {
+    if (node == NULL_INDEX) return nullptr;
+
     string type_identifier = nm->get_identifier(node);
     auto *type_symbol = lookup(type_identifier, scope_id);
     assert(type_symbol != nullptr);

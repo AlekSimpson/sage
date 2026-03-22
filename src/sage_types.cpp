@@ -65,6 +65,10 @@ bool SageBuiltinType::is_callable() {
     return false;
 }
 
+int SageBuiltinType::get_length() {
+    return 1;
+}
+
 // pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
     this->size = 8;
@@ -106,6 +110,10 @@ bool SagePointerType::is_callable() {
     return true;
 }
 
+int SagePointerType::get_length() {
+    return 1;
+}
+
 /*
  * DynamicArray :: struct  {
  *     first: void*
@@ -120,7 +128,8 @@ SageDynamicArrayType::SageDynamicArrayType(SageType *basetype) {
     length = 0;
     capacity = 10;
 
-    size = capacity * basetype->size;
+    size = 24;
+    array_size= capacity * basetype->size;
     alignment = basetype->alignment;
 }
 
@@ -176,6 +185,10 @@ bool SageDynamicArrayType::is_callable() {
     return true;
 }
 
+int SageDynamicArrayType::get_length() {
+    return length;
+}
+
 /*
  * array :: struct { // Static
  *     first: T$*
@@ -185,16 +198,17 @@ bool SageDynamicArrayType::is_callable() {
  * this:
  *      array: int[4]
  * compiles to:
+ *      allocate stack memory for the array
  *      allocate stack memory for array struct: 16 bytes
  *      store the stack pointer to array.first
  *      store the length into array.length
- *      allocate stack memory for the array
  *
  */
 
 // array_type
 SageArrayType::SageArrayType(SageType *element_type, int length) : array_type(element_type) {
-    this->size = length * element_type->size;
+    this->size = 16; // first_pointer (8 bytes) + length (8 bytes) = 16 bytes
+    this->array_size = length * element_type->size;
     this->length = length;
     this->alignment = element_type->alignment;
 }
@@ -239,14 +253,18 @@ bool SageArrayType::is_callable() {
     return true;
 }
 
+int SageArrayType::get_length() {
+    return length;
+}
+
 // reference_type
 SageReferenceType::SageReferenceType(SageType *base_type) {
     pointer_type = TypeRegistery::get_pointer_type(base_type);
 
     // references are "fat pointers" to an array
     /*
-     *   Reference :: struct {
-     *      data: void* // 8 bytes
+     *   reference :: struct {
+     *      window: generic* // 8 bytes
      *      window_size: int // 8 bytes
      *   }
      */
@@ -302,6 +320,10 @@ SageValue SageReferenceType::get_default_value() {
 
 bool SageReferenceType::is_callable() {
     return true;
+}
+
+int SageReferenceType::get_length() {
+    return size;
 }
 
 // function_type
@@ -387,6 +409,10 @@ bool SageFunctionType::is_callable() {
     return false;
 }
 
+int SageFunctionType::get_length() {
+    return 0;
+}
+
 // struct_type
 SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
     member_types(member_types) {
@@ -444,6 +470,10 @@ SageValue SageStructType::get_default_value() {
 
 bool SageStructType::is_callable() {
     return true;
+}
+
+int SageStructType::get_length() {
+    return member_types.size();
 }
 
 /// Type Registery

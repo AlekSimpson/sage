@@ -40,6 +40,7 @@ public:
     virtual string get_base_type_string() = 0;
     virtual SageValue get_default_value() = 0;
     virtual bool is_callable() = 0;
+    virtual int get_length() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -58,6 +59,7 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SagePointerType : public SageType {
@@ -76,11 +78,13 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SageArrayType : public SageType {
 public:
     SageType *array_type;
+    int array_size;
     int length;
 
     SageArrayType(SageType *, int);
@@ -95,6 +99,7 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SageFunctionType : public SageType {
@@ -117,6 +122,7 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SageStructType : public SageType {
@@ -141,13 +147,15 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SageDynamicArrayType : public SageType {
 public:
     SageType *array_type;
-    int length = 0; // current max length
-    int capacity = 15; // current amount of slots used up
+    int array_size;
+    int length = 0;
+    int capacity = 15;
 
     SageDynamicArrayType(SageType * basetype, int length);
     SageDynamicArrayType(SageType * basetype);
@@ -162,6 +170,7 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class SageReferenceType : public SageType {
@@ -182,6 +191,7 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
 };
 
 class TypeRegistery {
