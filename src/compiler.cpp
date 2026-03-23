@@ -41,7 +41,9 @@ bool SageCompiler::generating_compile_time_bytecode() {
 }
 
 void SageCompiler::compile_file(string mainfile) {
-    assertm(options.compilation_target == SAGE_VM, sen("Support for compilation target", compilation_target_string(options.compilation_target), "is not implemented yet.").data());
+    assertm(options.compilation_target == SAGE_VM,
+            sen("Support for compilation target", compilation_target_string(options.compilation_target),
+                "is not implemented yet.").data());
 
     if (options.debug == LEXING) {
         parser.print_lexer_output(mainfile);
@@ -73,11 +75,12 @@ void SageCompiler::compile_file(string mainfile) {
     }
     comptime_manager.static_program_memory = &static_program_memory_store;
 
-    perform_type_resolution();
-    if (logger.has_errors()) {
-        logger.report_errors();
-        return;
-    }
+    // Type resolution now happens inline during scan_all_program_symbols
+    // perform_type_resolution();
+    // if (logger.has_errors()) {
+    //     logger.report_errors();
+    //     return;
+    // }
 
     // auto resolve symbol definition ordering
     forward_declaration_resolution(ast_root);
@@ -104,7 +107,9 @@ void SageCompiler::compile_file(string mainfile) {
         int current_prerequisite_count = 0;
         vector<ComptimeTask *> task_execution_batch;
         while (!on_last_batch) {
-            assertm(comptime_manager.execution_iterations < comptime_manager.MAX_ITERATIONS || !comptime_manager.task_min_heap.empty(), "Reached maximum compile time iteration count. This should never happen");
+            assertm(
+                comptime_manager.execution_iterations < comptime_manager.MAX_ITERATIONS || !comptime_manager.
+                task_min_heap.empty(), "Reached maximum compile time iteration count. This should never happen");
 
             while (current_prerequisite_count == comptime_manager.get_next_task_prerequisite_count()) {
                 task_execution_batch.push_back(comptime_manager.task_min_heap.top());
@@ -260,7 +265,7 @@ void SageCompiler::scan_program_type_symbol(
          *
          */
 
-        // TODO: need to figure out a way to resolve the type for arrays here
+        // TODO: finish type resolution and builtin namespace creation here
         auto index = symbol_table.declare_builtin_type_symbol(working_type_name, nullptr);
         auto *entry = symbol_table.entries.get_pointer(index);
         entry->type_namespace = new BuiltinNamespace();
@@ -332,12 +337,13 @@ void SageCompiler::scan_program_type_symbol(
     }
 }
 
-void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register, string parent_function_name) {
+void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register,
+                                            string parent_function_name) {
     map<string, string> resolution_map = {
         {"float", "f64"},
         {"int", "i64"},
     };
-    auto resolve_identifier = [&](NodeIndex node) -> string{
+    auto resolve_identifier = [&](NodeIndex node) -> string {
         string identifier = node_manager->get_identifier(node);
         if (resolution_map.find(identifier) != resolution_map.end()) return resolution_map[identifier];
         return identifier;
@@ -346,11 +352,17 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
         case PN_STRUCT: {
-            symbol_table.declare_type_symbol(current_node, nullptr);
+            SymbolIndex struct_symbol = symbol_table.declare_type_symbol(current_node, nullptr);
 
             auto body_node = node_manager->get_branch(node_manager->get_right(current_node));
             for (auto child: node_manager->get_children(body_node)) {
                 scan_all_program_symbols(child);
+            }
+
+            // INLINE TYPE RESOLUTION: Resolve struct type after scanning members
+            auto *struct_entry = symbol_table.entries.get_pointer(struct_symbol);
+            if (!struct_entry->type_is_resolved()) {
+                struct_entry->datatype = symbol_table.resolve_struct_type(struct_symbol);
             }
 
             return;
@@ -360,7 +372,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             string function_identifier = node_manager->get_identifier(current_node);
 
             symbol_table.entries.get_pointer(table_index)->max_return_count = parser.
-                function_to_max_return_count[function_identifier];
+                    function_to_max_return_count[function_identifier];
 
             auto signature_trinary_node = node_manager->get_right(current_node);
             auto paramters_node = node_manager->get_left(signature_trinary_node);
@@ -381,6 +393,12 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 table_index
             );
 
+            // INLINE TYPE RESOLUTION: Resolve function type after scanning parameters
+            auto *func_entry = symbol_table.entries.get_pointer(table_index);
+            if (!func_entry->type_is_resolved()) {
+                func_entry->datatype = symbol_table.resolve_function_type(table_index);
+            }
+
             for (auto child: node_manager->get_children(bodynode)) {
                 scan_all_program_symbols(child);
             }
@@ -389,9 +407,10 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
         }
         case PN_VAR_DEC: {
             auto identifier = node_manager->get_identifier(current_node);
-            SymbolIndex new_variable_symbol = parent_function_name != "" ?
-                symbol_table.declare_parameter(current_node, nullptr, function_parameter_register) :
-                symbol_table.declare_variable(current_node, nullptr);
+            SymbolIndex new_variable_symbol = parent_function_name != ""
+                                                  ? symbol_table.declare_parameter(
+                                                      current_node, nullptr, function_parameter_register)
+                                                  : symbol_table.declare_variable(current_node, nullptr);
 
             auto right_most_node = node_manager->get_right(current_node);
             if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
@@ -401,8 +420,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                     resolve_identifier(right_most_node),
                     new_variable_symbol
                 );
-
-            }else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
+            } else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
                 auto declaration_type_node = node_manager->get_middle(current_node);
                 auto assigned_value_node = node_manager->get_right(current_node);
 
@@ -423,6 +441,12 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
 
                     return;
                 }
+            }
+
+            // INLINE TYPE RESOLUTION: Resolve variable type immediately
+            auto *var_entry = symbol_table.entries.get_pointer(new_variable_symbol);
+            if (!var_entry->type_is_resolved()) {
+                var_entry->datatype = symbol_table.resolve_variable_type(new_variable_symbol);
             }
 
             scan_all_program_symbols(right_most_node);
@@ -490,6 +514,90 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             symbol_table.declare_literal(current_node, string_value, static_pointer);
             return;
         }
+        case PN_ARRAY_LITERAL: {
+            // Check if already processed
+            string literal_identifier = node_manager->get_lexeme(current_node);
+            auto *existing = symbol_table.lookup(
+                literal_identifier,
+                node_manager->get_scope_id(current_node)
+            );
+            if (existing != nullptr) return;
+
+            auto children = node_manager->get_children(current_node);
+            if (children.empty()) return;
+
+            // Infer element type from first element
+            auto first_element_node = children[0];
+            SageType *first_element_type = nullptr;
+            switch (node_manager->get_nodetype(first_element_node)) {
+                case PN_NUMBER:
+                    first_element_type = TR::get_integer_type(8);
+                    break;
+                case PN_FLOAT:
+                    first_element_type = TR::get_float_type(8);
+                    break;
+                case PN_CHARACTER_LITERAL:
+                    first_element_type = TR::get_byte_type(CHAR);
+                    break;
+                case PN_BOOL:
+                    first_element_type = TR::get_byte_type(BOOL);
+                    break;
+                default:
+                    logger.log_error_unsafe("compiler.cpp", current_linenum,
+                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
+                    break;
+            }
+
+            int first_element_size = first_element_type->size;
+            int array_length = children.size();
+            int total_size = array_length * first_element_size;
+
+            // Allocate in static memory
+            int64_t static_pointer = static_program_memory_store.size();
+            static_program_memory_store.resize(static_program_memory_store.size() + total_size);
+
+            // Store each element's value in static memory
+            for (size_t i = 0; i < children.size(); i++) {
+                auto child_type = node_manager->get_nodetype(children[i]);
+                int64_t element_value = 0;
+
+                switch (child_type) {
+                    case PN_NUMBER:
+                        element_value = stoll(node_manager->get_lexeme(children[i]));
+                        break;
+                    case PN_FLOAT: {
+                        double float_value = stod(node_manager->get_lexeme(children[i]));
+                        std::memcpy(&element_value, &float_value, sizeof(double));
+                        break;
+                    }
+                    case PN_BOOL:
+                        element_value = (node_manager->get_lexeme(children[i]) == "true") ? 1 : 0;
+                        break;
+                    case PN_CHARACTER_LITERAL: {
+                        string char_str = node_manager->get_lexeme(children[i]);
+                        element_value = char_str.empty() ? 0 : char_str[0];
+                        break;
+                    }
+                    default: {
+                        // TODO: add robust support for complex literal types later
+                        logger.log_error_unsafe("compiler.cpp", current_linenum,
+                                                "Cannot use complex non-literal value in array literal yet.", GENERAL);
+                        break;
+                    }
+                }
+
+                int offset = i * first_element_size;
+                std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+            }
+
+            // Create array type and value
+            auto *array_type = TR::get_array_type(first_element_type, array_length);
+            SageValue array_value = SageValue(array_type, ByteVector(array_length));
+
+            // Register as literal with static pointer
+            symbol_table.declare_literal(current_node, array_value, static_pointer);
+            return;
+        }
         default:
             break;
     }
@@ -527,7 +635,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto search_entry = symbol_table.lookup(variable_reference_identifier, scope_id);
             if (search_entry != nullptr) {
                 search_entry->spilled = true;
-            }else {
+            } else {
                 symbol_table.identifiers_that_must_be_spilled.insert(variable_reference_identifier);
             }
         }
@@ -536,6 +644,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
     }
 }
 
+// Type resolution now happens inline during scan_all_program_symbols
+// Kept for reference - can be removed once inline resolution is verified working
+/*
 void SageCompiler::perform_type_resolution() {
     vector<SymbolIndex> program_symbols(symbol_table.entries.size);
     std::iota(program_symbols.begin(), program_symbols.end(), 0);
@@ -567,6 +678,7 @@ void SageCompiler::perform_type_resolution() {
         }
     }
 }
+*/
 
 string compilation_target_string(CompilationTarget target) {
     switch (target) {
@@ -738,7 +850,6 @@ void SageCompiler::ScopeDependencyGraph::initialize_graph(
     set<string> local_definition_identifiers,
     int local_scope
 ) {
-
     auto &symbol_table = compiler->symbol_table;
     this->local_scope = local_scope;
 
@@ -748,7 +859,8 @@ void SageCompiler::ScopeDependencyGraph::initialize_graph(
     int i = 0;
     for (auto identifier: local_definition_identifiers) {
         auto *column_symbol = symbol_table.global_lookup(identifier);
-        if (column_symbol == nullptr) continue; // the function which feeds into this parameter includes identifiers that aren't truly definition symbols
+        if (column_symbol == nullptr) continue;
+        // the function which feeds into this parameter includes identifiers that aren't truly definition symbols
         if (symbol_table.builtins.find(column_symbol->symbol_index) != symbol_table.builtins.end()) continue;
 
         local_defintions_to_matrix_index[identifier] = i;
@@ -757,7 +869,7 @@ void SageCompiler::ScopeDependencyGraph::initialize_graph(
     }
 
     col_row_length = local_defintions_to_matrix_index.size();
-    int matrix_size = col_row_length*col_row_length;
+    int matrix_size = col_row_length * col_row_length;
     local_scope_definition_dependency_matrix = new int[matrix_size];
     for (i = 0; i < matrix_size; ++i) {
         local_scope_definition_dependency_matrix[i] = 0;
@@ -770,7 +882,7 @@ void SageCompiler::ScopeDependencyGraph::setup_definition_fringe(
     map<string, int> &in_degrees
 ) {
     auto &symbol_table = compiler->symbol_table;
-    int matrix_size = col_row_length*col_row_length;
+    int matrix_size = col_row_length * col_row_length;
 
     vector<int> column_sums;
     column_sums.resize(col_row_length);
@@ -816,14 +928,14 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
         visited.insert(current_identifier);
         NodeIndex current_ast_index = identifier_to_ast[current_identifier];
         // if current is trinary var dec then we need to push back a new binary dec node
-        if (node_manager->get_nodetype(current_ast_index == PN_VAR_DEC) &&
+        if (node_manager->get_nodetype(current_ast_index) == PN_VAR_DEC &&
             node_manager->get_host_nodetype(current_ast_index) == PN_TRINARY) {
             auto left_node = node_manager->get_left(current_ast_index);
             auto middle_node = node_manager->get_middle(current_ast_index);
             Token token = node_manager->get_token(current_ast_index);
             auto new_dec_node = node_manager->create_binary(token, PN_VAR_DEC, left_node, middle_node);
             result_order.push_back(new_dec_node);
-        }else {
+        } else {
             result_order.push_back(current_ast_index);
         }
 
@@ -915,9 +1027,9 @@ void SageCompiler::forward_declaration_resolution(int program_root) {
         if (nodetype != PN_FUNCDEF && nodetype != PN_VAR_DEC && nodetype != PN_STRUCT) continue;
         //assert(nodetype == PN_FUNCDEF || nodetype == PN_VAR_DEC || nodetype == PN_STRUCT);
 
-        NodeIndex definition_contents = nodetype == PN_STRUCT ?
-            node_manager->get_branch(node_manager->get_right(ast_id)) :
-            node_manager->get_right(ast_id);
+        NodeIndex definition_contents = nodetype == PN_STRUCT
+                                            ? node_manager->get_branch(node_manager->get_right(ast_id))
+                                            : node_manager->get_right(ast_id);
 
         dependency_graph.root_definition_identifier = node_manager->get_identifier(ast_id);
         dependency_graph.add_definition_contents_to_dependency_graph(definition_contents);

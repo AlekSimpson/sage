@@ -43,7 +43,9 @@ enum ParseNodeType {
   PN_STATIC_ARRAY_TYPE,
   PN_DYNAMIC_ARRAY_TYPE,
   PN_POINTER_TYPE,
-  PN_ARRAY_REFERENCE_TYPE
+  PN_ARRAY_REFERENCE_TYPE,
+  PN_ARRAY_LITERAL,
+  PN_ARRAY_ACCESS
 };
 
 string nodetype_to_string(ParseNodeType nodetype);

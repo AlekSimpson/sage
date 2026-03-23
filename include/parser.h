@@ -56,6 +56,7 @@ public:
   NodeIndex parse_unary_operator();
   NodeIndex parse_postfix_operator();
   NodeIndex parse_primary();
+  NodeIndex parse_array_literal();
 
   // util methods
   bool match_types(TokenType type_a, TokenType type_b);

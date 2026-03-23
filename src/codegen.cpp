@@ -30,16 +30,14 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_KEYWORD:
             return visit_statement(node);
 
-        case PN_VAR_REF:
-        case PN_NUMBER:
-        case PN_STRING:
-        case PN_FLOAT:
-        case PN_FUNCCALL:
-            return visit_expression(node);
+        //case PN_VAR_REF:
+        //case PN_NUMBER:
+        //case PN_STRING:
+        //case PN_FLOAT:
+        //case PN_FUNCCALL:
         default:
-            assertm(false,
-                    sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)).data(
-                    ));
+            return visit_expression(node);
+
     }
 }
 
@@ -170,7 +168,6 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
 
         // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
         //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
-
 
         build_alloca(var_symbol);
         return VisitorResult();
@@ -453,6 +450,11 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
         case PN_FUNCCALL:
             return visit_function_call(node);
         case PN_STRING: {
+            auto identifier = node_manager->get_identifier(node);
+            SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
+            return VisitorResult(symbol_table, symbol_index);
+        }
+        case PN_ARRAY_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
             SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
             return VisitorResult(symbol_table, symbol_index);

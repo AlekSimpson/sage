@@ -716,7 +716,7 @@ NodeIndex SageParser::parse_type() {
             new_token_string = current_token->lexeme;
             array_type = PN_STATIC_ARRAY_TYPE;
             advance();
-        }else if (current_token->token_type == TT_DOUBLE_DOT) {
+        } else if (current_token->token_type == TT_DOUBLE_DOT) {
             new_token_string = str(token.lexeme, "[..]");
             array_type = PN_DYNAMIC_ARRAY_TYPE;
             advance();
@@ -788,12 +788,10 @@ NodeIndex SageParser::parse_operator(NodeIndex left, int min_precedence) {
 
 NodeIndex SageParser::parse_postfix_operator() {
     Token next_token = peek();
-    bool has_a_postfix_operator = next_token.token_type == TT_FIELD_ACCESSOR;
+    bool has_a_postfix_operator = next_token.token_type == TT_FIELD_ACCESSOR || next_token.token_type == TT_LBRACKET;
     if (!has_a_postfix_operator) {
         return parse_primary();
     }
-
-    // note: in the future if we choose to keep the '++'/'--' postfix operators, their parsing would also happen here
 
     const int MAX_ITERATION_GUARD = 256;
     int iteration_count = 0;
@@ -802,6 +800,30 @@ NodeIndex SageParser::parse_postfix_operator() {
     NodeIndex current_member_variable_node;
     while (iteration_count < MAX_ITERATION_GUARD) {
         current_member_variable_node = parse_primary();
+        if (current_token->token_type == TT_LBRACKET) {
+            Token token;
+            token.fill_with(*current_token);
+            auto array_access_node = node_manager->create_empty_binary(token, PN_ARRAY_ACCESS);
+            auto array_indices_node = node_manager->create_block();
+            node_manager->set_binary_left(array_access_node, current_member_variable_node);
+            node_manager->set_binary_right(array_access_node, array_indices_node);
+            while (current_token->token_type == TT_LBRACKET) {
+                advance(); // past [
+                auto array_index_node = parse_expression();
+                node_manager->add_child(array_indices_node, array_index_node);
+                consume(TT_RBRACKET, "Expected closing bracket for array indexing.");
+            }
+
+            current_member_variable_node = array_access_node;
+
+            if (current_token->token_type != TT_FIELD_ACCESSOR) {
+                node_manager->set_binary_left(current_binary_node, current_member_variable_node);
+                Token sentinel_token = Token(TT_COMPILER_CREATED, "null", current_token->linenum);
+                NodeIndex null_sentinel = node_manager->create_unary(sentinel_token, PN_UNARY);
+                node_manager->set_binary_right(current_binary_node, null_sentinel);
+                return root_binary_node;
+            }
+        }
 
         consume(TT_FIELD_ACCESSOR, "Expected '.' character in structure field access expression.");
 
@@ -904,9 +926,47 @@ NodeIndex SageParser::parse_primary() {
             advance();
             return ret;
 
+        case TT_LBRACKET:
+            return parse_array_literal();
+
         default:
             return NULL_INDEX;
     }
+}
+
+NodeIndex SageParser::parse_array_literal() {
+    Token array_literal_token = *current_token;
+    NodeIndex array_literal_node = node_manager->create_block(array_literal_token, PN_ARRAY_LITERAL);
+
+    consume(TT_LBRACKET, "Expected opening '[' in array literal");
+    string full_lexeme = "[";
+
+    while (current_token->token_type != TT_RBRACKET) {
+        Token curr_token = *current_token;
+        full_lexeme += curr_token.lexeme;
+        NodeIndex element_node = parse_unary_operator();
+        if (element_node == NULL_INDEX) {
+            ErrorLogger::get().log_error_unsafe(
+                curr_token, sen("Malformed array literal element:", curr_token.lexeme), SYNTAX);
+            break;
+        }
+
+        node_manager->add_child(
+            array_literal_node,
+            element_node
+        );
+
+        if (current_token->token_type == TT_RBRACKET) break;
+        consume(TT_COMMA, "Expected ',' to separate array elements.");
+        full_lexeme += ", ";
+    }
+
+    full_lexeme += "]";
+    advance(); // move past ]
+
+    node_manager->unbox(array_literal_node)->token.lexeme = full_lexeme;
+
+    return array_literal_node;
 }
 
 bool SageParser::match_types(TokenType type_a, TokenType type_b) {
