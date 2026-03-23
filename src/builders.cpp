@@ -464,6 +464,29 @@ void BytecodeBuilder::build_puts() {
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, SymbolEntry *var_symbol) {
+    // Array structs are initialized by build_alloca (first pointer + length).
+    // For array literals, copy element data from static memory to stack element area.
+    if (var_symbol->datatype->is_array()) {
+        auto *literal_entry = symbol_table.lookup_by_index(right_value.symbol_table_index);
+        if (literal_entry != nullptr && literal_entry->static_stack_pointer != -1) {
+            int static_pointer = literal_entry->static_stack_pointer;
+            int array_byte_size = ((SageArrayType *)var_symbol->datatype)->array_size;
+            
+            // Load the first pointer (address of element[0]) from the struct
+            // struct.first is at stack_offset from frame pointer
+            int first_addr_reg = get_volatile_register();
+            builder.build_instruction(OP_SUB, first_addr_reg, 24, var_symbol->stack_offset, _10);
+            
+            int first_ptr_reg = get_volatile_register();
+            builder.build_instruction(OP_LOADA, 8, first_ptr_reg, first_addr_reg, _01);
+            
+            // Copy from static memory to element area using ADDR_MEMCPY
+            // first_ptr_reg contains the destination address (element[0])
+            builder.build_instruction(OP_ADDR_MEMCPY, array_byte_size, first_ptr_reg, static_pointer, _10);
+        }
+        return VisitorResult();
+    }
+
     // var_symbol in register ==> LOAD/MOVE
     // var_symbol on stack    ==> STORE
     auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_index);
@@ -506,13 +529,22 @@ void SageCompiler::build_alloca(SymbolEntry *var_symbol) {
         int array_struct_length_address = get_volatile_register();
         int array_length = array_byte_size / 8;
 
-        builder.build_instruction(OP_SUB, array_struct_start, array_memory_start, array_byte_size, _10);
-        builder.build_instruction(OP_SUB, array_struct_length_address, array_memory_start, array_byte_size + 8, _10);
+        // address where struct.first is stored = array_memory_start - array_byte_size - 8
+        builder.build_instruction(OP_SUB, array_struct_start, array_memory_start, array_byte_size + 8, _10);
+        // address where struct.length is stored = array_memory_start - array_byte_size - 16
+        builder.build_instruction(OP_SUB, array_struct_length_address, array_memory_start, array_byte_size + 16, _10);
 
-        builder.build_instruction(OP_STOREA, 8, array_struct_start, array_memory_start, _11);
+        // calculate element[0] address = array_memory_start - array_byte_size
+        int element_start = get_volatile_register();
+        builder.build_instruction(OP_SUB, element_start, array_memory_start, array_byte_size, _10);
+
+        // store first = address of element[0]
+        builder.build_instruction(OP_STOREA, 8, array_struct_start, element_start, _11);
+        // store length = number of elements
         builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
 
-        var_symbol->stack_offset = array_byte_size;
+        // stack_offset points to struct.first for field access
+        var_symbol->stack_offset = array_byte_size + 8;
         return;
     }
 

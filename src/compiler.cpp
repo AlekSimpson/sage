@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cmath>
 #include <array>
+#include <stdexcept>
 
 #include "codegen.h"
 #include "../include/codegen.h"
@@ -245,6 +246,7 @@ void SageCompiler::scan_program_type_symbol(
     string working_type_name,
     SymbolIndex declared_variable_symbol = -1
 ) {
+    if (logger.has_errors()) return;
     if (working_node == NULL_INDEX) {
         /*
          * reference :: struct {
@@ -265,11 +267,14 @@ void SageCompiler::scan_program_type_symbol(
          *
          */
 
-        // TODO: finish type resolution and builtin namespace creation here
+        auto *exists = symbol_table.lookup(working_type_name, node_manager->get_scope_id(root_type_node));
+        if (exists != nullptr) return;
+
         auto index = symbol_table.declare_builtin_type_symbol(working_type_name, nullptr);
         auto *entry = symbol_table.entries.get_pointer(index);
         entry->type_namespace = new BuiltinNamespace();
         entry->definition_ast_index = root_type_node;
+        entry->datatype = symbol_table.resolve_builtin_struct_type(index);
 
         return;
     };
@@ -285,7 +290,14 @@ void SageCompiler::scan_program_type_symbol(
             break;
         }
         case PN_STATIC_ARRAY_TYPE: {
-            int array_static_length = stoll(node_manager->get_lexeme(working_node));
+            int array_static_length;
+            try {
+                array_static_length = stoll(node_manager->get_lexeme(working_node));
+            } catch (const std::runtime_error& e) {
+                Token token = node_manager->get_token(working_node);
+                logger.log_error_unsafe(token, "Static arrays can only take constant immediate values for initialization.", GENERAL);
+            }
+
             scan_program_type_symbol(
                 root_type_node,
                 node_manager->get_branch(working_node),
@@ -339,6 +351,7 @@ void SageCompiler::scan_program_type_symbol(
 
 void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function_parameter_register,
                                             string parent_function_name) {
+    if (logger.has_errors()) return;
     map<string, string> resolution_map = {
         {"float", "f64"},
         {"int", "i64"},

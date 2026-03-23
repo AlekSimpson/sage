@@ -221,7 +221,7 @@
         "source": "\n\n\nsome_array: int[4]\n\n\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nmov r10 r23\nsub r23 r23 48\nsub r11 r10 32\nsub r12 r10 40\nstorea 8 $r11 r10\nstorea 8 $r12 4\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nmov r10 r23\nsub r23 r23 48\nsub r11 r10 40\nsub r12 r10 48\nsub r13 r10 32\nstorea 8 $r11 r13\nstorea 8 $r12 4\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     },
     {
@@ -257,7 +257,16 @@
         "source": "\n\narray: int[4]\n\nputi(array.length, 1)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nmov r10 r23\nsub r23 r23 48\nsub r11 r10 32\nsub r12 r10 40\nstorea 8 $r11 r10\nstorea 8 $r12 4\nmov r13 0\nadd r13 r13 32\nadd r13 r13 8\nsub r14 r24 r13\nloada 8 r15 $r14\nmov r0 r15\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nmov r10 r23\nsub r23 r23 48\nsub r11 r10 40\nsub r12 r10 48\nsub r13 r10 32\nstorea 8 $r11 r13\nstorea 8 $r12 4\nmov r14 0\nadd r14 r14 40\nadd r14 r14 8\nsub r15 r24 r14\nloada 8 r16 $r15\nmov r0 r16\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "4"
+    },
+    {
+        "index": 30,
+        "name": "arrays_three.sage",
+        "source": "\n\narray: int[4] = [9, 2, 3, 4]\n\nputi(@array.first, 1)\nputs(\"\\n\", 1)\nputi(array.length, 1)\nputi(array[0], 1)\nputi(array[1], 1)\nputi(array[2], 1)\nputi(array[3], 1)\n\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r10 r23\nsub r23 r23 48\nsub r11 r10 40\nsub r12 r10 48\nsub r13 r10 32\nstorea 8 $r11 r13\nstorea 8 $r12 4\nsub r14 r24 40\nloada 8 r15 $r14\nacpy 32 r15 0\nmov r16 0\nadd r16 r16 40\nadd r16 r16 0\nsub r17 r24 r16\nloada 8 r18 $r17\nloada 16 r19 $r18\nmov r0 r19\nmov r1 1\ncall @2090629895\nmov r0 32\nmov r1 1\ncall @2090629905\nmov r10 0\nadd r10 r10 40\nadd r10 r10 8\nsub r11 r24 r10\nloada 8 r12 $r11\nmov r0 r12\nmov r1 1\ncall @2090629895\nsub r14 r24 40\nloada 8 r16 $r14\nmov r17 0\nmul r18 r17 8\nadd r15 r16 r18\nloada 8 r19 $r15\nmov r0 r19\nmov r1 1\ncall @2090629895\nsub r11 r24 40\nloada 8 r13 $r11\nmov r14 1\nmul r15 r14 8\nadd r12 r13 r15\nloada 8 r16 $r12\nmov r0 r16\nmov r1 1\ncall @2090629895\nsub r18 r24 40\nloada 8 r10 $r18\nmov r11 2\nmul r12 r11 8\nadd r19 r10 r12\nloada 8 r13 $r19\nmov r0 r13\nmov r1 1\ncall @2090629895\nsub r15 r24 40\nloada 8 r17 $r15\nmov r18 3\nmul r19 r18 8\nadd r16 r17 r19\nloada 8 r10 $r16\nmov r0 r10\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "9\n49234"
     }
 ]

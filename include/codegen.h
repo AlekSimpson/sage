@@ -241,4 +241,5 @@ public:
     VisitorResult visit_literal(NodeIndex, bool taking_address_of_field = false);
     VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);
     VisitorResult visit_binary_operator(NodeIndex);
+    VisitorResult visit_array_access(NodeIndex, int base_address_register, int offset_register, SageNamespace *current_namespace);
 };
