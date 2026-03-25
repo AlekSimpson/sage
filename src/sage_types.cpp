@@ -619,6 +619,12 @@ SageType *TypeRegistery::get_function_type(std::vector<SageType *> parameter_typ
     return function_types[key].get();
 }
 
+SageType *TypeRegistery::get_string_type() {
+    return TypeRegistery::get_struct_type("string", {
+        TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
+        TypeRegistery::get_integer_type(8)
+    });
+}
 
 bool TypeRegistery::is_builtin_primitive(SageType *type) {
     auto it = builtin_types.find(make_pair<CanonicalType, int>(type->identify(), std::move(type->size)));

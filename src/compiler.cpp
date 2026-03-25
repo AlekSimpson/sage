@@ -293,9 +293,10 @@ void SageCompiler::scan_program_type_symbol(
             int array_static_length;
             try {
                 array_static_length = stoll(node_manager->get_lexeme(working_node));
-            } catch (const std::runtime_error& e) {
+            } catch (const std::runtime_error &e) {
                 Token token = node_manager->get_token(working_node);
-                logger.log_error_unsafe(token, "Static arrays can only take constant immediate values for initialization.", GENERAL);
+                logger.log_error_unsafe(
+                    token, "Static arrays can only take constant immediate values for initialization.", GENERAL);
             }
 
             scan_program_type_symbol(
@@ -466,7 +467,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto *var_entry = symbol_table.entries.get_pointer(new_variable_symbol);
             if (!var_entry->type_is_resolved()) {
                 string type_lexeme = node_manager->get_lexeme(declaration_type_node);
-                var_entry->datatype = symbol_table.resolve_variable_type(new_variable_symbol, scanner.symbol_being_scanned(type_lexeme));
+                var_entry->datatype = symbol_table.resolve_variable_type(
+                    new_variable_symbol, scanner.symbol_being_scanned(type_lexeme));
             }
 
             scan_all_program_symbols(right_most_node);
@@ -549,24 +551,21 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             // Infer element type from first element
             auto first_element_node = children[0];
             SageType *first_element_type = nullptr;
-            switch (node_manager->get_nodetype(first_element_node)) {
-                case PN_NUMBER:
-                    first_element_type = TR::get_integer_type(8);
-                    break;
-                case PN_FLOAT:
-                    first_element_type = TR::get_float_type(8);
-                    break;
-                case PN_CHARACTER_LITERAL:
-                    first_element_type = TR::get_byte_type(CHAR);
-                    break;
-                case PN_BOOL:
-                    first_element_type = TR::get_byte_type(BOOL);
-                    break;
-                default:
-                    logger.log_error_unsafe("compiler.cpp", current_linenum,
-                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
-                    break;
+            map<ParseNodeType, SageType *> valid_array_literal_types = {
+                {PN_NUMBER, TR::get_integer_type(8)},
+                {PN_FLOAT, TR::get_float_type(8)},
+                {PN_CHARACTER_LITERAL, TR::get_byte_type(CHAR)},
+                {PN_BOOL, TR::get_byte_type(BOOL)},
+                {PN_STRING, TR::get_string_type()}
+            };
+            auto first_element_nodetype = node_manager->get_nodetype(first_element_node);
+            auto search = valid_array_literal_types.find(first_element_nodetype);
+            if (search == valid_array_literal_types.end()) {
+                logger.log_error_unsafe("compiler.cpp", current_linenum,
+                                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
+                return;
             }
+            first_element_type = search->second;
 
             int first_element_size = first_element_type->size;
             int array_length = children.size();
@@ -598,8 +597,23 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                         element_value = char_str.empty() ? 0 : char_str[0];
                         break;
                     }
+                    case PN_STRING: {
+                        /* agent --resume=73cd8df9-2def-4b3e-8991-de36ffbb8f9a
+                         *
+                         * ok so the main issue is that this branch is wrong, since its a full string (not technically a
+                         * literal) we need to add code here that creates a static string in memory like the other
+                         * STRING case in the top level switch of this function.
+                         * probbaly should factor out the static string creation code into a function that we can call
+                         * in both spots.
+                         * there is also another bug the agent found that should be addressed.
+                         *
+                         */
+
+                        string char_str = node_manager->get_lexeme(children[i]);
+                        element_value = char_str.empty() ? 0 : char_str[0];
+                        break;
+                    }
                     default: {
-                        // TODO: add robust support for complex literal types later
                         logger.log_error_unsafe("compiler.cpp", current_linenum,
                                                 "Cannot use complex non-literal value in array literal yet.", GENERAL);
                         break;
