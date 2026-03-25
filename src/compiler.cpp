@@ -76,13 +76,6 @@ void SageCompiler::compile_file(string mainfile) {
     }
     comptime_manager.static_program_memory = &static_program_memory_store;
 
-    // Type resolution now happens inline during scan_all_program_symbols
-    // perform_type_resolution();
-    // if (logger.has_errors()) {
-    //     logger.report_errors();
-    //     return;
-    // }
-
     // auto resolve symbol definition ordering
     forward_declaration_resolution(ast_root);
     if (logger.has_errors()) {
@@ -598,19 +591,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                         break;
                     }
                     case PN_STRING: {
-                        /* agent --resume=73cd8df9-2def-4b3e-8991-de36ffbb8f9a
-                         *
-                         * ok so the main issue is that this branch is wrong, since its a full string (not technically a
-                         * literal) we need to add code here that creates a static string in memory like the other
-                         * STRING case in the top level switch of this function.
-                         * probbaly should factor out the static string creation code into a function that we can call
-                         * in both spots.
-                         * there is also another bug the agent found that should be addressed.
-                         *
+                        /* agent --resume=73cd8df9-2def-4b3e-8991-de36ffbb8f9a (on ubuntu)
                          */
 
-                        string char_str = node_manager->get_lexeme(children[i]);
-                        element_value = char_str.empty() ? 0 : char_str[0];
                         break;
                     }
                     default: {
