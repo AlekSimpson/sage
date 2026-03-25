@@ -366,11 +366,14 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
     switch (nodetype) {
         case PN_STRUCT: {
             SymbolIndex struct_symbol = symbol_table.declare_type_symbol(current_node, nullptr);
+            string struct_name = symbol_table.lookup_by_index(struct_symbol)->name;
 
+            scanner.scan_symbol(struct_name);
             auto body_node = node_manager->get_branch(node_manager->get_right(current_node));
             for (auto child: node_manager->get_children(body_node)) {
                 scan_all_program_symbols(child);
             }
+            scanner.finish_symbol_scan();
 
             // INLINE TYPE RESOLUTION: Resolve struct type after scanning members
             auto *struct_entry = symbol_table.entries.get_pointer(struct_symbol);
@@ -391,11 +394,13 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto paramters_node = node_manager->get_left(signature_trinary_node);
             auto bodynode = node_manager->reach_right(current_node, 2);
 
+            scanner.scan_symbol(function_identifier);
             int current_parameter_register = 0;
             for (auto child: node_manager->get_children(paramters_node)) {
                 scan_all_program_symbols(child, current_parameter_register, function_identifier);
                 current_parameter_register++;
             }
+            scanner.finish_symbol_scan();
 
             // scan the return type node
             auto middle_node = node_manager->get_middle(signature_trinary_node);
@@ -426,7 +431,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                                                   : symbol_table.declare_variable(current_node, nullptr);
 
             auto right_most_node = node_manager->get_right(current_node);
+            NodeIndex declaration_type_node;
             if (node_manager->get_host_nodetype(current_node) == PN_BINARY) {
+                declaration_type_node = right_most_node;
                 scan_program_type_symbol(
                     right_most_node,
                     right_most_node,
@@ -434,7 +441,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                     new_variable_symbol
                 );
             } else if (node_manager->get_host_nodetype(current_node) == PN_TRINARY) {
-                auto declaration_type_node = node_manager->get_middle(current_node);
+                declaration_type_node = node_manager->get_middle(current_node);
                 auto assigned_value_node = node_manager->get_right(current_node);
 
                 scan_program_type_symbol(
@@ -456,10 +463,10 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 }
             }
 
-            // INLINE TYPE RESOLUTION: Resolve variable type immediately
             auto *var_entry = symbol_table.entries.get_pointer(new_variable_symbol);
             if (!var_entry->type_is_resolved()) {
-                var_entry->datatype = symbol_table.resolve_variable_type(new_variable_symbol);
+                string type_lexeme = node_manager->get_lexeme(declaration_type_node);
+                var_entry->datatype = symbol_table.resolve_variable_type(new_variable_symbol, scanner.symbol_being_scanned(type_lexeme));
             }
 
             scan_all_program_symbols(right_most_node);
@@ -656,42 +663,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             break;
     }
 }
-
-// Type resolution now happens inline during scan_all_program_symbols
-// Kept for reference - can be removed once inline resolution is verified working
-/*
-void SageCompiler::perform_type_resolution() {
-    vector<SymbolIndex> program_symbols(symbol_table.entries.size);
-    std::iota(program_symbols.begin(), program_symbols.end(), 0);
-
-    for (SymbolIndex index: program_symbols) {
-        auto *entry = symbol_table.entries.get_pointer(index);
-        if (symbol_table.builtins.find(index) != symbol_table.builtins.end()) {
-            if (entry->type_namespace != nullptr && !entry->type_is_resolved()) {
-                entry->datatype = symbol_table.resolve_builtin_struct_type(index);
-            }
-            continue;
-        }
-        if (entry->type_is_resolved()) continue;
-
-        auto nodetype = node_manager->get_nodetype(entry->definition_ast_index);
-        switch (nodetype) {
-            case PN_VAR_DEC:
-                entry->datatype = symbol_table.resolve_variable_type(index);
-                break;
-            case PN_STRUCT:
-                entry->datatype = symbol_table.resolve_struct_type(index);
-                break;
-            case PN_FUNCDEF:
-                entry->datatype = symbol_table.resolve_function_type(index);
-                break;
-            default:
-                assertm(false, "Type resolution encountered unknown symbol type");
-                break;
-        }
-    }
-}
-*/
 
 string compilation_target_string(CompilationTarget target) {
     switch (target) {

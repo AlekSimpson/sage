@@ -165,7 +165,7 @@ public:
 
     SageType *resolve_builtin_struct_type(SymbolIndex);
     SageType *resolve_unknown_type_node(NodeIndex, int, bool self_referential_pointer_detected = false);
-    SageType *resolve_variable_type(SymbolIndex);
+    SageType *resolve_variable_type(SymbolIndex, bool);
     SageType *resolve_function_type(SymbolIndex);
     SageType *resolve_struct_type(SymbolIndex);
 

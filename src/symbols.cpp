@@ -443,7 +443,7 @@ SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_i
     return current_type;
 }
 
-SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
+SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index, bool self_referential_definition = false) {
     auto &entry = entries.get(entry_index);
     if (entry.type_is_resolved()) {
         return entry.datatype;
@@ -455,7 +455,7 @@ SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
         type_ast_id = nm->get_middle(entry.definition_ast_index);
     }
 
-    return resolve_unknown_type_node(type_ast_id, entry.scope_id);
+    return resolve_unknown_type_node(type_ast_id, entry.scope_id, self_referential_definition);
 }
 
 SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {

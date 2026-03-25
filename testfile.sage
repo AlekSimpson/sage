@@ -1,15 +1,21 @@
 
+null: int = 0
 
-array: int[4] = [9, 2, 3, 4]
+ListNode :: struct {
+    data: string
+    next: ListNode*
+}
 
-puti(@array.first, 1)
-puts("\n", 1)
-puti(array.length, 1)
-puti(array[0], 1)
-puti(array[1], 1)
-puti(array[2], 1)
-puti(array[3], 1)
+node3: ListNode
+node3.data = "node3 data"
+
+node2: ListNode
+node2.data = "node2 data"
+node2.next = ^node3
+
+node1: ListNode
+node1.data = "node1 data"
+node1.next = ^node2
 
 
-
-
+puts(node1.data, node1.data.length)

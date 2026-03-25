@@ -2,6 +2,7 @@
 
 #include <map>
 #include <cassert>
+#include <functional>
 #include "error_logger.h"
 #include "parser.h"
 #include "interpreter.h"
@@ -188,8 +189,31 @@ public:
         void add_definition_contents_to_dependency_graph(NodeIndex current_node);
     };
 
+    struct SymbolScanner {
+        stack<int> symbols;
+        set<int> currently_scanning;
+
+        void scan_symbol(string symbol_name) {
+            int name_hash = std::hash<string>{}(symbol_name);
+            symbols.push(name_hash);
+            currently_scanning.insert(name_hash);
+        }
+
+        void finish_symbol_scan() {
+            int top_symbol_hash = symbols.top();
+            symbols.pop();
+            currently_scanning.erase(top_symbol_hash);
+        }
+
+        bool symbol_being_scanned(string symbol_name) {
+            return currently_scanning.find(hash<string>{}(symbol_name)) != currently_scanning.end();
+        }
+    };
+
     // for forward declaration auto resolution
     ScopeDependencyGraph dependency_graph;
+
+    SymbolScanner scanner;
 
     ByteVector static_program_memory_store;
 
