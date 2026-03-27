@@ -350,7 +350,6 @@ SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) 
 
     NodeIndex current_node = entry->definition_ast_index;
     SageType *resolved_type = nullptr;
-    int scope_id = nm->get_scope_id(current_node);
     while (current_node != NULL_INDEX) {
         switch (nm->get_nodetype(current_node)) {
             case PN_STATIC_ARRAY_TYPE: {
@@ -367,10 +366,11 @@ SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) 
                 break;
             }
             default:
-                resolved_type = resolve_unknown_type_node(current_node, scope_id);
+                resolved_type = resolve_unknown_type_node(current_node);
         }
         current_node = nm->get_branch(current_node);
     }
+    assert(resolved_type != nullptr);
 
     BuiltinNamespace *namespace_ = (BuiltinNamespace *)entry->type_namespace;
     SageType *basetype = nullptr;
@@ -398,10 +398,11 @@ SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) 
     return resolved_type;
 }
 
-SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, int scope_id, bool self_referential_pointer_detected) {
+SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, bool self_referential_pointer_detected) {
     if (node == NULL_INDEX) return nullptr;
 
     string type_identifier = nm->get_identifier(node);
+    int scope_id = nm->get_scope_id(node);
     auto *type_symbol = lookup(type_identifier, scope_id);
     assert(type_symbol != nullptr);
 
@@ -455,7 +456,7 @@ SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index, bool s
         type_ast_id = nm->get_middle(entry.definition_ast_index);
     }
 
-    return resolve_unknown_type_node(type_ast_id, entry.scope_id, self_referential_definition);
+    return resolve_unknown_type_node(type_ast_id, self_referential_definition);
 }
 
 SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
@@ -505,7 +506,7 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
             self_referential_pointer_detected = true;
         }
 
-        auto *member_type = resolve_unknown_type_node(type_expression, scope_id, self_referential_pointer_detected);
+        auto *member_type = resolve_unknown_type_node(type_expression, self_referential_pointer_detected);
         member_types.push_back(member_type);
 
         auto member_symbol_node = nm->get_left(member_expression);
@@ -529,17 +530,16 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
 
     NodeIndex function_signature = nm->get_right(function_entry->definition_ast_index);
 
-    int scope_id = function_entry->scope_id;
     string current_identifier;
     for (auto parameter_expression: nm->get_children(nm->get_left(function_signature))) {
         auto type_expression = nm->get_right(parameter_expression);
         if (nm->get_host_nodetype(parameter_expression) == PN_TRINARY) {
             type_expression = nm->get_middle(parameter_expression);
         }
-        parameter_types.push_back(resolve_unknown_type_node(type_expression, scope_id));
+        parameter_types.push_back(resolve_unknown_type_node(type_expression));
     }
     for (auto return_type_expression: nm->get_children(nm->get_middle(function_signature))) {
-        return_types.push_back(resolve_unknown_type_node(return_type_expression, scope_id));
+        return_types.push_back(resolve_unknown_type_node(return_type_expression));
     }
 
     if (return_types.empty()) {

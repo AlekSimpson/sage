@@ -233,6 +233,16 @@ void SageCompiler::compile_file(string mainfile) {
     }
 }
 
+int64_t SageCompiler::get_static_string_pointer(string &string_contents) {
+    string_contents.erase(std::remove(string_contents.begin(), string_contents.end(), '"'), string_contents.end());
+    process_escape_sequences(string_contents);
+    int64_t string_length = string_contents.size();
+    int64_t static_pointer = static_program_memory_store.size();
+    static_program_memory_store.resize(static_program_memory_store.size() + string_length);
+    std::memcpy(&static_program_memory_store[static_pointer], string_contents.c_str(), string_length);
+    return static_pointer;
+}
+
 void SageCompiler::scan_program_type_symbol(
     NodeIndex root_type_node,
     NodeIndex working_node,
@@ -500,26 +510,21 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             return;
         }
         case PN_STRING: {
-            auto node_lexeme = node_manager->get_lexeme(current_node);
-            node_lexeme.erase(std::remove(node_lexeme.begin(), node_lexeme.end(), '"'), node_lexeme.end());
             auto *string_symbol = symbol_table.lookup(
                 node_manager->get_identifier(current_node),
                 node_manager->get_scope_id(current_node)
             );
             if (string_symbol != nullptr) return;
 
-            process_escape_sequences(node_lexeme);
+            // process_escape_sequences(node_lexeme);
+            string node_lexeme = node_manager->get_lexeme(current_node);
+            int64_t static_pointer = get_static_string_pointer(node_lexeme);
             int64_t string_length = node_lexeme.size();
+            // int64_t static_pointer = static_program_memory_store.size();
+            // static_program_memory_store.resize(static_program_memory_store.size() + string_length);
+            // std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
 
-            vector<SageType *> string_member_types = {
-                TR::get_pointer_type(TR::get_byte_type(CHAR)), TR::get_integer_type(8)
-            };
-            auto *string_type = TR::get_struct_type("string", string_member_types);
-
-            int64_t static_pointer = static_program_memory_store.size();
-            static_program_memory_store.resize(static_program_memory_store.size() + string_length);
-            std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
-
+            auto *string_type = TR::get_string_type();
             ByteVector string_instance_data;
             string_instance_data.resize(string_type->size);
             std::memcpy(string_instance_data.data(), &static_pointer, 8);
@@ -530,88 +535,105 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             return;
         }
         case PN_ARRAY_LITERAL: {
-            // Check if already processed
+            // check if already processed
             string literal_identifier = node_manager->get_lexeme(current_node);
             auto *existing = symbol_table.lookup(
                 literal_identifier,
                 node_manager->get_scope_id(current_node)
             );
-            if (existing != nullptr) return;
-
             auto children = node_manager->get_children(current_node);
-            if (children.empty()) return;
+            if (existing != nullptr || children.empty()) return;
 
-            // Infer element type from first element
+            // write the contents to static (including nested structs)
+            // write the struct to stack
+
+            // infer element type from first element
             auto first_element_node = children[0];
-            SageType *first_element_type = nullptr;
-            map<ParseNodeType, SageType *> valid_array_literal_types = {
-                {PN_NUMBER, TR::get_integer_type(8)},
-                {PN_FLOAT, TR::get_float_type(8)},
-                {PN_CHARACTER_LITERAL, TR::get_byte_type(CHAR)},
-                {PN_BOOL, TR::get_byte_type(BOOL)},
-                {PN_STRING, TR::get_string_type()}
-            };
-            auto first_element_nodetype = node_manager->get_nodetype(first_element_node);
-            auto search = valid_array_literal_types.find(first_element_nodetype);
-            if (search == valid_array_literal_types.end()) {
-                logger.log_error_unsafe("compiler.cpp", current_linenum,
-                                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
-                return;
-            }
-            first_element_type = search->second;
-
+            auto *first_element_type = symbol_table.resolve_unknown_type_node(first_element_node);
             int first_element_size = first_element_type->size;
             int array_length = children.size();
             int total_size = array_length * first_element_size;
 
-            // Allocate in static memory
+            // allocate in static memory
             int64_t static_pointer = static_program_memory_store.size();
             static_program_memory_store.resize(static_program_memory_store.size() + total_size);
 
-            // Store each element's value in static memory
-            for (size_t i = 0; i < children.size(); i++) {
-                auto child_type = node_manager->get_nodetype(children[i]);
-                int64_t element_value = 0;
+            // store each element's value in static memory
+            auto child_type = node_manager->get_nodetype(first_element_node);
+            switch (child_type) {
+                case PN_NUMBER: {
+                    for (size_t i = 0; i < children.size(); i++) {
+                        int64_t element_value = 0;
+                        string lexeme = node_manager->get_lexeme(children[i]);
 
-                switch (child_type) {
-                    case PN_NUMBER:
-                        element_value = stoll(node_manager->get_lexeme(children[i]));
-                        break;
-                    case PN_FLOAT: {
-                        double float_value = stod(node_manager->get_lexeme(children[i]));
-                        std::memcpy(&element_value, &float_value, sizeof(double));
-                        break;
+                        int offset = i * first_element_size;
+                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
                     }
-                    case PN_BOOL:
-                        element_value = (node_manager->get_lexeme(children[i]) == "true") ? 1 : 0;
-                        break;
-                    case PN_CHARACTER_LITERAL: {
-                        string char_str = node_manager->get_lexeme(children[i]);
-                        element_value = char_str.empty() ? 0 : char_str[0];
-                        break;
-                    }
-                    case PN_STRING: {
-                        /* agent --resume=73cd8df9-2def-4b3e-8991-de36ffbb8f9a (on ubuntu)
-                         */
-
-                        break;
-                    }
-                    default: {
-                        logger.log_error_unsafe("compiler.cpp", current_linenum,
-                                                "Cannot use complex non-literal value in array literal yet.", GENERAL);
-                        break;
-                    }
+                    break;
                 }
+                case PN_FLOAT: {
+                    for (size_t i = 0; i < children.size(); i++) {
+                        int64_t element_value = 0;
+                        string lexeme = node_manager->get_lexeme(children[i]);
+                        double float_value = stod(lexeme);
+                        std::memcpy(&element_value, &float_value, sizeof(double));
 
-                int offset = i * first_element_size;
-                std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                        int offset = i * first_element_size;
+                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                    }
+                    break;
+                }
+                case PN_BOOL: {
+                    for (size_t i = 0; i < children.size(); i++) {
+                        int64_t element_value = 0;
+                        string lexeme = node_manager->get_lexeme(children[i]);
+                        element_value = lexeme[0] == 't';
+
+                        int offset = i * first_element_size;
+                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                    }
+                    break;
+
+                }
+                case PN_CHARACTER_LITERAL: {
+                    for (size_t i = 0; i < children.size(); i++) {
+                        int64_t element_value = 0;
+                        string lexeme = node_manager->get_lexeme(children[i]);
+
+                        int offset = i * first_element_size;
+                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                    }
+                    break;
+                }
+                case PN_STRING: {
+                    for (size_t i = 0; i < children.size(); i++) {
+                        string lexeme = node_manager->get_lexeme(children[i]);
+
+                        int64_t string_contents_pointer = get_static_string_pointer(lexeme);
+                        int string_length = lexeme.size();
+
+                        ByteVector string_instance_data;
+                        string_instance_data.resize(first_element_type->size);
+                        std::memcpy(string_instance_data.data(), &string_contents_pointer, 8);
+                        std::memcpy(&string_instance_data[8], &string_length, 8);
+
+                        SageValue string_value = SageValue(first_element_type, string_instance_data);
+                        symbol_table.declare_literal(current_node, string_value, string_contents_pointer);
+
+                        int offset = i * first_element_size;
+                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                    }
+                    break;
+                }
+                default:
+                    logger.log_error_unsafe("compiler.cpp", current_linenum,
+                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
+                    break;
             }
 
-            // Create array type and value
             auto *array_type = TR::get_array_type(first_element_type, array_length);
             SageValue array_value = SageValue(array_type, ByteVector(array_length));
 
-            // Register as literal with static pointer
             symbol_table.declare_literal(current_node, array_value, static_pointer);
             return;
         }

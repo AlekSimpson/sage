@@ -234,7 +234,9 @@ public:
     void forward_declaration_resolution(int program_root);
     void process_escape_sequences(string &str);
     bool is_float_operation(VisitorResult &one, VisitorResult &two);
+
     int get_literal_static_pointer(SymbolIndex literal_symbol_table_index);
+    int64_t get_static_string_pointer(string &string_contents);
 
     /* builders */
     VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
