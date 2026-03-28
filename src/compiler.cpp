@@ -536,7 +536,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
         }
         case PN_ARRAY_LITERAL: {
             // check if already processed
-            string literal_identifier = node_manager->get_lexeme(current_node);
+            string literal_identifier = node_manager->get_identifier(current_node);
             auto *existing = symbol_table.lookup(
                 literal_identifier,
                 node_manager->get_scope_id(current_node)
@@ -544,95 +544,44 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto children = node_manager->get_children(current_node);
             if (existing != nullptr || children.empty()) return;
 
-            // write the contents to static (including nested structs)
-            // write the struct to stack
-
             // infer element type from first element
-            auto first_element_node = children[0];
-            auto *first_element_type = symbol_table.resolve_unknown_type_node(first_element_node);
-            int first_element_size = first_element_type->size;
+            auto *first_element_type = symbol_table.resolve_unknown_type_node(children[0]);
             int array_length = children.size();
-            int total_size = array_length * first_element_size;
+            int total_array_bytesize = array_length * first_element_type->size;
 
-            // allocate in static memory
             int64_t static_pointer = static_program_memory_store.size();
-            static_program_memory_store.resize(static_program_memory_store.size() + total_size);
+            int64_t working_static_pointer = static_pointer;
+            static_program_memory_store.resize(static_program_memory_store.size() + total_array_bytesize);
 
-            // store each element's value in static memory
-            auto child_type = node_manager->get_nodetype(first_element_node);
-            switch (child_type) {
+            switch (node_manager->get_nodetype(children[0])) {
                 case PN_NUMBER: {
-                    for (size_t i = 0; i < children.size(); i++) {
-                        int64_t element_value = 0;
-                        string lexeme = node_manager->get_lexeme(children[i]);
-
-                        int offset = i * first_element_size;
-                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
+                    for (int i = 0; i < array_length; ++i) {
+                        int literal_value = stoll(node_manager->get_lexeme(children[i]));
+                        
                     }
                     break;
                 }
-                case PN_FLOAT: {
-                    for (size_t i = 0; i < children.size(); i++) {
-                        int64_t element_value = 0;
-                        string lexeme = node_manager->get_lexeme(children[i]);
-                        double float_value = stod(lexeme);
-                        std::memcpy(&element_value, &float_value, sizeof(double));
-
-                        int offset = i * first_element_size;
-                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
-                    }
+                case PN_FLOAT:
                     break;
-                }
-                case PN_BOOL: {
-                    for (size_t i = 0; i < children.size(); i++) {
-                        int64_t element_value = 0;
-                        string lexeme = node_manager->get_lexeme(children[i]);
-                        element_value = lexeme[0] == 't';
-
-                        int offset = i * first_element_size;
-                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
-                    }
+                case PN_CHARACTER_LITERAL:
                     break;
-
-                }
-                case PN_CHARACTER_LITERAL: {
-                    for (size_t i = 0; i < children.size(); i++) {
-                        int64_t element_value = 0;
-                        string lexeme = node_manager->get_lexeme(children[i]);
-
-                        int offset = i * first_element_size;
-                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
-                    }
+                case PN_BOOL:
                     break;
-                }
                 case PN_STRING: {
-                    for (size_t i = 0; i < children.size(); i++) {
-                        string lexeme = node_manager->get_lexeme(children[i]);
 
-                        int64_t string_contents_pointer = get_static_string_pointer(lexeme);
-                        int string_length = lexeme.size();
-
-                        ByteVector string_instance_data;
-                        string_instance_data.resize(first_element_type->size);
-                        std::memcpy(string_instance_data.data(), &string_contents_pointer, 8);
-                        std::memcpy(&string_instance_data[8], &string_length, 8);
-
-                        SageValue string_value = SageValue(first_element_type, string_instance_data);
-                        symbol_table.declare_literal(current_node, string_value, string_contents_pointer);
-
-                        int offset = i * first_element_size;
-                        std::memcpy(&static_program_memory_store[static_pointer + offset], &element_value, first_element_size);
-                    }
                     break;
                 }
-                default:
-                    logger.log_error_unsafe("compiler.cpp", current_linenum,
-                        "Cannot use complex non-literal value in array literal yet.", GENERAL);
+                default: {
+                    Token token = node_manager->get_token(children[0]);
+                    logger.log_error_unsafe(token, "Found non-literal value in definition of array literal.", GENERAL);
                     break;
-            }
+                }
 
-            auto *array_type = TR::get_array_type(first_element_type, array_length);
-            SageValue array_value = SageValue(array_type, ByteVector(array_length));
+            }
+            if (logger.has_errors()) return;
+
+            // auto *array_type = TR::get_array_type(first_element_type, array_length);
+            // SageValue array_value = SageValue(array_type, ByteVector(array_length));
 
             symbol_table.declare_literal(current_node, array_value, static_pointer);
             return;
@@ -781,9 +730,7 @@ void SageCompiler::register_allocation() {
 }
 
 int SageCompiler::get_volatile_register() {
-    int _register = 10 + (volatile_index % VOLATILE_REGISTER_SIZE);
-    volatile_index++;
-    return _register;
+    return 125 + (volatile_index++ % VOLATILE_REGISTER_SIZE);
 }
 
 void SageCompiler::ScopeDependencyGraph::add_definition_contents_to_dependency_graph(NodeIndex current_node) {

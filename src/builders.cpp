@@ -518,33 +518,22 @@ void SageCompiler::build_alloca(SymbolEntry *var_symbol) {
     if (datatype_identity == ARRAY ||
         datatype_identity == DYN_ARRAY) {
 
+        int array_struct_start = get_volatile_register();
+        int array_struct_length_address = get_volatile_register();
         int array_memory_start = get_volatile_register();
-        builder.build_move_register(array_memory_start, STACK_POINTER);
+        builder.build_move_register(array_struct_start, STACK_POINTER);
+        builder.build_move_register(array_struct_length_address, STACK_POINTER);
+        builder.build_instruction(OP_SUB, array_struct_length_address, STACK_POINTER, 8, _10);
+        builder.build_instruction(OP_SUB, array_memory_start, STACK_POINTER, 16, _10);
 
         int array_byte_size = ((SageArrayType *)var_symbol->datatype)->array_size;
+        int array_length = array_byte_size / 8;
         int offset = array_byte_size + var_symbol->datatype->size;
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
 
-        int array_struct_start = get_volatile_register();
-        int array_struct_length_address = get_volatile_register();
-        int array_length = array_byte_size / 8;
+        builder.build_instruction(OP_STOREA, array_struct_start, array_memory_start, _11);
+        builder.build_instruction(OP_STOREA, array_struct_length_address, array_length, _10);
 
-        // address where struct.first is stored = array_memory_start - array_byte_size - 8
-        builder.build_instruction(OP_SUB, array_struct_start, array_memory_start, array_byte_size + 8, _10);
-        // address where struct.length is stored = array_memory_start - array_byte_size - 16
-        builder.build_instruction(OP_SUB, array_struct_length_address, array_memory_start, array_byte_size + 16, _10);
-
-        // calculate element[0] address = array_memory_start - array_byte_size
-        int element_start = get_volatile_register();
-        builder.build_instruction(OP_SUB, element_start, array_memory_start, array_byte_size, _10);
-
-        // store first = address of element[0]
-        builder.build_instruction(OP_STOREA, 8, array_struct_start, element_start, _11);
-        // store length = number of elements
-        builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
-
-        // stack_offset points to struct.first for field access
-        var_symbol->stack_offset = array_byte_size + 8;
         return;
     }
 

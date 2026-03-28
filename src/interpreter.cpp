@@ -24,10 +24,11 @@ StackFrame::StackFrame()
 
 // Interpreter
 
-SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {}
+SageInterpreter::SageInterpreter() : frame_pointer(nullptr) {
+}
 
 SageInterpreter::SageInterpreter(SageSymbolTable *table)
-: symbol_table(table), frame_pointer(nullptr) {
+    : symbol_table(table), frame_pointer(nullptr) {
 }
 
 size_t SageInterpreter::allocate_on_heap(size_t bytes) {
@@ -190,7 +191,7 @@ inline void SageInterpreter::execute_move(std::array<int64_t, 3> &operands, Addr
 
 inline void SageInterpreter::execute_int_to_float_move(std::array<int64_t, 3> &operands) {
     // _01 | itfmov freg, ireg
-    set_float_register(operands[0], (double)registers[operands[1]]);
+    set_float_register(operands[0], (double) registers[operands[1]]);
 }
 
 inline void SageInterpreter::execute_float_move(std::array<int64_t, 3> &operands, AddressMode &mode) {
@@ -269,7 +270,8 @@ inline void SageInterpreter::execute_float_less_than_comparison(std::array<int64
     registers[21] = operand1 < operand2;
 }
 
-inline void SageInterpreter::execute_float_greater_than_comparison(std::array<int64_t, 3> &operands, AddressMode &mode) {
+inline void SageInterpreter::execute_float_greater_than_comparison(std::array<int64_t, 3> &operands,
+                                                                   AddressMode &mode) {
     int operand1 = mode[0] == 1 ? read_float_register(operands[0]) : operands[0];
     int operand2 = mode[1] == 1 ? read_float_register(operands[1]) : operands[1];
     registers[21] = operand1 > operand2;
@@ -334,7 +336,7 @@ void SageInterpreter::execute_load_address(std::array<int64_t, 3> &operands, Add
 }
 
 inline void SageInterpreter::execute_system_call() {
-    SVM_SYSCALL callcode = (SVM_SYSCALL)registers[22];
+    SVM_SYSCALL callcode = (SVM_SYSCALL) registers[22];
 
     switch (callcode) {
         case SYS_WRITE: {
@@ -342,7 +344,7 @@ inline void SageInterpreter::execute_system_call() {
             int character_count = registers[2];
             string characters;
             for (int i = 0; i < character_count; ++i) {
-                characters += (char)memory[static_pointer + i];
+                characters += (char) memory[static_pointer + i];
             }
             const char *buffer = characters.c_str();
             sage_write(
@@ -359,23 +361,43 @@ inline void SageInterpreter::execute_system_call() {
                 registers[2]);
             break;
         }
+        case SYS_ALLOC: {
+            int64_t bytes = registers[0];
+            if ((heap_pointer + bytes) > stack_pointer()) {
+                ErrorLogger::get().log_error_safe("interpreter.cpp", current_linenum, "Heap memory full. No more room.",
+                                                  RUNTIME);
+                break;
+            }
+            heap_pointer += bytes;
+            break;
+        }
+        case SYS_DEALLOC: {
+            int64_t bytes = registers[0];
+            if ((heap_pointer - bytes) <= static_memory_end_pointer) {
+                ErrorLogger::get().log_error_safe("interpreter.cpp", current_linenum,
+                                                  "Heap memory already empty. Cannot deallocate more", RUNTIME);
+                break;
+            }
+            heap_pointer -= bytes;
+            break;
+        }
         default:
             break;
     }
 }
 
 void SageInterpreter::print_static_memory() {
-    printf("STATIC_MEM[%ld]: ---------------------------------\n", ((int64_t)static_memory_end_pointer+1));
+    printf("STATIC_MEM[%ld]: ---------------------------------\n", ((int64_t) static_memory_end_pointer + 1));
     for (int i = 0; i <= static_memory_end_pointer; ++i) {
-        printf("%c", (char)memory[i]);
+        printf("%c", (char) memory[i]);
     }
     printf("END\n");
     printf("---------------------------------------------\n\n\n");
 }
 
 void SageInterpreter::print_stack_memory() {
-    printf("STACK_MEM[%ld]: ---------------------------------\n", ((int64_t)memory.size() - stack_pointer()));
-    for (int64_t i = memory.size()-1; i >= stack_pointer(); --i) {
+    printf("STACK_MEM[%ld]: ---------------------------------\n", ((int64_t) memory.size() - stack_pointer()));
+    for (int64_t i = memory.size() - 1; i >= stack_pointer(); --i) {
         printf("0x%02x ", memory[i]);
     }
     printf("END\n");
@@ -539,7 +561,7 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, ByteVe
             nullptr,
             procedure_line_locations,
             -1,
-            memory.size()-1,
+            memory.size() - 1,
             proc_line_locations[get_procedure_frame_id(GLOBAL_NAME)]
         );
     }
@@ -547,7 +569,7 @@ void SageInterpreter::open(const map<int, int> &procedure_line_locations, ByteVe
     std::memcpy(memory.data(), program_static_memory.data(), program_static_memory.size());
     heap_pointer = program_static_memory.size();
     static_memory_end_pointer = program_static_memory.size() - 1;
-    registers[STACK_POINTER] = memory.size()-1; // stack begins are memory max and "grows up"
+    registers[STACK_POINTER] = memory.size() - 1; // stack begins are memory max and "grows up"
     registers[24] = registers[STACK_POINTER]; // frame pointer
 
     vm_running = false;

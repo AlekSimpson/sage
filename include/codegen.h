@@ -218,7 +218,7 @@ public:
     ByteVector static_program_memory_store;
 
     CodegenMode codegen_mode;
-    const int VOLATILE_REGISTER_SIZE = 10;
+    const int VOLATILE_REGISTER_SIZE = 200;
     int volatile_index = 0;
 
     SageCompiler(CompilerOptions options);

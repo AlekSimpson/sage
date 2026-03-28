@@ -66,7 +66,7 @@ struct SymbolEntry {
     bool is_struct_member = false;
     int assigned_register = -1;
     int stack_offset = 0;
-    int static_stack_pointer = -1;
+    int static_pointer = -1;
 
     ComptimeTaskId task_id;
 

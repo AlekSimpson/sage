@@ -167,29 +167,26 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
 
         // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
-        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
 
         build_alloca(var_symbol);
         return VisitorResult();
     }
 
-    if (concrete_node_type == PN_TRINARY) {
-        // left is variable identifier
-        auto lhs = node_manager->get_left(node);
-        string variable_name = node_manager->get_lexeme(lhs);
-        int scope_id = node_manager->get_scope_id(node);
-        SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
+    //if (concrete_node_type == PN_TRINARY) {
+    //    // left is variable identifier
+    //    auto lhs = node_manager->get_left(node);
+    //    string variable_name = node_manager->get_lexeme(lhs);
+    //    int scope_id = node_manager->get_scope_id(node);
+    //    SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
 
-        auto rightnode = node_manager->get_right(node);
-        build_alloca(var_symbol);
-        auto rhs = visit_expression(rightnode);
+    //    auto rightnode = node_manager->get_right(node);
+    //    build_alloca(var_symbol);
+    //    auto rhs = visit_expression(rightnode);
 
-        // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
-        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
-        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
+    //    // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
 
-        return build_store(rhs, var_symbol);
-    }
+    //    return build_store(rhs, var_symbol);
+    //}
 
     return VisitorResult();
 }
@@ -562,9 +559,6 @@ VisitorResult SageCompiler::visit_array_access(
 VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of_field) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
-        case PN_LIST: {
-            assertm(false, "TODO: List literal visitor unimplemented.");
-        }
         case PN_VAR_REF:
         case PN_IDENTIFIER: {
             string reference_name = node_manager->get_identifier(node);
@@ -574,11 +568,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
         }
         case PN_FUNCCALL:
             return visit_function_call(node);
-        case PN_STRING: {
-            auto identifier = node_manager->get_identifier(node);
-            SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
-            return VisitorResult(symbol_table, symbol_index);
-        }
+        case PN_STRING:
         case PN_ARRAY_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
             SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));

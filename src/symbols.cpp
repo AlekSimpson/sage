@@ -101,7 +101,7 @@ SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value, 
         entry.name = name;
         entry.scope_id = current_scope;
         entry.definition_ast_index = ast_id;
-        entry.static_stack_pointer = static_pointer;
+        entry.static_pointer = static_pointer;
         entry.symbol_index = new_index;
 
         scope_symbol_map[{current_scope, name}] = new_index;
