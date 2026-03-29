@@ -14,7 +14,7 @@
         "source": "\n\nstring_length: i64 = 21\nOTHER_CONSTANT: string = \"abc123\"\nprogram_is_working: bool = false\n\nmain :: () {\n    puts(\"hello functions five\\n\", string_length)\n}\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nmov r25 21\nsub r23 r23 48\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 48 r125 0\nstore 8 ($fp - 8) 6\nmov r26 0\nlabel @2090499946\nmov r0 6\nmov r1 r25\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nsub r23 r23 16\nmov r25 21\nsub r23 r23 6\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 6 r125 0\nstore 8 ($fp - 8) 6\nmov r26 0\nlabel @2090499946\nmov r0 6\nmov r1 r25\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "hello functions five\n"
     },
     {
@@ -131,7 +131,7 @@
         "source": "\nstring_value: string = \"this is a string literal\"",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 192\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 192 r125 0\nstore 8 ($fp - 8) 24\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 24\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 24 r125 0\nstore 8 ($fp - 8) 24\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     },
     {
@@ -167,7 +167,7 @@
         "source": "\nContactInfo :: struct {\n    name: string\n    phone_number: i64\n    email: string\n    address: string\n}\n\ntest_string: string = \"test\"\nputi(test_string.length, 1)\n\nhello: string = \"Hello World!\"\nputi(hello.length, 2)\n\nputs(hello.bytes, hello.length)\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nsub r23 r23 32\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 32 r125 0\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 r128\nmov r1 1\ncall @2090629895\nsub r23 r23 96\nmov r129 r23\nstore 8 ($fp - 16) r129\nscpy 96 r129 4\nstore 8 ($fp - 24) 12\nmov r130 0\nadd r130 r130 16\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 r132\nmov r1 2\ncall @2090629895\nmov r133 0\nadd r133 r133 16\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r136 0\nadd r136 r136 16\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r135\nmov r1 r138\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 0\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 r128\nmov r1 1\ncall @2090629895\nsub r23 r23 12\nmov r129 r23\nstore 8 ($fp - 16) r129\nscpy 12 r129 4\nstore 8 ($fp - 24) 12\nmov r130 0\nadd r130 r130 16\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 r132\nmov r1 2\ncall @2090629895\nmov r133 0\nadd r133 r133 16\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r136 0\nadd r136 r136 16\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r135\nmov r1 r138\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "412Hello World!"
     },
     {

@@ -763,11 +763,9 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
 
            if (visitor_result_entry->datatype->match(TR::get_string_type())) {
                 // value is a string
-                int64_t string_length = 0;
                 int64_t byte_count = 0;
                 memcpy(&byte_count, visitor_result_entry->data.byte_data + 8, 8); // get string length
-                string_length = byte_count;
-                byte_count = byte_count * 8;
+                int64_t string_length = byte_count;
 
                 // allocate first so the register captures the bottom of the allocated region,
                 // keeping the char data below the struct fields and preventing scpy from
