@@ -66,7 +66,7 @@ void SageInterpreter::pop_stack_scope() {
     frame_pointer = previous;
 }
 
-inline int SageInterpreter::stack_pointer() {
+inline int64_t SageInterpreter::stack_pointer() {
     return registers[STACK_POINTER];
 }
 
@@ -363,7 +363,7 @@ inline void SageInterpreter::execute_system_call() {
         }
         case SYS_ALLOC: {
             int64_t bytes = registers[0];
-            if ((heap_pointer + bytes) > stack_pointer()) {
+            if ((int64_t)(heap_pointer + bytes) > stack_pointer()) {
                 ErrorLogger::get().log_error_safe("interpreter.cpp", current_linenum, "Heap memory full. No more room.",
                                                   RUNTIME);
                 break;

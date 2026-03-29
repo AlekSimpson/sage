@@ -249,7 +249,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
     int offset_register,
     SageNamespace *current_namespace,
     bool struct_field_is_being_assigned_to,
-    bool taking_address_of_field
+    bool taking_address_of_field,
+    bool absolute_addressing
 ) {
     int scope_id = node_manager->get_scope_id(binary_access_node);
 
@@ -281,7 +282,13 @@ VisitorResult SageCompiler::visit_struct_field_access(
                                     : current_namespace->get_field_offset(&symbol_table, name);
             int result_pointer_register = get_volatile_register();
             builder.build_instruction(OP_ADD, offset_register, offset_register, member_offset, _10);
-            builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+            // Stack structs grow downward (base - offset); array element structs are stored
+            // in increasing-address order via ADDR_MEMCPY, so their fields use base + offset.
+            if (absolute_addressing) {
+                builder.build_instruction(OP_ADD, result_pointer_register, base_address_register, offset_register, _11);
+            } else {
+                builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+            }
 
             if (struct_field_is_being_assigned_to || taking_address_of_field) {
                 return VisitorResult(result_pointer_register, type_entry, true);
@@ -312,9 +319,13 @@ VisitorResult SageCompiler::visit_struct_field_access(
             return VisitorResult();
         }
 
-        // check if there's more field access after this array access
+        // check if there's more field access after this array access — includes both chained
+        // PN_FIELD_ACCESS (e.g. arr[0].struct_member.field) and terminal identifiers (e.g. arr[0].length)
         NodeIndex right_node = node_manager->get_right(binary_access_node);
-        bool has_more_field_access = node_manager->get_nodetype(right_node) == PN_FIELD_ACCESS;
+        auto right_node_type = node_manager->get_nodetype(right_node);
+        bool has_more_field_access = right_node_type == PN_FIELD_ACCESS
+                                     || right_node_type == PN_IDENTIFIER
+                                     || right_node_type == PN_VAR_REF;
 
         if (has_more_field_access) {
             // error if trying to access field on non-struct type
@@ -331,13 +342,16 @@ VisitorResult SageCompiler::visit_struct_field_access(
             int new_offset = get_volatile_register();
             builder.build_move_immediate(new_offset, 0);
 
+            // absolute_addressing=true: element area grows upward (via ADDR_MEMCPY), so
+            // fields within each element are accessed with ADD rather than SUB
             return visit_struct_field_access(
                 right_node,
                 array_access_result.temporary_result_register,
                 new_offset,
                 type_entry->type_namespace,
                 struct_field_is_being_assigned_to,
-                taking_address_of_field
+                taking_address_of_field,
+                true
             );
         }
 
@@ -625,8 +639,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             assert(symbol_entry != nullptr);
 
             int dest_register = get_volatile_register();
-            if (symbol_entry->static_stack_pointer != -1) {
-                builder.build_move_immediate(dest_register, symbol_entry->static_stack_pointer);
+            if (symbol_entry->static_pointer != -1) {
+                builder.build_move_immediate(dest_register, symbol_entry->static_pointer);
                 return VisitorResult(dest_register, TR::get_integer_type(8), true);
             }
 

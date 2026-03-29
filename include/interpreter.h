@@ -91,7 +91,7 @@ public:
     size_t allocate_on_stack(size_t bytes);
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
-    inline int stack_pointer();
+    inline int64_t stack_pointer();
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 

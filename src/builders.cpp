@@ -464,33 +464,11 @@ void BytecodeBuilder::build_puts() {
 }
 
 VisitorResult SageCompiler::build_store(VisitorResult right_value, SymbolEntry *var_symbol) {
-    // Array structs are initialized by build_alloca (first pointer + length).
-    // For array literals, copy element data from static memory to stack element area.
-    if (var_symbol->datatype->is_array()) {
-        auto *literal_entry = symbol_table.lookup_by_index(right_value.symbol_table_index);
-        if (literal_entry != nullptr && literal_entry->static_stack_pointer != -1) {
-            int static_pointer = literal_entry->static_stack_pointer;
-            int array_byte_size = ((SageArrayType *)var_symbol->datatype)->array_size;
-            
-            // Load the first pointer (address of element[0]) from the struct
-            // struct.first is at stack_offset from frame pointer
-            int first_addr_reg = get_volatile_register();
-            builder.build_instruction(OP_SUB, first_addr_reg, 24, var_symbol->stack_offset, _10);
-            
-            int first_ptr_reg = get_volatile_register();
-            builder.build_instruction(OP_LOADA, 8, first_ptr_reg, first_addr_reg, _01);
-            
-            // Copy from static memory to element area using ADDR_MEMCPY
-            // first_ptr_reg contains the destination address (element[0])
-            builder.build_instruction(OP_ADDR_MEMCPY, array_byte_size, first_ptr_reg, static_pointer, _10);
-        }
-        return VisitorResult();
-    }
-
     // var_symbol in register ==> LOAD/MOVE
     // var_symbol on stack    ==> STORE
     auto variable_result = VisitorResult(symbol_table, var_symbol->symbol_index);
     switch (variable_result.state) {
+        case VisitorResultState::VALUE:
         case VisitorResultState::SPILLED: {
             right_value.to_stack_instruction(*this, var_symbol->stack_offset);
             break;
@@ -524,15 +502,16 @@ void SageCompiler::build_alloca(SymbolEntry *var_symbol) {
         builder.build_move_register(array_struct_start, STACK_POINTER);
         builder.build_move_register(array_struct_length_address, STACK_POINTER);
         builder.build_instruction(OP_SUB, array_struct_length_address, STACK_POINTER, 8, _10);
-        builder.build_instruction(OP_SUB, array_memory_start, STACK_POINTER, 16, _10);
 
         int array_byte_size = ((SageArrayType *)var_symbol->datatype)->array_size;
-        int array_length = array_byte_size / 8;
+        int array_length = ((SageArrayType *)var_symbol->datatype)->length;
         int offset = array_byte_size + var_symbol->datatype->size;
+        // Decrement SP first so array_memory_start captures new_SP (= first element address)
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
+        builder.build_move_register(array_memory_start, STACK_POINTER);
 
-        builder.build_instruction(OP_STOREA, array_struct_start, array_memory_start, _11);
-        builder.build_instruction(OP_STOREA, array_struct_length_address, array_length, _10);
+        builder.build_instruction(OP_STOREA, 8, array_struct_start, array_memory_start, _11);
+        builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
 
         return;
     }
@@ -673,8 +652,8 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
 void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int absolute_address, AddressMode address_mode) {
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
-    auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-    assertm(entry != nullptr, "symbol entry was nullptr");
+    auto *visitor_result_entry = symbol_table.lookup_by_index(symbol_table_index);
+    assertm(visitor_result_entry != nullptr, "symbol entry was nullptr");
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
@@ -688,11 +667,11 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
         case VisitorResultState::SPILLED: {
             int src_address_reg = compiler.get_volatile_register();
             int dest_address_reg = compiler.get_volatile_register();
-            int size = entry->datatype->size;
+            int size = visitor_result_entry->datatype->size;
 
             // note: we need to think about lowest and highest address because std::memcpy copies up instead of down like our stack works
             // source: lowest address of the source struct
-            builder.build_instruction(OP_SUB, src_address_reg, 24, entry->stack_offset + size - 1, _10);
+            builder.build_instruction(OP_SUB, src_address_reg, 24, visitor_result_entry->stack_offset + size - 1, _10);
 
             // destination: lowest address of the dest struct
             builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size - 1, _10);
@@ -701,26 +680,57 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::REGISTER: {
-            builder.build_instruction(OP_STOREA, entry->datatype->size, absolute_address, entry->assigned_register,
+            builder.build_instruction(OP_STOREA, visitor_result_entry->datatype->size, absolute_address, visitor_result_entry->assigned_register,
                                       address_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
-            int static_pointer = entry->static_pointer;
+            int static_pointer = visitor_result_entry->static_pointer;
 
-            // could be array literal
-            // a struct maybe?
-            if (entry->datatype->match(TR::get_string_type())) {
-                // could be string
+            if (visitor_result_entry->datatype->match(TR::get_string_type())) {
+                // value is a string
+                int64_t string_length = 0;
+                int64_t byte_count = 0;
+                memcpy(&byte_count, visitor_result_entry->data.byte_data + 8, 8); // get string length
+                string_length = byte_count;
+                byte_count = byte_count * 8;
 
-            }else if (entry->datatype->identify() == ARRAY) {
+                auto temp_pointer_register = compiler.get_volatile_register();
+                builder.build_move_register(temp_pointer_register, STACK_POINTER);
+                builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
 
-            }else {
+                // Store first 8 bytes (pointer) at offset
+                builder.build_instruction(OP_STOREA, 8, absolute_address, temp_pointer_register, _11);
 
+                builder.build_instruction(OP_STATIC_COPY, byte_count, temp_pointer_register, static_pointer, _10);
+
+                // Store second 8 bytes (length) at offset + 8
+                if (address_mode == _10) {
+                    int temp_reg = compiler.get_volatile_register();
+                    builder.build_instruction(OP_SUB, temp_reg, absolute_address, 8, _10);
+                    builder.build_instruction(OP_STOREA, 8, temp_reg, string_length, _10);
+                } else {
+                    builder.build_instruction(OP_STOREA, 8, absolute_address + 8, string_length, _00);
+                }
+
+            }else if (visitor_result_entry->datatype->identify() == ARRAY) {
+                // value is a static array
+                SageArrayType *_datatype = (SageArrayType *)visitor_result_entry->datatype;
+                int64_t inner_type_size = _datatype->array_type->size;
+                int64_t string_length = _datatype->length;
+                int64_t byte_count = string_length * inner_type_size;
+
+                // Load the first_ptr (absolute element area address) from the struct's first field
+                auto temp_pointer_register = compiler.get_volatile_register();
+                builder.build_instruction(OP_LOADA, 8, temp_pointer_register, absolute_address, _01);
+
+                // Use ADDR_MEMCPY so the destination is treated as an absolute address, not FP-relative
+                int src_reg = compiler.get_volatile_register();
+                builder.build_move_immediate(src_reg, static_pointer);
+                builder.build_instruction(OP_ADDR_MEMCPY, byte_count, temp_pointer_register, src_reg, _11);
             }
 
 
-            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
             // if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
             //     int64_t first_chunk = 0, second_chunk = 0;
             //     std::memcpy(&first_chunk, entry->data.byte_data, 8);
@@ -748,7 +758,7 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STOREA, entry->datatype->size, absolute_address, temporary_result_register,
+            builder.build_instruction(OP_STOREA, visitor_result_entry->datatype->size, absolute_address, temporary_result_register,
                                       address_mode + _01);
             break;
         }
@@ -762,8 +772,8 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
 void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode) {
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
-    auto *entry = symbol_table.lookup_by_index(symbol_table_index);
-    assertm(entry != nullptr, "symbol entry was nullptr");
+    auto *visitor_result_entry = symbol_table.lookup_by_index(symbol_table_index);
+    assertm(visitor_result_entry != nullptr, "symbol entry was nullptr");
 
     switch (state) {
         case VisitorResultState::IMMEDIATE: {
@@ -775,46 +785,93 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
             break;
         }
         case VisitorResultState::SPILLED: {
-            builder.build_instruction(OP_MEMCPY, entry->datatype->size, offset, entry->stack_offset, offset_mode);
+            builder.build_instruction(OP_MEMCPY, visitor_result_entry->datatype->size, offset, visitor_result_entry->stack_offset, offset_mode);
             break;
         }
         case VisitorResultState::REGISTER: {
-            builder.build_instruction(OP_STORE, entry->datatype->size, offset, entry->assigned_register,
+            builder.build_instruction(OP_STORE, visitor_result_entry->datatype->size, offset, visitor_result_entry->assigned_register,
                                       offset_mode + _01);
             break;
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
 
-            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
-            if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
-                int64_t first_chunk = 0, second_chunk = 0;
-                std::memcpy(&first_chunk, entry->data.byte_data, 8);
-                std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+           if (visitor_result_entry->datatype->match(TR::get_string_type())) {
+                // value is a string
+                int64_t string_length = 0;
+                int64_t byte_count = 0;
+                memcpy(&byte_count, visitor_result_entry->data.byte_data + 8, 8); // get string length
+                string_length = byte_count;
+                byte_count = byte_count * 8;
+
+                auto temp_pointer_register = compiler.get_volatile_register();
+                builder.build_move_register(temp_pointer_register, STACK_POINTER);
+                builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
 
                 // Store first 8 bytes (pointer) at offset
-                builder.build_instruction(OP_STORE, 8, offset, first_chunk, offset_mode);
+                builder.build_instruction(OP_STORE, 8, offset, temp_pointer_register, offset_mode + _01);
+
+                builder.build_instruction(OP_STATIC_COPY, byte_count, temp_pointer_register, static_pointer, _10);
 
                 // Store second 8 bytes (length) at offset + 8
                 if (offset_mode == _10) {
                     int temp_reg = compiler.get_volatile_register();
                     builder.build_instruction(OP_SUB, temp_reg, offset, 8, _10);
-                    builder.build_instruction(OP_STORE, 8, temp_reg, second_chunk, _10);
+                    builder.build_instruction(OP_STOREA, 8, temp_reg, string_length, _10);
                 } else {
-                    builder.build_instruction(OP_STORE, 8, offset + 8, second_chunk, _00);
+                    builder.build_instruction(OP_STOREA, 8, offset + 8, string_length, _00);
                 }
-                break;
+
+            }else if (visitor_result_entry->datatype->identify() == ARRAY) {
+                // value is a static array
+                SageArrayType *_datatype = (SageArrayType *)visitor_result_entry->datatype;
+                int64_t inner_type_size = _datatype->array_type->size;
+                int64_t string_length = _datatype->length;
+                int64_t byte_count = string_length * inner_type_size;
+
+                // Load the first_ptr (absolute element area address) from the struct's first field
+                auto temp_pointer_register = compiler.get_volatile_register();
+                if (offset_mode == _10) {
+                    builder.build_instruction(OP_LOAD, 8, temp_pointer_register, offset, _01);
+                }else {
+                    builder.build_instruction(OP_LOAD, 8, temp_pointer_register, offset, _00);
+                }
+
+                // Use ADDR_MEMCPY so the destination is treated as an absolute address, not FP-relative
+                int src_reg = compiler.get_volatile_register();
+                builder.build_move_immediate(src_reg, static_pointer);
+                builder.build_instruction(OP_ADDR_MEMCPY, byte_count, temp_pointer_register, src_reg, _11);
             }
 
-            if (static_pointer != -1) {
-                builder.build_instruction(OP_STORE, 8, offset, static_pointer, offset_mode);
-            } else {
-                builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
-            }
+            // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
+            // if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
+            //     int64_t first_chunk = 0, second_chunk = 0;
+            //     std::memcpy(&first_chunk, entry->data.byte_data, 8);
+            //     std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+
+            //     // Store first 8 bytes (pointer) at offset
+            //     builder.build_instruction(OP_STORE, 8, offset, first_chunk, offset_mode);
+
+            //     // Store second 8 bytes (length) at offset + 8
+            //     if (offset_mode == _10) {
+            //         int temp_reg = compiler.get_volatile_register();
+            //         builder.build_instruction(OP_SUB, temp_reg, offset, 8, _10);
+            //         builder.build_instruction(OP_STORE, 8, temp_reg, second_chunk, _10);
+            //     } else {
+            //         builder.build_instruction(OP_STORE, 8, offset + 8, second_chunk, _00);
+            //     }
+            //     break;
+            // }
+
+            // if (static_pointer != -1) {
+            //     builder.build_instruction(OP_STORE, 8, offset, static_pointer, offset_mode);
+            // } else {
+            //     builder.build_instruction(OP_STATIC_COPY, entry->datatype->size, offset, static_pointer, offset_mode);
+            // }
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STORE, entry->datatype->size, offset, temporary_result_register,
+            builder.build_instruction(OP_STORE, visitor_result_entry->datatype->size, offset, temporary_result_register,
                                       offset_mode + _01);
             break;
         }

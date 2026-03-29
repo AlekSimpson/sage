@@ -253,7 +253,7 @@ public:
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool, bool);
+    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool, bool, bool absolute_addressing = false);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);

@@ -343,6 +343,24 @@ void SageSymbolTable::initialize() {
     //function_visitor_state.push(&entry->function_info);
 }
 
+SageType *SageSymbolTable::resolve_unknown_expression_type(NodeIndex node_index) {
+    // TODO: implement HM type resolution algorithm here for robust expression type resolution
+    switch (nm->get_nodetype(node_index)) {
+        case PN_NUMBER:
+            return TR::get_integer_type(8);
+        case PN_FLOAT:
+            return TR::get_float_type(8);
+        case PN_CHARACTER_LITERAL:
+            return TR::get_byte_type(CHAR);
+        case PN_STRING:
+            return TR::get_string_type();
+        case PN_BOOL:
+            return TR::get_byte_type(BOOL);
+        default:
+            return nullptr;
+    }
+}
+
 SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) {
     // entry lexeme ex: 'int[5][..]' | 'float[..]' | 'string[]'
     auto *entry = entries.get_pointer(entry_index);

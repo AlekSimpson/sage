@@ -545,8 +545,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             if (existing != nullptr || children.empty()) return;
 
             // infer element type from first element
-            auto *first_element_type = symbol_table.resolve_unknown_type_node(children[0]);
-            int array_length = children.size();
+            auto *first_element_type = symbol_table.resolve_unknown_expression_type(children[0]);
+            int64_t array_length = children.size();
             int total_array_bytesize = array_length * first_element_type->size;
 
             int64_t static_pointer = static_program_memory_store.size();
@@ -556,7 +556,7 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             switch (node_manager->get_nodetype(children[0])) {
                 case PN_NUMBER: {
                     for (int i = 0; i < array_length; ++i) {
-                        int literal_value = stoll(node_manager->get_lexeme(children[i]));
+                        int64_t literal_value = stoll(node_manager->get_lexeme(children[i]));
                         memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
                         working_static_pointer += 8;
                     }
@@ -573,21 +573,21 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 case PN_CHARACTER_LITERAL: {
                     for (int i = 0; i < array_length; ++i) {
                         char literal_value = node_manager->get_lexeme(children[i])[0];
-                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
-                        working_static_pointer += 8;
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 1);
+                        working_static_pointer += 1;
                     }
                     break;
                 }
                 case PN_BOOL:
                     for (int i = 0; i < array_length; ++i) {
                         bool literal_value = node_manager->get_lexeme(children[i])[0] == 't';
-                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
-                        working_static_pointer += 8;
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 1);
+                        working_static_pointer += 1;
                     }
                     break;
                 case PN_STRING: {
                     for (int i = 0; i < array_length; ++i) {
-                        string node_lexeme = node_manager->get_lexeme(current_node);
+                        string node_lexeme = node_manager->get_lexeme(children[i]);
                         int64_t string_contents_pointer = get_static_string_pointer(node_lexeme);
                         int64_t string_length = node_lexeme.size();
                         memcpy(&static_program_memory_store[working_static_pointer], &string_contents_pointer, 8);
