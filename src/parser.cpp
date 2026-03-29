@@ -102,7 +102,7 @@ NodeIndex SageParser::parse_statements() {
 NodeIndex SageParser::parse_statement() {
     Token next_token;
     // TokenType value_dec_slice[3] = {TT_KEYWORD, TT_LBRACKET, TT_IDENT};
-    TokenType value_assign_slice[2] = {TT_ASSIGN, TT_FIELD_ACCESSOR};
+    TokenType value_assign_slice[3] = {TT_ASSIGN, TT_FIELD_ACCESSOR, TT_LBRACKET};
 
     switch (current_token->token_type) {
         case TT_IDENT:
@@ -114,7 +114,7 @@ NodeIndex SageParser::parse_statement() {
             if (match_types(next_token.token_type, TT_COLON)) {
                 return parse_value_dec();
             }
-            if (matches_any(next_token.token_type, value_assign_slice, 2)) {
+            if (matches_any(next_token.token_type, value_assign_slice, 3)) {
                 NodeIndex retval = parse_assign();
                 if (retval == NULL_INDEX) {
                     // nil means that we actually were parsing an expression and should stop parsing for assign
@@ -267,6 +267,11 @@ NodeIndex SageParser::parse_assign() {
     lefthand_token.fill_with(*current_token);
 
     NodeIndex lefthand_node = parse_unary_operator();
+
+    if (!match_types(current_token->token_type, TT_ASSIGN)) {
+        node_cache = lefthand_node;
+        return NULL_INDEX;
+    }
 
     consume(TT_ASSIGN, "Expected '=' symbol in assign statement.");
 

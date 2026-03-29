@@ -1,11 +1,14 @@
 
 
-array: string[4] = ["hello", "from", "array", "world"]
+tuple: string[3] = ["one","two","three"]
 
-puts(array[0], array[0].length)
-puts(array[1], array[1].length)
-puts(array[2], array[2].length)
-puts(array[3], array[3].length)
+puts(tuple[2], tuple[2].length)
+tuple[2] = "four"
+puts(tuple[2], tuple[2].length)
+
+
+
+
 
 
 

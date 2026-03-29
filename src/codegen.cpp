@@ -696,7 +696,6 @@ VisitorResult SageCompiler::build_dereference_instructions(
         case VisitorResultState::IMMEDIATE:
         case VisitorResultState::REGISTER:
         case VisitorResultState::VALUE:
-        case VisitorResultState::LIST:
         default: {
             logger.log_error_unsafe(
                 dereference_token,

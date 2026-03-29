@@ -67,7 +67,7 @@ bool check_filename_valid(const string &filename);
 
 class SageCompiler;
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_REGISTER, LIST };
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_REGISTER };
 
 using TR = TypeRegistery;
 
