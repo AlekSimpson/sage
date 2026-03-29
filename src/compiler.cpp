@@ -557,18 +557,43 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 case PN_NUMBER: {
                     for (int i = 0; i < array_length; ++i) {
                         int literal_value = stoll(node_manager->get_lexeme(children[i]));
-                        
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
+                        working_static_pointer += 8;
                     }
                     break;
                 }
-                case PN_FLOAT:
+                case PN_FLOAT: {
+                    for (int i = 0; i < array_length; ++i) {
+                        double literal_value = stod(node_manager->get_lexeme(children[i]));
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
+                        working_static_pointer += 8;
+                    }
                     break;
-                case PN_CHARACTER_LITERAL:
+                }
+                case PN_CHARACTER_LITERAL: {
+                    for (int i = 0; i < array_length; ++i) {
+                        char literal_value = node_manager->get_lexeme(children[i])[0];
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
+                        working_static_pointer += 8;
+                    }
                     break;
+                }
                 case PN_BOOL:
+                    for (int i = 0; i < array_length; ++i) {
+                        bool literal_value = node_manager->get_lexeme(children[i])[0] == 't';
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
+                        working_static_pointer += 8;
+                    }
                     break;
                 case PN_STRING: {
-
+                    for (int i = 0; i < array_length; ++i) {
+                        string node_lexeme = node_manager->get_lexeme(current_node);
+                        int64_t string_contents_pointer = get_static_string_pointer(node_lexeme);
+                        int64_t string_length = node_lexeme.size();
+                        memcpy(&static_program_memory_store[working_static_pointer], &string_contents_pointer, 8);
+                        memcpy(&static_program_memory_store[working_static_pointer + 8], &string_length, 8);
+                        working_static_pointer += 16;
+                    }
                     break;
                 }
                 default: {
@@ -580,9 +605,13 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             }
             if (logger.has_errors()) return;
 
-            // auto *array_type = TR::get_array_type(first_element_type, array_length);
-            // SageValue array_value = SageValue(array_type, ByteVector(array_length));
+            auto *array_type = TR::get_array_type(first_element_type, array_length);
+            ByteVector array_instance_data;
+            array_instance_data.resize(array_type->size);
+            memcpy(array_instance_data.data(), &static_pointer, 8);
+            memcpy(&array_instance_data[8], &array_length, 8);
 
+            SageValue array_value = SageValue(array_type, array_instance_data);
             symbol_table.declare_literal(current_node, array_value, static_pointer);
             return;
         }

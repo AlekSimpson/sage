@@ -706,33 +706,45 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::VALUE: {
-            int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
+            int static_pointer = entry->static_pointer;
+
+            // could be array literal
+            // a struct maybe?
+            if (entry->datatype->match(TR::get_string_type())) {
+                // could be string
+
+            }else if (entry->datatype->identify() == ARRAY) {
+
+            }else {
+
+            }
+
 
             // Handle multi-byte structs with byte_data (e.g., string = pointer + length)
-            if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
-                int64_t first_chunk = 0, second_chunk = 0;
-                std::memcpy(&first_chunk, entry->data.byte_data, 8);
-                std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
+            // if (entry->data.byte_data != nullptr && entry->datatype != nullptr && entry->datatype->size > 8) {
+            //     int64_t first_chunk = 0, second_chunk = 0;
+            //     std::memcpy(&first_chunk, entry->data.byte_data, 8);
+            //     std::memcpy(&second_chunk, entry->data.byte_data + 8, 8);
 
-                // Store first 8 bytes (pointer) at offset
-                builder.build_instruction(OP_STOREA, 8, absolute_address, first_chunk, address_mode);
+            //     // Store first 8 bytes (pointer) at offset
+            //     builder.build_instruction(OP_STOREA, 8, absolute_address, first_chunk, address_mode);
 
-                // Store second 8 bytes (length) at offset + 8
-                if (address_mode == _10) {
-                    int temp_reg = compiler.get_volatile_register();
-                    builder.build_instruction(OP_SUB, temp_reg, absolute_address, 8, _10);
-                    builder.build_instruction(OP_STOREA, 8, temp_reg, second_chunk, _10);
-                } else {
-                    builder.build_instruction(OP_STOREA, 8, absolute_address + 8, second_chunk, _00);
-                }
-                break;
-            }
+            //     // Store second 8 bytes (length) at offset + 8
+            //     if (address_mode == _10) {
+            //         int temp_reg = compiler.get_volatile_register();
+            //         builder.build_instruction(OP_SUB, temp_reg, absolute_address, 8, _10);
+            //         builder.build_instruction(OP_STOREA, 8, temp_reg, second_chunk, _10);
+            //     } else {
+            //         builder.build_instruction(OP_STOREA, 8, absolute_address + 8, second_chunk, _00);
+            //     }
+            //     break;
+            // }
 
-            if (static_pointer != -1) {
-                builder.build_instruction(OP_STOREA, 8, absolute_address, static_pointer, address_mode);
-            } else {
-                builder.build_instruction(OP_ADDR_MEMCPY, entry->datatype->size, absolute_address, static_pointer, address_mode);
-            }
+            // if (static_pointer != -1) {
+            //     builder.build_instruction(OP_STOREA, 8, absolute_address, static_pointer, address_mode);
+            // } else {
+            //     builder.build_instruction(OP_ADDR_MEMCPY, entry->datatype->size, absolute_address, static_pointer, address_mode);
+            // }
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {

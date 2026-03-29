@@ -697,7 +697,7 @@ VisitorResult SageCompiler::build_dereference_instructions(
 
 int SageCompiler::get_literal_static_pointer(SymbolIndex literal_symbol_table_index) {
     auto *target_entry = symbol_table.lookup_by_index(literal_symbol_table_index);
-    return target_entry->static_stack_pointer;
+    return target_entry->static_pointer;
 }
 
 VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parameter_pointer_register) {
