@@ -9,4 +9,3 @@ puts(array[3], array[3].length)
 
 
 
-

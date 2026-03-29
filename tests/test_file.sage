@@ -1,15 +1,11 @@
 
 
-array: int[4] = [9, 2, 3, 4]
+array: string[4] = ["hello", "from", "array", "world"]
 
-puti(@array.first, 1)
-puts("\n", 1)
-puti(array.length, 1)
-puti(array[0], 1)
-puti(array[1], 1)
-puti(array[2], 1)
-puti(array[3], 1)
-
+puts(array[0], array[0].length)
+puts(array[1], array[1].length)
+puts(array[2], array[2].length)
+puts(array[3], array[3].length)
 
 
 

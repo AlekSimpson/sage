@@ -696,8 +696,8 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
                 byte_count = byte_count * 8;
 
                 auto temp_pointer_register = compiler.get_volatile_register();
-                builder.build_move_register(temp_pointer_register, STACK_POINTER);
                 builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
+                builder.build_move_register(temp_pointer_register, STACK_POINTER);
 
                 // Store first 8 bytes (pointer) at offset
                 builder.build_instruction(OP_STOREA, 8, absolute_address, temp_pointer_register, _11);
@@ -804,9 +804,12 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                 string_length = byte_count;
                 byte_count = byte_count * 8;
 
+                // Allocate first so the register captures the bottom of the allocated region,
+                // keeping the char data below the struct fields and preventing scpy from
+                // overwriting them.
                 auto temp_pointer_register = compiler.get_volatile_register();
-                builder.build_move_register(temp_pointer_register, STACK_POINTER);
                 builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
+                builder.build_move_register(temp_pointer_register, STACK_POINTER);
 
                 // Store first 8 bytes (pointer) at offset
                 builder.build_instruction(OP_STORE, 8, offset, temp_pointer_register, offset_mode + _01);
@@ -819,7 +822,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                     builder.build_instruction(OP_SUB, temp_reg, offset, 8, _10);
                     builder.build_instruction(OP_STOREA, 8, temp_reg, string_length, _10);
                 } else {
-                    builder.build_instruction(OP_STOREA, 8, offset + 8, string_length, _00);
+                    builder.build_instruction(OP_STORE, 8, offset + 8, string_length, _00);
                 }
 
             }else if (visitor_result_entry->datatype->identify() == ARRAY) {

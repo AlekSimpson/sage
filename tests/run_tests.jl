@@ -142,7 +142,9 @@ function run_test(test::CompilerTest)
 
     if UPDATE
         test.expected_bytecode = bytecode_output
-        test.expected_stdout = result.stdout
+        if test.expected_stdout == result.stdout
+            test.expected_stdout = result.stdout
+        end
         return TestResult(test.name, true, "", result.stdout, result.stderr)
     end
 

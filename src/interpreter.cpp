@@ -300,10 +300,10 @@ void SageInterpreter::execute_mem_copy_address(std::array<int64_t, 3> &operands,
 }
 
 void SageInterpreter::execute_static_copy(std::array<int64_t, 3> &operands, AddressMode &mode) {
-    // _xx | statcpy bytes, ($fp - dest_offset), $pointer
     int bytes = operands[0];
-    int dest_offset = mode[0] == 1 ? registers[operands[1]] : operands[1];
-    int dest_address = frame_pointer->stack_pointer - dest_offset;
+    int dest_address = mode[0] == 1
+        ? registers[operands[1]]
+        : frame_pointer->stack_pointer - operands[1];
 
     int src_address = mode[1] == 1 ? registers[operands[2]] : operands[2];
 
