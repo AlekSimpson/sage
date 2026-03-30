@@ -759,12 +759,6 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        // int pointer = symbol_table.function_being_processed().stack_return_pointer_counter;
-        // int return_bytesize = symbol_table.get_result_total_byte_size(
-        //     symbol_table.function_being_processed().symbol_index);
-        // symbol_table.function_being_processed().stack_return_pointer_counter += return_bytesize;
-        // builder.build_move_immediate(6, pointer);
-        // function_symbol->spilled = true;
         int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
         builder.build_move_register(6, STACK_POINTER);
         builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);

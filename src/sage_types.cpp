@@ -69,6 +69,10 @@ int SageBuiltinType::get_length() {
     return 1;
 }
 
+SageType *SageBuiltinType::expression_resolution_type() {
+    return this;
+}
+
 // pointer_type
 SagePointerType::SagePointerType(SageType *pointee) : pointer_type(pointee) {
     this->size = 8;
@@ -112,6 +116,10 @@ bool SagePointerType::is_callable() {
 
 int SagePointerType::get_length() {
     return 1;
+}
+
+SageType *SagePointerType::expression_resolution_type() {
+    return this;
 }
 
 /*
@@ -189,6 +197,10 @@ int SageDynamicArrayType::get_length() {
     return length;
 }
 
+SageType *SageDynamicArrayType::expression_resolution_type() {
+    return this;
+}
+
 /*
  * array :: struct { // Static
  *     first: T$*
@@ -255,6 +267,10 @@ bool SageArrayType::is_callable() {
 
 int SageArrayType::get_length() {
     return length;
+}
+
+SageType *SageArrayType::expression_resolution_type() {
+    return this;
 }
 
 // reference_type
@@ -324,6 +340,10 @@ bool SageReferenceType::is_callable() {
 
 int SageReferenceType::get_length() {
     return size;
+}
+
+SageType *SageReferenceType::expression_resolution_type() {
+    return this;
 }
 
 // function_type
@@ -413,6 +433,10 @@ int SageFunctionType::get_length() {
     return 0;
 }
 
+SageType *SageFunctionType::expression_resolution_type() {
+    return return_type[0];
+}
+
 // struct_type
 SageStructType::SageStructType(string name, vector<SageType *> member_types, int size, int alignment) : name(name),
     member_types(member_types) {
@@ -474,6 +498,10 @@ bool SageStructType::is_callable() {
 
 int SageStructType::get_length() {
     return member_types.size();
+}
+
+SageType *SageStructType::expression_resolution_type() {
+    return this;
 }
 
 /// Type Registery

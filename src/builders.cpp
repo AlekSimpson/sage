@@ -635,7 +635,6 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
         }
         case VisitorResultState::VALUE: {
             int static_pointer = compiler.get_literal_static_pointer(symbol_table_index);
-            //assert(static_pointer != -1);
             builder.build_move_immediate(argument_register, static_pointer);
             break;
         }
@@ -663,17 +662,31 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::SPILLED: {
-            int src_address_reg = compiler.get_volatile_register();
-            int dest_address_reg = compiler.get_volatile_register();
-            int size = visitor_result_entry->datatype->size;
+            //int src_address_reg = compiler.get_volatile_register();
+            //int dest_address_reg = compiler.get_volatile_register();
+            //int size = visitor_result_entry->datatype->size;
 
             // note: we need to think about lowest and highest address because std::memcpy copies up instead of down like our stack works
             // source: lowest address of the source struct
-            builder.build_instruction(OP_SUB, src_address_reg, 24, visitor_result_entry->stack_offset + size - 1, _10);
+            // builder.build_instruction(OP_SUB, src_address_reg, 24, visitor_result_entry->stack_offset + size, _10);
 
-            // destination: lowest address of the dest struct
-            builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size - 1, _10);
+            // // destination: lowest address of the dest struct
+            // builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, size, _10);
 
+            // source: the struct starts at fp - stack_offset, data goes UPWARD from there
+            //builder.build_instruction(OP_SUB, src_address_reg, 24, visitor_result_entry->stack_offset, _10);
+
+            //// destination: starts at the absolute_address register value
+            //builder.build_instruction(OP_MOV, dest_address_reg, absolute_address, _01);
+
+            //builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+            int src_address_reg = compiler.get_volatile_register();
+            int dest_address_reg = compiler.get_volatile_register();
+            int size = visitor_result_entry->datatype->size;
+            int lowest_address_adjustment = size - 8;
+
+            builder.build_instruction(OP_SUB, src_address_reg, 24, visitor_result_entry->stack_offset + lowest_address_adjustment, _10);
+            builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
             builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
             break;
         }
@@ -727,8 +740,20 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STOREA, visitor_result_entry->datatype->size, absolute_address, temporary_result_register,
-                                      address_mode + _01);
+            if (visitor_result_entry->datatype->is_struct()) {
+                int size = visitor_result_entry->datatype->size;
+                int lowest_address_adjustment = size - 8;
+
+                int dest_address_reg = compiler.get_volatile_register();
+                int src_address_reg = compiler.get_volatile_register();
+
+                builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
+                builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
+                builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+            } else {
+                builder.build_instruction(OP_STOREA, visitor_result_entry->datatype->size, absolute_address, temporary_result_register,
+                                          address_mode + _01);
+            }
             break;
         }
     }
@@ -807,8 +832,23 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            builder.build_instruction(OP_STORE, visitor_result_entry->datatype->size, offset, temporary_result_register,
-                                      offset_mode + _01);
+            auto entry_type = visitor_result_entry->datatype->expression_resolution_type();
+            if (entry_type->is_struct()) {
+                int size = entry_type->size;
+                int lowest_address_adjustment = size - 8;
+
+                int dest_address_reg = compiler.get_volatile_register();
+                int src_address_reg = compiler.get_volatile_register();
+
+                // dest: fp - (offset + size - 8)
+                builder.build_instruction(OP_SUB, dest_address_reg, 24, offset + lowest_address_adjustment, _10);
+                // src: temporary_result_register - (size - 8)
+                builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
+                builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+            } else {
+                builder.build_instruction(OP_STORE, visitor_result_entry->datatype->size, offset, temporary_result_register,
+                                          offset_mode + _01);
+            }
             break;
         }
     }

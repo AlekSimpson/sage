@@ -41,6 +41,7 @@ public:
     virtual SageValue get_default_value() = 0;
     virtual bool is_callable() = 0;
     virtual int get_length() = 0;
+    virtual SageType *expression_resolution_type() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -60,6 +61,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SagePointerType : public SageType {
@@ -79,6 +81,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageArrayType : public SageType {
@@ -100,6 +103,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageFunctionType : public SageType {
@@ -123,6 +127,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageStructType : public SageType {
@@ -148,6 +153,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageDynamicArrayType : public SageType {
@@ -171,6 +177,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageReferenceType : public SageType {
@@ -192,6 +199,7 @@ public:
     SageValue get_default_value() override;
     bool is_callable() override;
     int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class TypeRegistery {

@@ -4,18 +4,16 @@ Vector :: struct {
     y: i64
 }
 
-vectors: Vector[2]
+make_vector :: (x: i64, y: i64) -> Vector {
+    return_value: Vector
+    return_value.x = x
+    return_value.y = y
+    ret return_value
+}
 
-vectors[0].x = 5
-vectors[0].y = 897846
-
-vectors[1].x = 20
-vectors[1].y = 56
-
-puti(vectors[0].y, 6)
-puts("\n", 1)
-puti(vectors[1].y, 2)
-
+global_vector: Vector = make_vector(5, 6)
+puti(global_vector.x, 1)
+puti(global_vector.y, 1)
 
 
 

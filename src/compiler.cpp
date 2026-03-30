@@ -368,9 +368,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
 
     /*
      * MONDAY TODO:
-     * arrays_six outputs 'onefou' and the expected output is 'onefour'
-     * arrays_seven and arrays_eight have an issue where invisible characters are printed in the output, look at tests.json to see invisible character output
-     * make_vector test doesn't pass yet either, this should be the next functions test
      * also need a functions test that returns a string
      * also need a functions test that returns a static array
      *
@@ -529,13 +526,9 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             );
             if (string_symbol != nullptr) return;
 
-            // process_escape_sequences(node_lexeme);
             string node_lexeme = node_manager->get_lexeme(current_node);
             int64_t static_pointer = get_static_string_pointer(node_lexeme);
             int64_t string_length = node_lexeme.size();
-            // int64_t static_pointer = static_program_memory_store.size();
-            // static_program_memory_store.resize(static_program_memory_store.size() + string_length);
-            // std::memcpy(&static_program_memory_store[static_pointer], node_lexeme.c_str(), string_length);
 
             auto *string_type = TR::get_string_type();
             ByteVector string_instance_data;
