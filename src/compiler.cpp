@@ -368,7 +368,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
 
     /*
      * MONDAY TODO:
-     * also need a functions test that returns a string
      * also need a functions test that returns a static array
      *
      * TUESDAY TODO:

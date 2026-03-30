@@ -740,7 +740,8 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
             break;
         }
         case VisitorResultState::TEMP_REGISTER: {
-            if (visitor_result_entry->datatype->is_struct()) {
+            auto entry_type = visitor_result_entry->datatype->expression_resolution_type();
+            if (entry_type->is_struct()) {
                 int size = visitor_result_entry->datatype->size;
                 int lowest_address_adjustment = size - 8;
 
@@ -750,6 +751,19 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
                 builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
                 builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
                 builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+            } else if (entry_type->identify() == ARRAY || entry_type->identify() == DYN_ARRAY) {
+                SageArrayType *array_type = (SageArrayType *)entry_type;
+                int element_byte_count = array_type->array_size;
+
+                // load destination element pointer (from dest struct at absolute_address)
+                int dest_element_ptr = compiler.get_volatile_register();
+                builder.build_instruction(OP_LOADA, 8, dest_element_ptr, absolute_address, _01);
+
+                // load source element pointer (from return slot struct at temporary_result_register)
+                int src_element_ptr = compiler.get_volatile_register();
+                builder.build_instruction(OP_LOADA, 8, src_element_ptr, temporary_result_register, _01);
+
+                builder.build_instruction(OP_ADDR_MEMCPY, element_byte_count, dest_element_ptr, src_element_ptr, _11);
             } else {
                 builder.build_instruction(OP_STOREA, visitor_result_entry->datatype->size, absolute_address, temporary_result_register,
                                           address_mode + _01);
@@ -845,7 +859,22 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                 // src: temporary_result_register - (size - 8)
                 builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
                 builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
-            } else {
+            }else if (entry_type->identify() == ARRAY || entry_type->identify() == DYN_ARRAY) {
+                SageArrayType *array_type = (SageArrayType *)entry_type;
+                int element_byte_count = array_type->array_size;
+
+                // load destination element pointer
+                int dest_struct_addr = compiler.get_volatile_register();
+                int dest_element_ptr = compiler.get_volatile_register();
+                builder.build_instruction(OP_SUB, dest_struct_addr, 24, offset, _10);
+                builder.build_instruction(OP_LOADA, 8, dest_element_ptr, dest_struct_addr, _01);
+
+                // load source element pointer (from return slot struct at temporary_result_register)
+                int src_element_ptr = compiler.get_volatile_register();
+                builder.build_instruction(OP_LOADA, 8, src_element_ptr, temporary_result_register, _01);
+
+                builder.build_instruction(OP_ADDR_MEMCPY, element_byte_count, dest_element_ptr, src_element_ptr, _11);
+            }else {
                 builder.build_instruction(OP_STORE, visitor_result_entry->datatype->size, offset, temporary_result_register,
                                           offset_mode + _01);
             }

@@ -759,9 +759,39 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
-        builder.build_move_register(6, STACK_POINTER);
-        builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
+        // int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
+        // builder.build_move_register(6, STACK_POINTER);
+        // builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
+        // function_symbol->spilled = true;
+
+        auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->datatype)->return_type[0];
+
+        if (return_type->identify() == ARRAY || return_type->identify() == DYN_ARRAY) {
+            // For arrays: allocate struct + elements, initialize struct
+            int array_struct_address = get_volatile_register();
+            int array_element_address = get_volatile_register();
+
+            builder.build_move_register(array_struct_address, STACK_POINTER);
+
+            SageArrayType *array_type = (SageArrayType *)return_type;
+            int total_size = return_type->size + array_type->array_size;  // struct + elements
+
+            builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, total_size, _10);
+            builder.build_move_register(array_element_address, STACK_POINTER);
+
+            // Initialize struct: store element pointer and length
+            builder.build_instruction(OP_STOREA, 8, array_struct_address, array_element_address, _11);
+            int length_address = get_volatile_register();
+            builder.build_instruction(OP_SUB, length_address, array_struct_address, 8, _10);
+            builder.build_instruction(OP_STOREA, 8, length_address, array_type->length, _10);
+
+            builder.build_move_register(6, array_struct_address);
+        } else {
+            // For structs: just allocate space
+            int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
+            builder.build_move_register(6, STACK_POINTER);
+            builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
+        }
         function_symbol->spilled = true;
     } else {
         function_symbol->spilled = false;

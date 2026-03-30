@@ -1,19 +1,12 @@
 
-Vector :: struct {
-    x: i64
-    y: i64
+
+make_array :: () -> int[3] {
+    ret [4, 5, 6]
 }
 
-make_vector :: (x: i64, y: i64) -> Vector {
-    return_value: Vector
-    return_value.x = x
-    return_value.y = y
-    ret return_value
-}
-
-global_vector: Vector = make_vector(5, 6)
-puti(global_vector.x, 1)
-puti(global_vector.y, 1)
-
+factory_array : int[3] = make_array()
+puti(factory_array[0], 1)
+puti(factory_array[1], 1)
+puti(factory_array[2], 1)
 
 

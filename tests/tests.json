@@ -322,5 +322,23 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nsub r23 r23 16\nmov r0 5\nmov r1 6\nmov r6 r23\nsub r23 r23 16\ncall @1297703093\nsub r131 r24 8\nsub r132 r6 8\nacpy 16 r131 r132\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r135\nmov r1 1\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 1\ncall @2090629895\nlabel @1297703093\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 r0\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 r1\nsub r129 r24 8\nsub r130 r6 8\nacpy 16 r130 r129\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "56"
+    },
+    {
+        "index": 37,
+        "name": "functions_nine.sage",
+        "source": "\n\nmake_string :: () -> string {\n    ret \"some string\"\n}\n\nfactory_string: string = make_string()\nputs(factory_string, factory_string.length)\n\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 11\nmov r125 r23\nstorea 8 $r6 r125\nscpy 11 r125 0\nsub r126 r6 8\nstorea 8 $r126 11\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r127 r24 8\nsub r128 r6 8\nacpy 16 r127 r128\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r0 0\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "some string"
+    },
+    {
+        "index": 38,
+        "name": "functions_ten.sage",
+        "source": "\n\nmake_array :: () -> int[3] {\n    ret [4, 5, 6]\n}\n\nfactory_array : int[3] = make_array()\nputi(factory_array[0], 1)\nputi(factory_array[1], 1)\nputi(factory_array[2], 1)\n\n\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @340279201\nloada 8 r125 $r6\nmov r126 0\nacpy 24 r125 r126\nret\nmov r127 r23\nmov r128 r23\nsub r128 r23 8\nsub r23 r23 40\nmov r129 r23\nstorea 8 $r127 r129\nstorea 8 $r128 3\nmov r130 r23\nsub r23 r23 40\nmov r131 r23\nstorea 8 $r130 r131\nsub r132 r130 8\nstorea 8 $r132 3\nmov r6 r130\ncall @340279201\nsub r133 r24 0\nloada 8 r134 $r133\nloada 8 r135 $r6\nacpy 24 r134 r135\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 0\nmul r141 r140 8\nadd r138 r139 r141\nloada 8 r142 $r138\nmov r0 r142\nmov r1 1\ncall @2090629895\nsub r144 r24 0\nloada 8 r146 $r144\nmov r147 1\nmul r148 r147 8\nadd r145 r146 r148\nloada 8 r149 $r145\nmov r0 r149\nmov r1 1\ncall @2090629895\nsub r151 r24 0\nloada 8 r153 $r151\nmov r154 2\nmul r155 r154 8\nadd r152 r153 r155\nloada 8 r156 $r152\nmov r0 r156\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "456"
     }
 ]
