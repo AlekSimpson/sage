@@ -56,6 +56,7 @@ mov r0 r168
 mov r1 6
 call @2090629895
 mov r0 0
+mov r1 1
 call @2090629905
 sub r170 r24 0
 loada 8 r172 $r170

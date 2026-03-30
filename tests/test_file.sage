@@ -13,7 +13,7 @@ vectors[1].x = 20
 vectors[1].y = 56
 
 puti(vectors[0].y, 6)
-puts("\n")
+puts("\n", 1)
 puti(vectors[1].y, 2)
 
 
