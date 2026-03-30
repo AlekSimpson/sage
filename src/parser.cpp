@@ -584,7 +584,8 @@ NodeIndex SageParser::parse_function() {
 
     consume(TT_FUNC_RETURN_TYPE, "Expected '->' symbol in function definition.");
 
-    if (!match_types(current_token->token_type, TT_KEYWORD)) {
+    TokenType allowed_types[2] = {TT_KEYWORD, TT_IDENT};
+    if (!matches_any(current_token->token_type, allowed_types, 2)) {
         ErrorLogger::get().log_error_unsafe(
             *current_token,
             sen("function must have a return type."),
@@ -595,12 +596,11 @@ NodeIndex SageParser::parse_function() {
     return_type_token.fill_with(*current_token);
 
     signature_lexeme += ") -> ";
-    NodeIndex return_type_node = node_manager->create_unary(return_type_token, PN_TYPE);
+    NodeIndex return_type_node = parse_type();
     vector<NodeIndex> list_ = vector<NodeIndex>();
     list_.push_back(return_type_node);
     NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_BLOCK, list_);
     signature_lexeme += return_type_token.lexeme;
-    advance(); // move past type keyword
 
     Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
 

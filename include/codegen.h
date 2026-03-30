@@ -123,7 +123,7 @@ struct VisitorResult {
     }
 
     void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
-    void to_stack_instruction_absolute(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
+    void to_stack_instruction_absolute(SageCompiler &compiler, int absolute, bool ascending_memory, AddressMode offset_mode = _00);
     void to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
 
     pair<int64_t, bool> materialize_register(SageCompiler &compiler);

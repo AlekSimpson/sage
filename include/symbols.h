@@ -59,7 +59,6 @@ struct SymbolEntry {
     int symbol_index = -1;
 
     int return_statement_count = 0;
-    int stack_return_pointer_counter = 0;
     int max_return_count = 0;
 
     bool spilled = false;

@@ -366,6 +366,20 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
         return identifier;
     };
 
+    /*
+     * MONDAY TODO:
+     * arrays_six outputs 'onefou' and the expected output is 'onefour'
+     * arrays_seven and arrays_eight have an issue where invisible characters are printed in the output, look at tests.json to see invisible character output
+     * make_vector test doesn't pass yet either, this should be the next functions test
+     * also need a functions test that returns a string
+     * also need a functions test that returns a static array
+     *
+     * TUESDAY TODO:
+     * implement if, elif, else
+     *
+     *
+     */
+
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
         case PN_STRUCT: {
@@ -379,7 +393,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             }
             scanner.finish_symbol_scan();
 
-            // INLINE TYPE RESOLUTION: Resolve struct type after scanning members
             auto *struct_entry = symbol_table.entries.get_pointer(struct_symbol);
             if (!struct_entry->type_is_resolved()) {
                 struct_entry->datatype = symbol_table.resolve_struct_type(struct_symbol);

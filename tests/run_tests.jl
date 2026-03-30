@@ -22,7 +22,7 @@ const SIGNAL_NAMES = Dict(
 const DISABLED_TESTS = [
     "functions_seven.sage",
     "array_reference_one.sage",
-    "dynamic_array_one.sage",
+    "dynamic_arrays_one.sage",
     "dynamic_arrays_two.sage"
 ]
 
@@ -142,9 +142,7 @@ function run_test(test::CompilerTest)
 
     if UPDATE
         test.expected_bytecode = bytecode_output
-        if test.expected_stdout == result.stdout
-            test.expected_stdout = result.stdout
-        end
+        test.expected_stdout = result.stdout
         return TestResult(test.name, true, "", result.stdout, result.stderr)
     end
 

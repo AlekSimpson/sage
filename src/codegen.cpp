@@ -101,7 +101,8 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_node_result = visit_expression(right_node_index);
-        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, _10);
+        bool lhs_is_array_element = node_manager->get_nodetype(node_manager->get_left(LHS)) == PN_ARRAY_ACCESS;
+        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, lhs_is_array_element, _10);
         return VisitorResult();
     }
 
@@ -218,7 +219,7 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
 
     VisitorResult return_value = visit_expression(branch_id);
     if (symbol_table.needs_return_stack_pointer(function_entry->symbol_index)) {
-        return_value.to_stack_instruction(*this, 6, _10);
+        return_value.to_stack_instruction_absolute(*this, 6, false, _10); // note: might need to set the ascending_memory bool on whether the func is returning a struct or array
         function_entry->spilled = true;
     } else {
         return_value.to_register_instruction(*this, 6, return_types[0]);
@@ -758,12 +759,15 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        int pointer = symbol_table.function_being_processed().stack_return_pointer_counter;
-        int return_bytesize = symbol_table.get_result_total_byte_size(
-            symbol_table.function_being_processed().symbol_index);
-        symbol_table.function_being_processed().stack_return_pointer_counter += return_bytesize;
-        builder.build_move_immediate(6, pointer);
-        // if the function return is on the stack then we don't need to use the function return register
+        // int pointer = symbol_table.function_being_processed().stack_return_pointer_counter;
+        // int return_bytesize = symbol_table.get_result_total_byte_size(
+        //     symbol_table.function_being_processed().symbol_index);
+        // symbol_table.function_being_processed().stack_return_pointer_counter += return_bytesize;
+        // builder.build_move_immediate(6, pointer);
+        // function_symbol->spilled = true;
+        int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
+        builder.build_move_register(6, STACK_POINTER);
+        builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
         function_symbol->spilled = true;
     } else {
         function_symbol->spilled = false;

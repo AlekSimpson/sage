@@ -25,7 +25,9 @@ int get_procedure_frame_id(const std::string &str) {
     for (char c: str) {
         hash = ((hash << 5) + hash) + c;
     }
-    return static_cast<int>(hash);
+    // DJB2 hash can exceed INT_MAX for some names; mask the sign bit so procedure
+    // IDs are always non-negative and display correctly.
+    return static_cast<int>(hash & 0x7FFFFFFF);
 }
 
 BytecodeBuilder::BytecodeBuilder() {
@@ -645,7 +647,7 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
     }
 }
 
-void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int absolute_address, AddressMode address_mode) {
+void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int absolute_address, bool ascending_memory, AddressMode address_mode) {
     auto &builder = compiler.builder;
     auto &symbol_table = compiler.symbol_table;
     auto *visitor_result_entry = symbol_table.lookup_by_index(symbol_table_index);
@@ -685,28 +687,26 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
 
             if (visitor_result_entry->datatype->match(TR::get_string_type())) {
                 // value is a string
-                int64_t string_length = 0;
                 int64_t byte_count = 0;
                 memcpy(&byte_count, visitor_result_entry->data.byte_data + 8, 8); // get string length
-                string_length = byte_count;
-                byte_count = byte_count * 8;
 
                 auto temp_pointer_register = compiler.get_volatile_register();
                 builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
                 builder.build_move_register(temp_pointer_register, STACK_POINTER);
 
                 // store first 8 bytes (pointer) at offset
-                builder.build_instruction(OP_STOREA, 8, absolute_address, temp_pointer_register, _11);
+                builder.build_instruction(OP_STOREA, 8, absolute_address, temp_pointer_register, address_mode + _01);
 
                 builder.build_instruction(OP_STATIC_COPY, byte_count, temp_pointer_register, static_pointer, _10);
 
                 // store second 8 bytes (length) at offset + 8
                 if (address_mode == _10) {
+                    SageOpCode pointer_arithmetic_op = ascending_memory ? OP_ADD : OP_SUB;
                     int temp_reg = compiler.get_volatile_register();
-                    builder.build_instruction(OP_SUB, temp_reg, absolute_address, 8, _10);
-                    builder.build_instruction(OP_STOREA, 8, temp_reg, string_length, _10);
+                    builder.build_instruction(pointer_arithmetic_op, temp_reg, absolute_address, 8, _10);
+                    builder.build_instruction(OP_STOREA, 8, temp_reg, byte_count, _10);
                 } else {
-                    builder.build_instruction(OP_STOREA, 8, absolute_address + 8, string_length, _00);
+                    builder.build_instruction(OP_STOREA, 8, absolute_address + 8, byte_count, _00);
                 }
 
             }else if (visitor_result_entry->datatype->identify() == ARRAY) {
@@ -767,9 +767,6 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                 memcpy(&byte_count, visitor_result_entry->data.byte_data + 8, 8); // get string length
                 int64_t string_length = byte_count;
 
-                // allocate first so the register captures the bottom of the allocated region,
-                // keeping the char data below the struct fields and preventing scpy from
-                // overwriting them.
                 auto temp_pointer_register = compiler.get_volatile_register();
                 builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, byte_count, _10);
                 builder.build_move_register(temp_pointer_register, STACK_POINTER);
@@ -782,7 +779,7 @@ void VisitorResult::to_stack_instruction(SageCompiler &compiler, int offset, Add
                 // store second 8 bytes (length) at offset + 8
                 if (offset_mode == _10) {
                     int temp_reg = compiler.get_volatile_register();
-                    builder.build_instruction(OP_SUB, temp_reg, offset, 8, _10);
+                    builder.build_instruction(OP_ADD, temp_reg, offset, 8, _10);
                     builder.build_instruction(OP_STOREA, 8, temp_reg, string_length, _10);
                 } else {
                     builder.build_instruction(OP_STORE, 8, offset + 8, string_length, _00);

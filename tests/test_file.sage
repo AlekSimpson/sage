@@ -1,13 +1,20 @@
 
+Vector :: struct {
+    x: i64
+    y: i64
+}
 
-tuple: string[3] = ["one","two","three"]
+vectors: Vector[2]
 
-puts(tuple[2], tuple[2].length)
-tuple[2] = "four"
-puts(tuple[2], tuple[2].length)
+vectors[0].x = 5
+vectors[0].y = 897846
 
+vectors[1].x = 20
+vectors[1].y = 56
 
-
+puti(vectors[0].y, 6)
+puts("\n")
+puti(vectors[1].y, 2)
 
 
 
