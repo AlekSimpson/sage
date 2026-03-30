@@ -463,6 +463,15 @@ void NodeManager::expand_container() {
     container = new_container;
 }
 
+void NodeManager::set_branch(NodeIndex parent, NodeIndex child) {
+    if (get_host_nodetype(parent) != PN_UNARY) return;
+
+    nodebox box = get_node(parent);
+    UnaryParseNode *unary = (UnaryParseNode *)box.node;
+
+    unary->branch = child;
+}
+
 void NodeManager::set_children(NodeIndex blocknode, vector<NodeIndex> new_children) {
     if (get_host_nodetype(blocknode) != PN_BLOCK) {
         return;

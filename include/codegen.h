@@ -2,6 +2,7 @@
 
 #include <map>
 #include <cassert>
+#include <functional>
 #include "error_logger.h"
 #include "parser.h"
 #include "interpreter.h"
@@ -24,6 +25,7 @@
 
 enum debug_level {
     NONE,
+    LEXING,
     PARSING,
     COMPILATION,
     ALL
@@ -65,7 +67,7 @@ bool check_filename_valid(const string &filename);
 
 class SageCompiler;
 
-enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_REGISTER, LIST };
+enum class VisitorResultState { IMMEDIATE, SPILLED, REGISTER, VALUE, TEMP_REGISTER };
 
 using TR = TypeRegistery;
 
@@ -121,7 +123,7 @@ struct VisitorResult {
     }
 
     void to_register_instruction(SageCompiler &compiler, int argument_register, SageType *argument_type);
-    void to_stack_instruction_absolute(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
+    void to_stack_instruction_absolute(SageCompiler &compiler, int absolute, bool ascending_memory, AddressMode offset_mode = _00);
     void to_stack_instruction(SageCompiler &compiler, int offset, AddressMode offset_mode = _00);
 
     pair<int64_t, bool> materialize_register(SageCompiler &compiler);
@@ -187,13 +189,36 @@ public:
         void add_definition_contents_to_dependency_graph(NodeIndex current_node);
     };
 
+    struct SymbolScanner {
+        stack<int> symbols;
+        set<int> currently_scanning;
+
+        void scan_symbol(string symbol_name) {
+            int name_hash = std::hash<string>{}(symbol_name);
+            symbols.push(name_hash);
+            currently_scanning.insert(name_hash);
+        }
+
+        void finish_symbol_scan() {
+            int top_symbol_hash = symbols.top();
+            symbols.pop();
+            currently_scanning.erase(top_symbol_hash);
+        }
+
+        bool symbol_being_scanned(string symbol_name) {
+            return currently_scanning.find(hash<string>{}(symbol_name)) != currently_scanning.end();
+        }
+    };
+
     // for forward declaration auto resolution
     ScopeDependencyGraph dependency_graph;
+
+    SymbolScanner scanner;
 
     ByteVector static_program_memory_store;
 
     CodegenMode codegen_mode;
-    const int VOLATILE_REGISTER_SIZE = 10;
+    const int VOLATILE_REGISTER_SIZE = 200;
     int volatile_index = 0;
 
     SageCompiler(CompilerOptions options);
@@ -203,17 +228,20 @@ public:
     bool generating_compile_time_bytecode();
     void register_allocation();
     int get_volatile_register();
+    void scan_program_type_symbol(NodeIndex, NodeIndex, string, SymbolIndex);
     void scan_all_program_symbols(NodeIndex root, int function_paramter_register = 0, string parent_function_name = "");
     void perform_type_resolution();
     void forward_declaration_resolution(int program_root);
     void process_escape_sequences(string &str);
     bool is_float_operation(VisitorResult &one, VisitorResult &two);
+
     int get_literal_static_pointer(SymbolIndex literal_symbol_table_index);
+    int64_t get_static_string_pointer(string &string_contents);
 
     /* builders */
     VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
     VisitorResult build_function_with_block(string);
-    VisitorResult build_alloca(SymbolEntry *var_symbol);
+    void build_alloca(SymbolEntry *var_symbol);
     VisitorResult build_add(VisitorResult, VisitorResult);
     VisitorResult build_sub(VisitorResult, VisitorResult);
     VisitorResult build_div(VisitorResult, VisitorResult);
@@ -225,7 +253,7 @@ public:
 
     /* visitors */
     VisitorResult visit(NodeIndex);
-    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool, bool);
+    VisitorResult visit_struct_field_access(NodeIndex, int, int, SageNamespace *, bool, bool, bool absolute_addressing = false);
     VisitorResult visit_statement(NodeIndex);
     VisitorResult visit_keyword(NodeIndex);
     VisitorResult visit_function_definition(NodeIndex);
@@ -239,4 +267,5 @@ public:
     VisitorResult visit_literal(NodeIndex, bool taking_address_of_field = false);
     VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);
     VisitorResult visit_binary_operator(NodeIndex);
+    VisitorResult visit_array_access(NodeIndex, int base_address_register, int offset_register, SageNamespace *current_namespace);
 };

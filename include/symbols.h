@@ -59,14 +59,13 @@ struct SymbolEntry {
     int symbol_index = -1;
 
     int return_statement_count = 0;
-    int stack_return_pointer_counter = 0;
     int max_return_count = 0;
 
     bool spilled = false;
     bool is_struct_member = false;
     int assigned_register = -1;
     int stack_offset = 0;
-    int static_stack_pointer = -1;
+    int static_pointer = -1;
 
     ComptimeTaskId task_id;
 
@@ -163,8 +162,10 @@ public:
 
     bool is_comptime_value(SymbolEntry *);
 
-    SageType *resolve_type_identifier(string, int);
-    SageType *resolve_variable_type(SymbolIndex);
+    SageType *resolve_unknown_expression_type(NodeIndex);
+    SageType *resolve_builtin_struct_type(SymbolIndex);
+    SageType *resolve_unknown_type_node(NodeIndex, bool self_referential_pointer_detected = false);
+    SageType *resolve_variable_type(SymbolIndex, bool);
     SageType *resolve_function_type(SymbolIndex);
     SageType *resolve_struct_type(SymbolIndex);
 

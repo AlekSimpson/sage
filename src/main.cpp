@@ -70,7 +70,12 @@ CompilerOptions parse_compiler_flags(int argc, char **argv) {
     const int ABBREVIATED_PRINT_BYTECODE = get_procedure_frame_id(string("-p"));
 
     char *current_option;
+    bool skip_next_iteration = false;
     for (int i = 1; i < argc; ++i) {
+        if (skip_next_iteration) {
+            skip_next_iteration = false;
+            continue;
+        }
         current_option = argv[i];
 
         if (current_option[0] == '-') {
@@ -80,11 +85,21 @@ CompilerOptions parse_compiler_flags(int argc, char **argv) {
             if (flag_hash == ABBREVIATED_OUTPUT_FILE || flag_hash == OUTPUT_FILE) {
                 options.output_file = argv[i + 1];
             }else if (flag_hash == COMPILER_DEBUG_FLAG ||flag_hash == ABBREVIATED_COMPILER_DEBUG_FLAG) {
-                if (string(current_option) == "parsing") {
+                if (i+1 >= argc) {
+                    ErrorLogger::get().log_error_unsafe(
+                        null_token,
+                        "--debug or -d compiler flag requires debug level input argument after.",
+                        USER);
+                    return options;
+                }
+
+                if (string(argv[i+1]) == "lexing") {
+                    options.debug = LEXING;
+                }else if (string(argv[i+1]) == "parsing") {
                     options.debug = PARSING;
-                }else if (string(current_option) == "compilation") {
+                }else if (string(argv[i+1]) == "compilation") {
                     options.debug = COMPILATION;
-                }else if (string(current_option) == "all") {
+                }else if (string(argv[i+1]) == "all") {
                     options.debug = ALL;
                 }else {
                     ErrorLogger::get().log_error_unsafe(
@@ -93,6 +108,7 @@ CompilerOptions parse_compiler_flags(int argc, char **argv) {
                        USER);
                     break;
                 }
+                skip_next_iteration = true;
             }else if (flag_hash == ABBREVIATED_COMPILATION_TARGET || flag_hash == COMPILATION_TARGET) {
                 if (string(current_option) == "sagevm") {
                     options.compilation_target = SAGE_VM;

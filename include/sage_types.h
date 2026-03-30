@@ -40,6 +40,8 @@ public:
     virtual string get_base_type_string() = 0;
     virtual SageValue get_default_value() = 0;
     virtual bool is_callable() = 0;
+    virtual int get_length() = 0;
+    virtual SageType *expression_resolution_type() = 0;
 };
 
 class SageBuiltinType : public SageType {
@@ -58,6 +60,8 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SagePointerType : public SageType {
@@ -76,11 +80,14 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageArrayType : public SageType {
 public:
     SageType *array_type;
+    int array_size;
     int length;
 
     SageArrayType(SageType *, int);
@@ -95,6 +102,8 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageFunctionType : public SageType {
@@ -117,6 +126,8 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageStructType : public SageType {
@@ -141,13 +152,16 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageDynamicArrayType : public SageType {
 public:
     SageType *array_type;
-    int length = 0; // current max length
-    int capacity = 15; // current amount of slots used up
+    int array_size;
+    int length = 0;
+    int capacity = 15;
 
     SageDynamicArrayType(SageType * basetype, int length);
     SageDynamicArrayType(SageType * basetype);
@@ -162,6 +176,8 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class SageReferenceType : public SageType {
@@ -182,6 +198,8 @@ public:
     string get_base_type_string() override;
     SageValue get_default_value() override;
     bool is_callable() override;
+    int get_length() override;
+    SageType *expression_resolution_type() override;
 };
 
 class TypeRegistery {
@@ -207,9 +225,8 @@ public:
     static SageType *get_array_type(SageType *element_type, int size);
     static SageType *get_reference_type(SageType *base_type, int size);
     static SageType *get_function_type(std::vector<SageType *> parameter_tyeps, std::vector<SageType *> function_types);
-
-
     static SageType *get_struct_type(string name, std::vector<SageType *> member_types);
+    static SageType *get_string_type();
 
     static bool is_builtin_primitive(SageType *type);
     static bool is_float64_type(SageType *type);

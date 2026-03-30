@@ -107,7 +107,7 @@ Token *SageLexer::lex_for_symbols() {
     unordered_map<char, TokenType> SYMBOLS = {
         {'(', TT_LPAREN},
         {')', TT_RPAREN},
-        {'*', TT_MUL},
+        {'*', TT_STAR},
         {'/', TT_DIV},
         {'%', TT_MODULO},
         {',', TT_COMMA},
@@ -145,37 +145,32 @@ Token *SageLexer::lex_for_symbols() {
             }
             if (peekahead == '-') {
                 linedepth++;
-                return lexer_make_token(TT_DECREMENT, "--");
+                return lexer_make_token(TT_DOUBLE_MINUS, "--");
             }
 
             char_buffer->putback(peekahead);
             return lexer_make_token(TT_SUB, "-");
 
-        case '.':
+        case '.': {
             char_buffer->get(first_peek);
             current_char = first_peek;
 
-            // if the '.' is in between an identifier token and unicode chars then its a field accessor
+            // if the '.' follows an identifier or closing bracket (e.g. array[i].field) and is
+            // followed by a letter, it's a field accessor
             // NOTE: isalpha(current_char) returns non zero value if the character is a letter
-            if (last_token.token_type == TT_IDENT && (isalpha(current_char) != 0 || current_char == '_')) {
+            bool valid_receiver = last_token.token_type == TT_IDENT
+                               || last_token.token_type == TT_RBRACKET;
+            if (valid_receiver && (isalpha(current_char) != 0 || current_char == '_')) {
                 char_buffer->putback(first_peek);
                 return lexer_make_token(TT_FIELD_ACCESSOR, ".");
             }
 
             if (first_peek == '.') {
-                char second_peek;
-                char_buffer->get(second_peek);
-                if (second_peek == '.') {
-                    TokenType tok_type = TT_RANGE;
-                    if (last_token.token_type == TT_IDENT) {
-                        tok_type = TT_VARARG;
-                    }
-
-                    return lexer_make_token(tok_type, "...");
-                }
+                return lexer_make_token(TT_DOUBLE_DOT, "..");
             }
 
             return nullptr;
+        }
 
         case '=':
             return handle_symbol_case('=', TT_ASSIGN, TT_EQUALITY, "==");

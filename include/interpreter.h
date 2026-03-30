@@ -13,6 +13,8 @@
 enum SVM_SYSCALL {
     SYS_WRITE = 0,
     SYS_WRITE_INT,
+    SYS_ALLOC,
+    SYS_DEALLOC
 };
 
 class StackFrame {
@@ -38,9 +40,10 @@ public:
     // sage argument registers
     // - 0-5  = function parameter registers
     // - 6-9  = return value registers
-    // - 10-20 = volatile registers (hold results of temp values and stuff)
+    // - 10-20 = unused for now
     // - 21-24 = system registers
     // - 25-124 = general
+    // - 125-324 = volatile registers
     //
     // sr21 = bool logical result register
     // sr22 = syscall register
@@ -49,8 +52,12 @@ public:
     //
     // opcode   , 0            , 1   , 2
     // sys_write, stdout_fileno, buff, length
+    //
+    // heap allocation
+    // sys_alloc, r0 (bytes)
+    // sys_dealloc, r0 (bytes)
 
-    int64_t registers[125];
+    int64_t registers[325];
 
     bytecode program;
     map<int, int> proc_line_locations;
@@ -84,7 +91,7 @@ public:
     size_t allocate_on_stack(size_t bytes);
     void push_stack_scope(int func_id);
     void pop_stack_scope(); // pops current stack frame
-    inline int stack_pointer();
+    inline int64_t stack_pointer();
     double read_float_register(int reg);
     void set_float_register(int reg, double value);
 

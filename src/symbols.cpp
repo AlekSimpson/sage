@@ -69,6 +69,9 @@ void SageSymbolTable::declare_null_symbol() {
 }
 
 SymbolIndex SageSymbolTable::declare_builtin_type_symbol(const string &name, SageType *type) {
+    auto symbol_check = lookup(name, 0);
+    if (symbol_check != nullptr) return symbol_check->symbol_index;
+
     SymbolIndex new_index = entries.allocate_symbol();
     auto &entry = entries.get(new_index);
     entry.type_namespace = nullptr;
@@ -98,7 +101,7 @@ SymbolIndex SageSymbolTable::declare_literal(NodeIndex ast_id, SageValue value, 
         entry.name = name;
         entry.scope_id = current_scope;
         entry.definition_ast_index = ast_id;
-        entry.static_stack_pointer = static_pointer;
+        entry.static_pointer = static_pointer;
         entry.symbol_index = new_index;
 
         scope_symbol_map[{current_scope, name}] = new_index;
@@ -319,7 +322,6 @@ void SageSymbolTable::initialize() {
     string_namespace->add_field_member("bytes", TR::get_pointer_type(TR::get_byte_type(CHAR)));
     string_namespace->add_field_member("length", TR::get_integer_type(8));
 
-
     // setup builtin functions
     vector<SageType *> puti_params = {
         TypeRegistery::get_integer_type(8),
@@ -341,79 +343,126 @@ void SageSymbolTable::initialize() {
     //function_visitor_state.push(&entry->function_info);
 }
 
-SageType *SageSymbolTable::resolve_type_identifier(string type_identifier, int scope_id) {
-    if (cached_type_identifiers.find(type_identifier) != cached_type_identifiers.end()) {
-        return cached_type_identifiers.at(type_identifier);
+SageType *SageSymbolTable::resolve_unknown_expression_type(NodeIndex node_index) {
+    // TODO: implement HM type resolution algorithm here for robust expression type resolution
+    switch (nm->get_nodetype(node_index)) {
+        case PN_NUMBER:
+            return TR::get_integer_type(8);
+        case PN_FLOAT:
+            return TR::get_float_type(8);
+        case PN_CHARACTER_LITERAL:
+            return TR::get_byte_type(CHAR);
+        case PN_STRING:
+            return TR::get_string_type();
+        case PN_BOOL:
+            return TR::get_byte_type(BOOL);
+        default:
+            return nullptr;
+    }
+}
+
+SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) {
+    // entry lexeme ex: 'int[5][..]' | 'float[..]' | 'string[]'
+    auto *entry = entries.get_pointer(entry_index);
+    assert(entry != nullptr);
+
+    NodeIndex current_node = entry->definition_ast_index;
+    SageType *resolved_type = nullptr;
+    while (current_node != NULL_INDEX) {
+        switch (nm->get_nodetype(current_node)) {
+            case PN_STATIC_ARRAY_TYPE: {
+                int array_length = stoll(nm->get_lexeme(current_node));
+                resolved_type = TR::get_array_type(resolved_type, array_length);
+                break;
+            }
+            case PN_DYNAMIC_ARRAY_TYPE: {
+                resolved_type = TR::get_dyn_array_type(resolved_type);
+                break;
+            }
+            case PN_ARRAY_REFERENCE_TYPE: {
+                resolved_type = TR::get_reference_type(resolved_type, 0);
+                break;
+            }
+            default:
+                resolved_type = resolve_unknown_type_node(current_node);
+        }
+        current_node = nm->get_branch(current_node);
+    }
+    assert(resolved_type != nullptr);
+
+    BuiltinNamespace *namespace_ = (BuiltinNamespace *)entry->type_namespace;
+    SageType *basetype = nullptr;
+    switch (resolved_type->identify()) {
+        case ARRAY:
+            basetype = ((SageArrayType *)resolved_type)->array_type;
+            namespace_->add_field_member("first", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("length", TR::get_integer_type(8));
+            break;
+        case DYN_ARRAY:
+            basetype = ((SageDynamicArrayType *)resolved_type)->array_type;
+            namespace_->add_field_member("first", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("length", TR::get_integer_type(8));
+            namespace_->add_field_member("capacity", TR::get_integer_type(8));
+            break;
+        case REFERENCE:
+            basetype = ((SageReferenceType *)resolved_type)->pointer_type;
+            namespace_->add_field_member("data", TR::get_pointer_type(basetype));
+            namespace_->add_field_member("window_size", TR::get_integer_type(8));
+            break;
+        default:
+            break;
     }
 
-    auto type_search = lookup(type_identifier, scope_id);
-    if (type_search != nullptr) return type_search->datatype;
+    return resolved_type;
+}
 
-    /*
-     * get identifier type keys
-     * type keys:
-     * - "*": pointer
-     * - "[]": array reference
-     * - "[..]": dynamic array
-     * - "[<digits>]": normal array
-     */
+SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, bool self_referential_pointer_detected) {
+    if (node == NULL_INDEX) return nullptr;
 
-    string base_type_identifier = "";
-    bool started_processing_type_modifiers = false;
-    SageType *current_type = nullptr;
-    auto get_current_type = [&]() -> SageType * {
-        if (current_type == nullptr) {
-            current_type = lookup(base_type_identifier, scope_id)->datatype;
+    string type_identifier = nm->get_identifier(node);
+    int scope_id = nm->get_scope_id(node);
+    auto *type_symbol = lookup(type_identifier, scope_id);
+    assert(type_symbol != nullptr);
+
+    auto *current_type = type_symbol->datatype;
+    if (self_referential_pointer_detected) {
+        current_type = TR::get_byte_type(VOID);
+    }
+    assert(current_type != nullptr);
+
+    auto branch = nm->get_branch(node);
+    if (branch == NULL_INDEX) return current_type;
+
+    while (branch != NULL_INDEX) {
+        switch (nm->get_nodetype(branch)) {
+            case PN_STATIC_ARRAY_TYPE: {
+                auto lexeme = nm->get_lexeme(branch);
+                current_type = TR::get_array_type(current_type, stoll(lexeme));
+                break;
+            }
+            case PN_DYNAMIC_ARRAY_TYPE:
+                current_type = TR::get_dyn_array_type(current_type, 10);
+                break;
+            case PN_ARRAY_REFERENCE_TYPE:
+                current_type = TR::get_reference_type(current_type, 0);
+                break;
+            case PN_POINTER_TYPE:
+                current_type = TR::get_pointer_type(current_type);
+                break;
+            default: {
+                // error
+                Token token = nm->get_token(branch);
+                ErrorLogger::get().log_error_unsafe(token, sen("Found unexpected symbol in type expression:", token.lexeme), SYNTAX);
+                return nullptr;
+            }
         }
-        return current_type;
-    };
-
-    bool processing_array_type = false;
-    int skip_until = -1;
-    string current_array_length_lexeme = "";
-    for (int i = 0; i < (int) type_identifier.size(); ++i) {
-        skip_until = i == skip_until ? -1 : skip_until;
-        if (i < skip_until) continue;
-
-        started_processing_type_modifiers = (type_identifier[i] == '*' || type_identifier[i] == '[') ||
-                                            started_processing_type_modifiers;
-        if (!started_processing_type_modifiers) {
-            base_type_identifier += type_identifier[i];
-            continue;
-        }
-
-        if (type_identifier[i] == '*') {
-            current_type = TR::get_pointer_type(get_current_type());
-        } else if (type_identifier[i] == '[') {
-            processing_array_type = true;
-            continue;
-        }
-
-        if (!processing_array_type) continue;
-
-        if (type_identifier[i] == '.') {
-            // dynamic array
-            current_type = TR::get_dyn_array_type(get_current_type());
-            skip_until = i + 3;
-            processing_array_type = false;
-        } else if (type_identifier[i] == ']' && current_array_length_lexeme.empty()) {
-            // array reference
-            current_type = TR::get_reference_type(get_current_type(), get_current_type()->size);
-            processing_array_type = false;
-        } else if (type_identifier[i] == ']' && !current_array_length_lexeme.empty()) {
-            current_type = TR::get_array_type(get_current_type(), stoi(current_array_length_lexeme));
-            current_array_length_lexeme.clear();
-            processing_array_type = false;
-        } else {
-            // digits, normal array
-            current_array_length_lexeme += type_identifier[i];
-        }
+        branch = nm->get_branch(branch);
     }
 
     return current_type;
 }
 
-SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
+SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index, bool self_referential_definition = false) {
     auto &entry = entries.get(entry_index);
     if (entry.type_is_resolved()) {
         return entry.datatype;
@@ -425,10 +474,7 @@ SageType *SageSymbolTable::resolve_variable_type(SymbolIndex entry_index) {
         type_ast_id = nm->get_middle(entry.definition_ast_index);
     }
 
-    auto scope_id = entry.scope_id;
-    auto identifier = nm->get_identifier(type_ast_id);
-
-    return resolve_type_identifier(identifier, scope_id);
+    return resolve_unknown_type_node(type_ast_id, self_referential_definition);
 }
 
 SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
@@ -448,8 +494,37 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
             type_expression = nm->get_middle(member_expression);
         }
 
+        /*
+         *  check if member type is a recursive pointer, ex:
+         *  ListNode :: struct {
+         *      data: int
+         *      next: ListNode*
+         *  }
+         */
         auto identifier = nm->get_identifier(type_expression);
-        auto *member_type = resolve_type_identifier(identifier, scope_id);
+        auto branch = nm->get_branch(type_expression);
+        bool self_referential_pointer_detected = false;
+        if (identifier == struct_entry.name && branch != NULL_INDEX) {
+            bool full_type_is_pointer = false;
+            while (branch != NULL_INDEX) {
+                auto next_branch = nm->get_branch(branch);
+                if (next_branch == NULL_INDEX) { // is last node in type expression
+                    full_type_is_pointer = nm->get_nodetype(branch) == PN_POINTER_TYPE;
+                    break;
+                }
+                branch = nm->get_branch(branch);
+            }
+
+            if (!full_type_is_pointer) {
+                Token token = nm->get_token(type_expression);
+                ErrorLogger::get().log_error_unsafe(token, sen("Recursive type definition."), GENERAL);
+                continue;
+            }
+
+            self_referential_pointer_detected = true;
+        }
+
+        auto *member_type = resolve_unknown_type_node(type_expression, self_referential_pointer_detected);
         member_types.push_back(member_type);
 
         auto member_symbol_node = nm->get_left(member_expression);
@@ -473,19 +548,16 @@ SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {
 
     NodeIndex function_signature = nm->get_right(function_entry->definition_ast_index);
 
-    int scope_id = function_entry->scope_id;
     string current_identifier;
     for (auto parameter_expression: nm->get_children(nm->get_left(function_signature))) {
         auto type_expression = nm->get_right(parameter_expression);
         if (nm->get_host_nodetype(parameter_expression) == PN_TRINARY) {
             type_expression = nm->get_middle(parameter_expression);
         }
-        current_identifier = nm->get_identifier(type_expression);
-        parameter_types.push_back(resolve_type_identifier(current_identifier, scope_id));
+        parameter_types.push_back(resolve_unknown_type_node(type_expression));
     }
     for (auto return_type_expression: nm->get_children(nm->get_middle(function_signature))) {
-        current_identifier = nm->get_identifier(return_type_expression);
-        return_types.push_back(resolve_type_identifier(current_identifier, scope_id));
+        return_types.push_back(resolve_unknown_type_node(return_type_expression));
     }
 
     if (return_types.empty()) {

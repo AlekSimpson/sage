@@ -57,6 +57,18 @@ test: $(APP_DIR)/$(TARGET)
 test-update: $(APP_DIR)/$(TARGET)
 	julia tests/run_tests.jl --update
 
+run-test: $(APP_DIR)/$(TARGET)
+ifndef NAME
+	$(error NAME is required. Usage: make run-test NAME=my_test_name)
+endif
+	julia tests/run_tests.jl --run-test $(NAME)
+
+load: $(APP_DIR)/$(TARGET)
+ifndef NAME
+	$(error NAME is required. Usage: make load NAME=my_test_name)
+endif
+	julia tests/run_tests.jl --load $(NAME)
+
 create-test: $(APP_DIR)/$(TARGET)
 ifndef NAME
 	$(error NAME is required. Usage: make create-test NAME=my_test_name)

@@ -30,16 +30,14 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_KEYWORD:
             return visit_statement(node);
 
-        case PN_VAR_REF:
-        case PN_NUMBER:
-        case PN_STRING:
-        case PN_FLOAT:
-        case PN_FUNCCALL:
-            return visit_expression(node);
+        //case PN_VAR_REF:
+        //case PN_NUMBER:
+        //case PN_STRING:
+        //case PN_FLOAT:
+        //case PN_FUNCCALL:
         default:
-            assertm(false,
-                    sen("Unhandled node type in SageCompiler::visit(NodeIndex):", node_manager->get_lexeme(node)).data(
-                    ));
+            return visit_expression(node);
+
     }
 }
 
@@ -103,7 +101,8 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_node_result = visit_expression(right_node_index);
-        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, _10);
+        bool lhs_is_array_element = node_manager->get_nodetype(node_manager->get_left(LHS)) == PN_ARRAY_ACCESS;
+        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, lhs_is_array_element, _10);
         return VisitorResult();
     }
 
@@ -169,29 +168,26 @@ VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
         SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
 
         // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
-        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
 
-
-        return build_alloca(var_symbol);
-    }
-
-    if (concrete_node_type == PN_TRINARY) {
-        // left is variable identifier
-        auto lhs = node_manager->get_left(node);
-        string variable_name = node_manager->get_lexeme(lhs);
-        int scope_id = node_manager->get_scope_id(node);
-        SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
-
-        auto rightnode = node_manager->get_right(node);
         build_alloca(var_symbol);
-        auto rhs = visit_expression(rightnode);
-
-        // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
-        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
-        //       will probably need to make some sort of .as_register() functino for SageValue for the cases where the variable is a register
-
-        return build_store(rhs, var_symbol);
+        return VisitorResult();
     }
+
+    //if (concrete_node_type == PN_TRINARY) {
+    //    // left is variable identifier
+    //    auto lhs = node_manager->get_left(node);
+    //    string variable_name = node_manager->get_lexeme(lhs);
+    //    int scope_id = node_manager->get_scope_id(node);
+    //    SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
+
+    //    auto rightnode = node_manager->get_right(node);
+    //    build_alloca(var_symbol);
+    //    auto rhs = visit_expression(rightnode);
+
+    //    // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
+
+    //    return build_store(rhs, var_symbol);
+    //}
 
     return VisitorResult();
 }
@@ -223,7 +219,7 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
 
     VisitorResult return_value = visit_expression(branch_id);
     if (symbol_table.needs_return_stack_pointer(function_entry->symbol_index)) {
-        return_value.to_stack_instruction(*this, 6, _10);
+        return_value.to_stack_instruction_absolute(*this, 6, false, _10); // note: might need to set the ascending_memory bool on whether the func is returning a struct or array
         function_entry->spilled = true;
     } else {
         return_value.to_register_instruction(*this, 6, return_types[0]);
@@ -254,7 +250,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
     int offset_register,
     SageNamespace *current_namespace,
     bool struct_field_is_being_assigned_to,
-    bool taking_address_of_field
+    bool taking_address_of_field,
+    bool absolute_addressing
 ) {
     int scope_id = node_manager->get_scope_id(binary_access_node);
 
@@ -267,7 +264,12 @@ VisitorResult SageCompiler::visit_struct_field_access(
 
         if (current_nodetype == PN_VAR_REF || current_nodetype == PN_IDENTIFIER) {
             string name = node_manager->get_identifier(current_node);
-            auto *type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
+            SageType *type_entry;
+            if (current_namespace->is_builtin()) {
+                type_entry = ((BuiltinNamespace *)current_namespace)->get_field_type(name);
+            } else {
+                type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
+            }
             if (!current_namespace->is_field_member(name)) {
                 // error
                 Token token = node_manager->get_token(current_node);
@@ -281,7 +283,13 @@ VisitorResult SageCompiler::visit_struct_field_access(
                                     : current_namespace->get_field_offset(&symbol_table, name);
             int result_pointer_register = get_volatile_register();
             builder.build_instruction(OP_ADD, offset_register, offset_register, member_offset, _10);
-            builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+            // Stack structs grow downward (base - offset); array element structs are stored
+            // in increasing-address order via ADDR_MEMCPY, so their fields use base + offset.
+            if (absolute_addressing) {
+                builder.build_instruction(OP_ADD, result_pointer_register, base_address_register, offset_register, _11);
+            } else {
+                builder.build_instruction(OP_SUB, result_pointer_register, base_address_register, offset_register, _11);
+            }
 
             if (struct_field_is_being_assigned_to || taking_address_of_field) {
                 return VisitorResult(result_pointer_register, type_entry, true);
@@ -306,13 +314,68 @@ VisitorResult SageCompiler::visit_struct_field_access(
     NodeIndex current_node = node_manager->get_left(binary_access_node);
     auto current_nodetype = node_manager->get_nodetype(current_node);
 
+    if (current_nodetype == PN_ARRAY_ACCESS) {
+        VisitorResult array_access_result = visit_array_access(current_node, base_address_register, offset_register, current_namespace);
+        if (logger.has_errors()) {
+            return VisitorResult();
+        }
+
+        // check if there's more field access after this array access — includes both chained
+        // PN_FIELD_ACCESS (e.g. arr[0].struct_member.field) and terminal identifiers (e.g. arr[0].length)
+        NodeIndex right_node = node_manager->get_right(binary_access_node);
+        auto right_node_type = node_manager->get_nodetype(right_node);
+        bool has_more_field_access = right_node_type == PN_FIELD_ACCESS
+                                     || right_node_type == PN_IDENTIFIER
+                                     || right_node_type == PN_VAR_REF;
+
+        if (has_more_field_access) {
+            // error if trying to access field on non-struct type
+            if (!array_access_result.result_type->is_struct()) {
+                Token token = node_manager->get_token(current_node);
+                logger.log_error_unsafe(token, sen("Cannot access field on non-struct type:", array_access_result.result_type->to_string()), GENERAL);
+                return VisitorResult();
+            }
+
+            // continue the chain with element as new base
+            string type_name = array_access_result.result_type->to_string();
+            SymbolEntry *type_entry = symbol_table.lookup(type_name, scope_id);
+
+            int new_offset = get_volatile_register();
+            builder.build_move_immediate(new_offset, 0);
+
+            // absolute_addressing=true: element area grows upward (via ADDR_MEMCPY), so
+            // fields within each element are accessed with ADD rather than SUB
+            return visit_struct_field_access(
+                right_node,
+                array_access_result.temporary_result_register,
+                new_offset,
+                type_entry->type_namespace,
+                struct_field_is_being_assigned_to,
+                taking_address_of_field,
+                true
+            );
+        }
+
+        // terminal case - return element address or loaded value
+        if (struct_field_is_being_assigned_to || taking_address_of_field) {
+            return array_access_result;
+        }
+
+        int value_register = get_volatile_register();
+        builder.build_instruction(OP_LOADA, array_access_result.result_type->size, value_register, array_access_result.temporary_result_register, _01);
+        return VisitorResult(value_register, array_access_result.result_type, true);
+    }
+
     if (current_nodetype == PN_VAR_REF || current_nodetype == PN_IDENTIFIER) {
         string name = node_manager->get_identifier(current_node);
         if (current_namespace == nullptr) {
             builder.build_move_immediate(offset_register, 0);
 
             auto *entry = symbol_table.lookup(name, scope_id);
-            auto *type_entry = symbol_table.lookup(entry->datatype->get_base_type_string(), scope_id);
+            string type_string = entry->datatype->is_array()
+                                     ? entry->datatype->to_string()
+                                     : entry->datatype->get_base_type_string();
+            auto *type_entry = symbol_table.lookup(type_string, scope_id);
 
             if (entry->datatype->is_pointer()) {
                 builder.build_instruction(OP_ADD, offset_register, offset_register, entry->stack_offset, _10);
@@ -428,12 +491,89 @@ VisitorResult SageCompiler::visit_struct_field_access(
     return VisitorResult();
 }
 
+VisitorResult SageCompiler::visit_array_access(
+    NodeIndex array_access_node,
+    int base_address_register,
+    int offset_register,
+    SageNamespace *current_namespace
+) {
+    int scope_id = node_manager->get_scope_id(array_access_node);
+    NodeIndex array_expr_node = node_manager->get_left(array_access_node);
+    NodeIndex indices_block = node_manager->get_right(array_access_node);
+    auto index_children = node_manager->get_children(indices_block);
+
+    SageType *current_array_type = nullptr;
+    int current_array_addr = get_volatile_register();
+
+    auto array_nodetype = node_manager->get_nodetype(array_expr_node);
+    if (array_nodetype == PN_VAR_REF || array_nodetype == PN_IDENTIFIER) {
+        string name = node_manager->get_identifier(array_expr_node);
+        
+        if (current_namespace == nullptr) {
+            // standalone array variable - look up directly
+            SymbolEntry *entry = symbol_table.lookup(name, scope_id);
+            current_array_type = entry->datatype;
+            
+            // calculate array struct address from stack
+            builder.build_instruction(OP_SUB, current_array_addr, base_address_register, entry->stack_offset, _10);
+        } else {
+            // array is a field within a struct
+            SymbolEntry *entry = symbol_table.lookup_by_index(current_namespace->fields[name]);
+            current_array_type = entry->datatype;
+            
+            int field_offset = current_namespace->is_builtin()
+                ? ((BuiltinNamespace *)current_namespace)->get_field_offset(name)
+                : current_namespace->get_field_offset(&symbol_table, name);
+            
+            builder.build_instruction(OP_ADD, offset_register, offset_register, field_offset, _10);
+            builder.build_instruction(OP_SUB, current_array_addr, base_address_register, offset_register, _11);
+        }
+    }
+
+    int element_addr = get_volatile_register();
+    SageType *element_type = nullptr;
+
+    // iterate over all indices in the BLOCK
+    for (size_t i = 0; i < index_children.size(); i++) {
+        if (current_array_type->is_array()) {
+            element_type = ((SageArrayType *)current_array_type)->array_type;
+        } else if (current_array_type->identify() == DYN_ARRAY) {
+            element_type = ((SageDynamicArrayType *)current_array_type)->array_type;
+        }
+
+        // load array.first pointer (offset 0 in array struct)
+        int first_ptr_register = get_volatile_register();
+        builder.build_instruction(OP_LOADA, 8, first_ptr_register, current_array_addr, _01);
+
+        VisitorResult index_result = visit_expression(index_children[i]);
+        auto [index_value, is_immediate] = index_result.materialize_register(*this);
+        int index_register;
+        if (is_immediate) {
+            index_register = get_volatile_register();
+            builder.build_move_immediate(index_register, index_value);
+        } else {
+            index_register = index_value;
+        }
+
+        // compute element address: first + (index * element_size)
+        int element_size = element_type->size;
+        int scaled_index = get_volatile_register();
+        builder.build_instruction(OP_MUL, scaled_index, index_register, element_size, _10);
+        builder.build_instruction(OP_ADD, element_addr, first_ptr_register, scaled_index, _11);
+
+        // if more indices remain, load the sub-array struct address
+        if (i < index_children.size() - 1) {
+            builder.build_instruction(OP_LOADA, 8, current_array_addr, element_addr, _01);
+            current_array_type = element_type;
+        }
+    }
+
+    return VisitorResult(element_addr, element_type, true);
+}
+
 VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of_field) {
     auto nodetype = node_manager->get_nodetype(node);
     switch (nodetype) {
-        case PN_LIST: {
-            assertm(false, "TODO: List literal visitor unimplemented.");
-        }
         case PN_VAR_REF:
         case PN_IDENTIFIER: {
             string reference_name = node_manager->get_identifier(node);
@@ -443,7 +583,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
         }
         case PN_FUNCCALL:
             return visit_function_call(node);
-        case PN_STRING: {
+        case PN_STRING:
+        case PN_ARRAY_LITERAL: {
             auto identifier = node_manager->get_identifier(node);
             SymbolIndex symbol_index = symbol_table.lookup_table_index(identifier, node_manager->get_scope_id(node));
             return VisitorResult(symbol_table, symbol_index);
@@ -475,7 +616,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             assertm(false, sen("Expected to find 'true' or 'false', found", identifier).data());
         }
         case PN_FIELD_ACCESS:
-            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, taking_address_of_field);
+            return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false,
+                                             taking_address_of_field);
         case PN_POINTER_DEREFERENCE: {
             // get pointer variable of operand
             auto branch_node = node_manager->get_branch(node);
@@ -487,7 +629,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             auto branch = node_manager->get_branch(node);
             auto branch_nodetype = node_manager->get_nodetype(branch);
             Token token = node_manager->get_token(branch);
-            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype != PN_FIELD_ACCESS) {
+            if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype !=
+                PN_FIELD_ACCESS) {
                 logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
                 return VisitorResult();
             }
@@ -497,8 +640,8 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             assert(symbol_entry != nullptr);
 
             int dest_register = get_volatile_register();
-            if (symbol_entry->static_stack_pointer != -1) {
-                builder.build_move_immediate(dest_register, symbol_entry->static_stack_pointer);
+            if (symbol_entry->static_pointer != -1) {
+                builder.build_move_immediate(dest_register, symbol_entry->static_pointer);
                 return VisitorResult(dest_register, TR::get_integer_type(8), true);
             }
 
@@ -548,13 +691,12 @@ VisitorResult SageCompiler::build_dereference_instructions(
         }
         case VisitorResultState::TEMP_REGISTER: {
             builder.build_instruction(OP_LOADA, result_size, result_register, operand_info.temporary_result_register,
-                        _01);
+                                      _01);
             break;
         }
         case VisitorResultState::IMMEDIATE:
         case VisitorResultState::REGISTER:
         case VisitorResultState::VALUE:
-        case VisitorResultState::LIST:
         default: {
             logger.log_error_unsafe(
                 dereference_token,
@@ -569,7 +711,7 @@ VisitorResult SageCompiler::build_dereference_instructions(
 
 int SageCompiler::get_literal_static_pointer(SymbolIndex literal_symbol_table_index) {
     auto *target_entry = symbol_table.lookup_by_index(literal_symbol_table_index);
-    return target_entry->static_stack_pointer;
+    return target_entry->static_pointer;
 }
 
 VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parameter_pointer_register) {
@@ -617,12 +759,39 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        int pointer = symbol_table.function_being_processed().stack_return_pointer_counter;
-        int return_bytesize = symbol_table.get_result_total_byte_size(
-            symbol_table.function_being_processed().symbol_index);
-        symbol_table.function_being_processed().stack_return_pointer_counter += return_bytesize;
-        builder.build_move_immediate(6, pointer);
-        // if the function return is on the stack then we don't need to use the function return register
+        // int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
+        // builder.build_move_register(6, STACK_POINTER);
+        // builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
+        // function_symbol->spilled = true;
+
+        auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->datatype)->return_type[0];
+
+        if (return_type->identify() == ARRAY || return_type->identify() == DYN_ARRAY) {
+            // For arrays: allocate struct + elements, initialize struct
+            int array_struct_address = get_volatile_register();
+            int array_element_address = get_volatile_register();
+
+            builder.build_move_register(array_struct_address, STACK_POINTER);
+
+            SageArrayType *array_type = (SageArrayType *)return_type;
+            int total_size = return_type->size + array_type->array_size;  // struct + elements
+
+            builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, total_size, _10);
+            builder.build_move_register(array_element_address, STACK_POINTER);
+
+            // Initialize struct: store element pointer and length
+            builder.build_instruction(OP_STOREA, 8, array_struct_address, array_element_address, _11);
+            int length_address = get_volatile_register();
+            builder.build_instruction(OP_SUB, length_address, array_struct_address, 8, _10);
+            builder.build_instruction(OP_STOREA, 8, length_address, array_type->length, _10);
+
+            builder.build_move_register(6, array_struct_address);
+        } else {
+            // For structs: just allocate space
+            int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
+            builder.build_move_register(6, STACK_POINTER);
+            builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
+        }
         function_symbol->spilled = true;
     } else {
         function_symbol->spilled = false;
@@ -672,7 +841,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
             return process_operator(_build_sub);
         case TT_DIV:
             return process_operator(_build_div);
-        case TT_MUL:
+        case TT_STAR:
             return process_operator(_build_mul);
         case TT_AND:
             return process_operator(_build_and);
