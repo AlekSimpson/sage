@@ -1,12 +1,11 @@
 
 
-make_array :: () -> int[3] {
-    ret [4, 5, 6]
+make_string :: () -> string {
+    local_test: string = "it works?"
+    ret local_test
 }
 
-factory_array : int[3] = make_array()
-puti(factory_array[0], 1)
-puti(factory_array[1], 1)
-puti(factory_array[2], 1)
+factory_string : string = make_string()
+puts(factory_string, factory_string.length)
 
 
