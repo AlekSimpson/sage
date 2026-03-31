@@ -106,6 +106,25 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
         return VisitorResult();
     }
 
+    if (lhs_nodetype == PN_POINTER_DEREFERENCE) {
+        // @ptr = value: load the address stored in ptr, then write RHS to that address
+        auto branch_node = node_manager->get_branch(LHS);
+        auto ptr_visit_result = visit_literal(branch_node);
+        auto *symbol = symbol_table.lookup_by_index(ptr_visit_result.symbol_table_index);
+        auto *ptr_type = dynamic_cast<SagePointerType *>(ptr_visit_result.result_type);
+        int store_size = ptr_type->pointer_type->size;
+
+        int addr_register = get_volatile_register();
+        builder.build_load(addr_register, symbol->stack_offset, 8);
+
+        NodeIndex right_node_index = node_manager->get_right(node);
+        VisitorResult right_result = visit_expression(right_node_index);
+        auto [rhs_value, rhs_is_immediate] = right_result.materialize_register(*this);
+        AddressMode address_mode = rhs_is_immediate ? _10 : _11;
+        builder.build_instruction(OP_STOREA, store_size, addr_register, rhs_value, address_mode);
+        return VisitorResult();
+    }
+
     if (lhs_nodetype != PN_IDENTIFIER && lhs_nodetype != PN_VAR_REF) {
         Token token = node_manager->get_token(node);
         logger.log_error_unsafe(token, sen("Can only assign values to structure members or to variables."), GENERAL);
@@ -862,6 +881,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
         case TT_EQUALITY:
             break;
         case TT_FIELD_ACCESSOR:
+        case TT_LBRACKET:
             return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, false);
         default:
             assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());

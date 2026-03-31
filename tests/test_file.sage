@@ -1,25 +1,17 @@
-// Tests that multiple user-defined functions can all be called from inside main,
-// and that their return values are independently correct.
+// Tests writing to an int through a pointer and verifying the original
+// variable reflects the updated value. Distinguishes from pointer_deref_one
+// which only reads through the pointer.
 //
 // Expected stdout:
-//   puti(a, 1) -> prints 3
-//   puti(b, 1) -> prints 5
-//   puti(c, 1) -> prints 7
+//   puti(x, 1) -> prints 5   (before)
+//   puti(x, 1) -> prints 99  (after write through ptr)
 // good
 
-inc :: (x: int) -> int {
-    ret x + 1
-}
+x: int = 5
+ptr: int* = ^x
 
-dec :: (x: int) -> int {
-    ret x - 1
-}
+puti(x, 1)
 
-main :: () {
-    a: int = inc(2)
-    b: int = inc(4)
-    c: int = dec(8)
-    puti(a, 1)
-    puti(b, 1)
-    puti(c, 1)
-}
+@ptr = 99
+
+puti(x, 2)

@@ -781,5 +781,77 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nlabel @193489329\nsub r125 r0 1\nmov r6 r125\nret\nlabel @193495071\nadd r126 r0 1\nmov r6 r126\nret\nlabel @2090499946\nmov r0 2\ncall @193495071\nmov r25 r6\nmov r0 4\ncall @193495071\nmov r26 r6\nmov r0 8\ncall @193489329\nmov r27 r6\nmov r0 r25\nmov r1 1\ncall @2090629895\nmov r0 r26\nmov r1 1\ncall @2090629895\nmov r0 r27\nmov r1 1\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "357"
+    },
+    {
+        "index": 88,
+        "name": "functions_eighteen",
+        "source": "// Tests using a function return value directly in an expression without\n// storing it in a temporary variable first.\n//\n// Expected stdout:\n//   puti(add(3,4) * 2, 2) -> prints 14\n// good\n\nadd :: (x: int, y: int) -> int {\n    ret x + y\n}\n\nputi(add(3, 4) * 2, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @193486030\nadd r125 r0 r1\nmov r6 r125\nret\nmov r0 3\nmov r1 4\ncall @193486030\nmul r126 r6 2\nmov r0 r126\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "14"
+    },
+    {
+        "index": 89,
+        "name": "strings_two",
+        "source": "// Tests multiple string variables declared in the same scope and their\n// .length properties used individually and in arithmetic.\n//\n// Expected stdout:\n//   puti(s1.length, 1)       -> prints 5  (\"hello\")\n//   puti(s2.length, 1)       -> prints 4  (\"sage\")\n//   puti(s1.length + s2.length, 1) -> prints 9\n// good\n\ns1: string = \"hello\"\ns2: string = \"sage\"\n\nputi(s1.length, 1)\nputi(s2.length, 1)\nputi(s1.length + s2.length, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nsub r23 r23 5\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 5 r125 0\nstore 8 ($fp - 8) 5\nsub r23 r23 4\nmov r126 r23\nstore 8 ($fp - 16) r126\nscpy 4 r126 5\nstore 8 ($fp - 24) 4\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nloada 8 r129 $r128\nmov r0 r129\nmov r1 1\ncall @2090629895\nmov r130 0\nadd r130 r130 16\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 r132\nmov r1 1\ncall @2090629895\nmov r133 0\nadd r133 r133 0\nadd r133 r133 8\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r136 0\nadd r136 r136 16\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nadd r139 r135 r138\nmov r0 r139\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "549"
+    },
+    {
+        "index": 90,
+        "name": "structs_nine",
+        "source": "// Tests multiple independent instances of the same struct type in the same scope.\n// Verifies that field writes to one instance do not corrupt another.\n//\n// Expected stdout:\n//   puti(a.x + b.x, 2) -> prints 40\n//   puti(a.y + b.y, 2) -> prints 60\n// good\n\nPoint :: struct {\n    x: int\n    y: int\n}\n\na: Point\nb: Point\n\na.x = 10\na.y = 20\nb.x = 30\nb.y = 40\n\nputi(a.x + b.x, 2)\nputi(a.y + b.y, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 10\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 20\nmov r129 0\nadd r129 r129 16\nadd r129 r129 0\nsub r130 r24 r129\nstorea 8 $r130 30\nmov r131 0\nadd r131 r131 16\nadd r131 r131 8\nsub r132 r24 r131\nstorea 8 $r132 40\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r136 0\nadd r136 r136 16\nadd r136 r136 0\nsub r137 r24 r136\nloada 8 r138 $r137\nadd r139 r135 r138\nmov r0 r139\nmov r1 2\ncall @2090629895\nmov r140 0\nadd r140 r140 0\nadd r140 r140 8\nsub r141 r24 r140\nloada 8 r142 $r141\nmov r143 0\nadd r143 r143 16\nadd r143 r143 8\nsub r144 r24 r143\nloada 8 r145 $r144\nadd r146 r142 r145\nmov r0 r146\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "4060"
+    },
+    {
+        "index": 91,
+        "name": "structs_fourteen",
+        "source": "// Tests two different struct types used together in the same scope.\n// Verifies that type-specific field offsets don't bleed between struct types.\n//\n// Expected stdout:\n//   puti(p.x + p.y, 2)       -> prints 30\n//   puti(d.width * d.height, 4) -> prints 200\n// good\n\nPoint :: struct {\n    x: int\n    y: int\n}\n\nRect :: struct {\n    width: int\n    height: int\n}\n\np: Point\np.x = 10\np.y = 20\n\nd: Rect\nd.width = 10\nd.height = 20\n\nputi(p.x + p.y, 2)\nputi(d.width * d.height, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 10\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 20\nmov r129 0\nadd r129 r129 16\nadd r129 r129 0\nsub r130 r24 r129\nstorea 8 $r130 10\nmov r131 0\nadd r131 r131 16\nadd r131 r131 8\nsub r132 r24 r131\nstorea 8 $r132 20\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nadd r139 r135 r138\nmov r0 r139\nmov r1 2\ncall @2090629895\nmov r140 0\nadd r140 r140 16\nadd r140 r140 0\nsub r141 r24 r140\nloada 8 r142 $r141\nmov r143 0\nadd r143 r143 16\nadd r143 r143 8\nsub r144 r24 r143\nloada 8 r145 $r144\nmul r146 r142 r145\nmov r0 r146\nmov r1 3\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "30200"
+    },
+    {
+        "index": 92,
+        "name": "arrays_eleven",
+        "source": "// Tests summing array elements using element-by-element addition stored in a local.\n// Verifies that multiple indexed reads from the same array work correctly.\n//\n// Expected stdout:\n//   puti(total, 2) -> prints 15\n// good\n\nnums: i64[5] = [1, 2, 3, 4, 5]\ntotal: i64 = nums[0] + nums[1] + nums[2] + nums[3] + nums[4]\nputi(total, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 56\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 5\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 40 r128 r129\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 8\nadd r132 r133 r135\nloada 8 r136 $r132\nsub r138 r24 0\nloada 8 r140 $r138\nmov r141 1\nmul r142 r141 8\nadd r139 r140 r142\nloada 8 r143 $r139\nadd r144 r136 r143\nsub r146 r24 0\nloada 8 r148 $r146\nmov r149 2\nmul r150 r149 8\nadd r147 r148 r150\nloada 8 r151 $r147\nadd r152 r144 r151\nsub r154 r24 0\nloada 8 r156 $r154\nmov r157 3\nmul r158 r157 8\nadd r155 r156 r158\nloada 8 r159 $r155\nadd r160 r152 r159\nsub r162 r24 0\nloada 8 r164 $r162\nmov r165 4\nmul r166 r165 8\nadd r163 r164 r166\nloada 8 r167 $r163\nadd r168 r160 r167\nmov r25 r168\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "15"
+    },
+    {
+        "index": 93,
+        "name": "arrays_fourteen",
+        "source": "// Tests arithmetic using a string array element's .length property.\n// Verifies that .length on an indexed string element is a usable integer value.\n//\n// Expected stdout:\n// \"hi\".length = 2, \"there\".length = 5, sum = 7\n// puti(len_sum, 2) -> prints 7\n// good\n\nwords: string[2] = [\"hi\", \"there\"]\nlen_sum: int = words[0].length + words[1].length\nputi(len_sum, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 48\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 2\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 32 r128 r129\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 16\nadd r132 r133 r135\nmov r136 0\nadd r136 r136 8\nadd r137 r132 r136\nloada 8 r138 $r137\nsub r140 r24 0\nloada 8 r142 $r140\nmov r143 1\nmul r144 r143 16\nadd r141 r142 r144\nmov r145 0\nadd r145 r145 8\nadd r146 r141 r145\nloada 8 r147 $r146\nadd r148 r138 r147\nmov r25 r148\nmov r0 r25\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "7"
+    },
+    {
+        "index": 94,
+        "name": "arrays_sixteen",
+        "source": "// Tests using array.first in an arithmetic expression (not just dereferencing it).\n// Verifies .first is a usable address value that can participate in arithmetic.\n//\n// Expected stdout:\n//   puti(@arr.first, 1) -> prints 9\n//   puti(arr.length + arr[1], 1) -> prints 6  (length=4, arr[1]=2)\n// good\n\narr: int[4] = [9, 2, 3, 4]\nputi(@arr.first, 1)\n\nlength_plus_second: int = arr.length + arr[1]\nputi(length_plus_second, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 48\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 4\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 32 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 0\nsub r131 r24 r130\nloada 8 r132 $r131\nloada 16 r133 $r132\nmov r0 r133\nmov r1 1\ncall @2090629895\nmov r134 0\nadd r134 r134 0\nadd r134 r134 8\nsub r135 r24 r134\nloada 8 r136 $r135\nsub r138 r24 0\nloada 8 r140 $r138\nmov r141 1\nmul r142 r141 8\nadd r139 r140 r142\nloada 8 r143 $r139\nadd r144 r136 r143\nmov r25 r144\nmov r0 r25\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "96"
+    },
+    {
+        "index": 95,
+        "name": "pointer_deref_four",
+        "source": "// Tests writing to an int through a pointer and verifying the original\n// variable reflects the updated value. Distinguishes from pointer_deref_one\n// which only reads through the pointer.\n//\n// Expected stdout:\n//   puti(x, 1) -> prints 5   (before)\n//   puti(x, 1) -> prints 99  (after write through ptr)\n// good\n\nx: int = 5\nptr: int* = ^x\n\nputi(x, 1)\n\n@ptr = 99\n\nputi(x, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nstore 8 ($fp - 0) 5\nloadr r125 ($fp - 0)\nstore 8 ($fp - 8) r125\nload 8 r0 ($fp - 0)\nmov r1 1\ncall @2090629895\nload 8 r126 ($fp - 8)\nstorea 8 $r126 99\nload 8 r0 ($fp - 0)\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "599"
     }
 ]

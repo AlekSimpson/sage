@@ -1,33 +1,18 @@
 
 
-label @193489329
-sub r125 r0 1
-mov r6 r125
-ret
-label @193495071
-add r126 r0 1
-mov r6 r126
-ret
-label @2090499946
-mov r0 2
-call @193495071
-mov r25 r6
-mov r0 4
-call @193495071
-mov r26 r6
-mov r0 8
-call @193489329
-mov r27 r6
-mov r0 r25
+sub r23 r23 8
+sub r23 r23 8
+store 8 ($fp - 0) 5
+loadr r125 ($fp - 0)
+store 8 ($fp - 8) r125
+load 8 r0 ($fp - 0)
 mov r1 1
 call @2090629895
-mov r0 r26
-mov r1 1
+load 8 r126 ($fp - 8)
+storea 8 $r126 99
+load 8 r0 ($fp - 0)
+mov r1 2
 call @2090629895
-mov r0 r27
-mov r1 1
-call @2090629895
-exit
 label @2090629895
 mov r22 1
 mov r10 r1
