@@ -1,17 +1,25 @@
-// Tests writing to an int through a pointer and verifying the original
-// variable reflects the updated value. Distinguishes from pointer_deref_one
-// which only reads through the pointer.
+// Tests a three-level pointer indirection chain: A -> B -> C -> value.
+// Extends structs_eight's hyper-dim matrix to verify that deeply nested
+// pointer dereferences in field access chains compute correct addresses.
 //
 // Expected stdout:
-//   puti(x, 1) -> prints 5   (before)
-//   puti(x, 1) -> prints 99  (after write through ptr)
+//   puti(a.next.next.data, 2) -> prints 99
 // good
 
-x: int = 5
-ptr: int* = ^x
+Node :: struct {
+    data: int
+    next: Node*
+}
 
-puti(x, 1)
+c: Node
+c.data = 99
 
-@ptr = 99
+b: Node
+b.data = 2
+b.next = ^c
 
-puti(x, 2)
+a: Node
+a.data = 1
+a.next = ^b
+
+puti(a.next.next.data, 2)

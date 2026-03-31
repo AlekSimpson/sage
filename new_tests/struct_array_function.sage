@@ -1,4 +1,6 @@
-// Tests an array of structs where the struct was returned by a factory function.
+// Tests an array of structs where the s  ✓ structs_nine
+  ✓ structs_fourteen
+  ✓ arrays_eleventruct was returned by a factory function.
 // Combines struct constructor functions with struct array element assignment.
 //
 // Expected stdout:

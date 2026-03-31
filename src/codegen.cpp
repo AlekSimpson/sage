@@ -30,11 +30,6 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_KEYWORD:
             return visit_statement(node);
 
-        //case PN_VAR_REF:
-        //case PN_NUMBER:
-        //case PN_STRING:
-        //case PN_FLOAT:
-        //case PN_FUNCCALL:
         default:
             return visit_expression(node);
 
