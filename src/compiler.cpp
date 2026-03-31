@@ -366,16 +366,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
         return identifier;
     };
 
-    /*
-     * MONDAY TODO:
-     * also need a functions test that returns a static array
-     *
-     * TUESDAY TODO:
-     * implement if, elif, else
-     *
-     *
-     */
-
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
         case PN_STRUCT: {
