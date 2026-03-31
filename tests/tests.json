@@ -358,5 +358,428 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 16\nsub r23 r23 9\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 9 r125 0\nstore 8 ($fp - 8) 9\nsub r126 r24 8\nsub r127 r6 8\nacpy 16 r127 r126\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r128 r24 8\nsub r129 r6 8\nacpy 16 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "it works?"
+    },
+    {
+        "index": 41,
+        "name": "variables_two.sage",
+        "source": "// Tests a chain of global variable declarations where each depends on\n// previously declared globals. Stresses forward declaration resolution\n// across multiple levels of dependency.\n//\n// Expected stdout:\n//   puti(A, 2) -> prints 10\n//   puti(B, 2) -> prints 20\n//   puti(C, 2) -> prints 30\n// good\n\nA: int = 10\nB: int = A * 2\nC: int = A + B\n\nputi(A, 2)\nputi(B, 2)\nputi(C, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 10\nmul r125 r25 2\nmov r26 r125\nadd r126 r25 r26\nmov r27 r126\nmov r0 r25\nmov r1 2\ncall @2090629895\nmov r0 r26\nmov r1 2\ncall @2090629895\nmov r0 r27\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "102030"
+    },
+    {
+        "index": 42,
+        "name": "variables_three.sage",
+        "source": "// Tests a large number of global variables all initialized to literal values,\n// then summed. Stresses the symbol table and code-generation paths for\n// many top-level declarations.\n//\n// Expected stdout:\n//   puti(total, 2) -> prints 45   (1+2+3+4+5+6+7+8+9)\n// good\n\na: int = 1\nb: int = 2\nc: int = 3\nd: int = 4\ne: int = 5\nf: int = 6\ng: int = 7\nh: int = 8\ni: int = 9\n\ntotal: int = a + b + c + d + e + f + g + h + i\nputi(total, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 1\nmov r26 2\nmov r27 3\nmov r28 4\nmov r29 5\nmov r30 6\nmov r31 7\nmov r32 8\nmov r33 9\nadd r125 r25 r26\nadd r126 r125 r27\nadd r127 r126 r28\nadd r128 r127 r29\nadd r129 r128 r30\nadd r130 r129 r31\nadd r131 r130 r32\nadd r132 r131 r33\nmov r34 r132\nmov r0 r34\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "45"
+    },
+    {
+        "index": 43,
+        "name": "variables_four.sage",
+        "source": "// Tests a global variable initialized to the result of a complex expression\n// involving multiple other globals. Exercises the global initializer path.\n//\n// Expected stdout:\n//   puti(final, 4) -> prints 1250   (50 * 25 = 1250)\n// good\n\nwidth: int = 50\nheight: int = width / 2\narea: int = width * height\n\nputi(area, 4)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 50\ndiv r125 r25 2\nmov r26 r125\nmul r126 r25 r26\nmov r27 r126\nmov r0 r27\nmov r1 4\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1250"
+    },
+    {
+        "index": 44,
+        "name": "primitives_two.sage",
+        "source": "// Tests that all integer primitive types (i8, i32, i64) can be declared\n// alongside each other and used in arithmetic without confusion.\n//\n// Expected stdout:\n//   puti(sum, 4) -> prints 23016  (7 + 9 + 23000)\n// good\n\nbyte_val: i8 = 7\nint32_val: i32 = 9\nint64_val: i64 = 23000\n\nsum: i64 = byte_val + int32_val + int64_val\nputi(sum, 5)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 7\nmov r26 9\nmov r27 23000\nadd r125 r25 r26\nadd r126 r125 r27\nmov r28 r126\nmov r0 r28\nmov r1 5\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "23016"
+    },
+    {
+        "index": 45,
+        "name": "register_pressure.sage",
+        "source": "// Tests register allocator under pressure: many independent local variables\n// live simultaneously in one function scope. If the allocator spills or\n// incorrectly reuses registers the sum will be wrong.\n//\n// Expected stdout:\n//   puti(sum, 2) -> prints 36\n// good\n\nmain :: () {\n    a: int = 1\n    b: int = 2\n    c: int = 3\n    d: int = 4\n    e: int = 5\n    f: int = 6\n    g: int = 7\n    h: int = 8\n\n    sum: int = a + b + c + d + e + f + g + h\n    puti(sum, 2)\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @2090499946\nmov r25 1\nmov r26 2\nmov r27 3\nmov r28 4\nmov r29 5\nmov r30 6\nmov r31 7\nmov r32 8\nadd r125 r25 r26\nadd r126 r125 r27\nadd r127 r126 r28\nadd r128 r127 r29\nadd r129 r128 r30\nadd r130 r129 r31\nadd r131 r130 r32\nmov r33 r131\nmov r0 r33\nmov r1 2\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "36"
+    },
+    {
+        "index": 46,
+        "name": "register_pressure_two.sage",
+        "source": "// Register pressure: deeply chained arithmetic where every intermediate value\n// must stay live until used. Forces the allocator to keep many values\n// in registers simultaneously.\n//\n// Expected stdout:\n//   result = (1+2)*(3+4) - (5+6)*(7-4) = 3*7 - 11*3 = 21 - 33 = -12\n//   puti(result, 2) -> prints -12\n// good\n\na: int = 1 + 2\nb: int = 3 + 4\nc: int = 5 + 6\nd: int = 7 - 4\n\nresult: int = a * b - c * d\nputi(result, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nadd r125 1 2\nmov r25 r125\nadd r126 3 4\nmov r26 r126\nadd r127 5 6\nmov r27 r127\nsub r128 7 4\nmov r28 r128\nmul r129 r25 r26\nmul r130 r27 r28\nsub r131 r129 r130\nmov r29 r131\nmov r0 r29\nmov r1 3\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "-12"
+    },
+    {
+        "index": 47,
+        "name": "integration_two.sage",
+        "source": "// Integration: array element accessed inside a function body (local array),\n// combined with a global constant. Mixes local array, global constant, and\n// function return in one computation.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 106  (100 + arr[1])  arr[1]=6\n// good\n\nOFFSET: i64 = 100\n\nget_second :: () -> int {\n    arr: int[3] = [4, 6, 8]\n    ret arr[1]\n}\n\nresult: int = OFFSET + get_second()\nputi(result, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 100\ncall @2102720000\nadd r137 r25 r6\nmov r26 r137\nmov r0 r26\nmov r1 3\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2102720000\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 40\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 3\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 24 r128 r129\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 1\nmul r135 r134 8\nadd r132 r133 r135\nloada 8 r136 $r132\nmov r6 r136\nret\n",
+        "expected_stdout": "106"
+    },
+    {
+        "index": 48,
+        "name": "integration_one.sage",
+        "source": "// Integration: a function returns a struct and the caller immediately reads\n// fields from it — no explicit temporary struct variable needed on the call site.\n//\n// Expected stdout:\n//   puti(pair.a, 2) -> prints 7\n//   puti(pair.b, 2) -> prints 13\n// good\n\nPair :: struct {\n    a: i64\n    b: i64\n}\n\nmake_pair :: (x: i64, y: i64) -> Pair {\n    p: Pair\n    p.a = x\n    p.b = y\n    ret p\n}\n\npair: Pair = make_pair(7, 13)\nputi(pair.a, 2)\nputi(pair.b, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @791734894\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 r0\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 r1\nsub r129 r24 8\nsub r130 r6 8\nacpy 16 r130 r129\nret\nsub r23 r23 16\nmov r0 7\nmov r1 13\nmov r6 r23\nsub r23 r23 16\ncall @791734894\nsub r131 r24 8\nsub r132 r6 8\nacpy 16 r131 r132\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r135\nmov r1 2\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "7\u000013"
+    },
+    {
+        "index": 49,
+        "name": "integration_five.sage",
+        "source": "// Integration: pointer to a struct, function that takes an int and returns\n// a modified copy, combined with pointer dereference to supply the argument.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 20   (val.x=10, doubled=20)\n// good\n\ndouble :: (x: int) -> int {\n    ret x * 2\n}\n\nBox :: struct {\n    x: int\n}\n\nval: Box\nval.x = 10\n\nptr: Box* = ^val\nresult: int = double(ptr.x)\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nmov r126 0\nadd r126 r126 0\nadd r126 r126 0\nsub r127 r24 r126\nstorea 8 $r127 10\nloadr r128 ($fp - 0)\nstore 8 ($fp - 8) r128\nmov r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r129 0\nadd r129 r129 0\nsub r132 r131 r129\nloada 8 r133 $r132\nmov r0 r133\ncall @2034064160\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2034064160\nmul r125 r0 2\nmov r6 r125\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "20"
+    },
+    {
+        "index": 50,
+        "name": "expressions_two.sage",
+        "source": "// Tests global constants (declared with ::) referenced inside a function body\n// as part of an arithmetic expression. Verifies constant propagation into\n// function scope.\n//\n// Expected stdout:\n//   puti(result, 3) -> prints 115\n// good\n\nBASE: int = 100\nMULTIPLIER: int = 3\n\ncompute :: (x: int) -> int {\n    ret BASE + x * MULTIPLIER\n}\n\nresult: int = compute(5)\nputi(result, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 100\nmov r26 3\nmov r0 5\ncall @1399166018\nmov r27 r6\nmov r0 r27\nmov r1 3\ncall @2090629895\nlabel @1399166018\nmul r125 r0 r26\nadd r126 r25 r125\nmov r6 r126\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "115"
+    },
+    {
+        "index": 51,
+        "name": "expressions_three.sage",
+        "source": "// Tests a deeply nested arithmetic expression to stress operator precedence\n// and the expression tree code generation path.\n//\n// Expected stdout:\n//   result = ((2 + 3) * (4 - 1)) / (5 - 2) = (5 * 3) / 3 = 5\n//   puti(result, 1) -> prints 5\n// good\n\nresult: int = ((2 + 3) * (4 - 1)) / (5 - 2)\nputi(result, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nadd r125 2 3\nsub r126 4 1\nmul r127 r125 r126\nsub r128 5 2\ndiv r129 r127 r128\nmov r25 r129\nmov r0 r25\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "5"
+    },
+    {
+        "index": 52,
+        "name": "expressions_four.sage",
+        "source": "// Tests an expression that mixes a struct field, a global constant, and a local\n// variable in a single arithmetic expression.\n//\n// Expected stdout:\n//   result = v.x + OFFSET - local_adj = 10 + 100 - 5 = 105\n//   puti(result, 3) -> prints 105\n// good\n\nOFFSET: int = 100\n\nVec :: struct {\n    x: int\n}\n\nv: Vec\nv.x = 10\n\nlocal_adj: int = 5\nresult: int = v.x + OFFSET - local_adj\nputi(result, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nmov r25 100\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 10\nmov r26 5\nmov r127 0\nadd r127 r127 0\nadd r127 r127 0\nsub r128 r24 r127\nloada 8 r129 $r128\nadd r130 r129 r25\nsub r131 r130 r26\nmov r27 r131\nmov r0 r27\nmov r1 3\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "105"
+    },
+    {
+        "index": 53,
+        "name": "expressions_five.sage",
+        "source": "// Tests integer division truncation and subtraction ordering.\n// Verifies that division truncates toward zero and subtraction is left-associative.\n//\n// Expected stdout:\n//   puti(a, 1) -> prints 3   (7 / 2 = 3, truncated)\n//   puti(b, 1) -> prints 4   (10 - 3 - 3 = 4)\n// good\n\na: int = 7 / 2\nb: int = 10 - 3 - 3\n\nputi(a, 1)\nputi(b, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\ndiv r125 7 2\nmov r25 r125\nsub r126 10 3\nsub r127 r126 3\nmov r26 r127\nmov r0 r25\nmov r1 1\ncall @2090629895\nmov r0 r26\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "34"
+    },
+    {
+        "index": 54,
+        "name": "strings_three.sage",
+        "source": "// Tests reassigning a string variable and verifying .length reflects the new value.\n//\n// Expected stdout:\n//   puti(s.length, 1)  -> prints 2  (\"hi\")\n//   puti(s.length, 1)  -> prints 5  (\"world\")\n// good\n\ns: string = \"hi\"\nputi(s.length, 1)\n\ns = \"world\"\nputi(s.length, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 2\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 2 r125 0\nstore 8 ($fp - 8) 2\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 r128\nmov r1 1\ncall @2090629895\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 2\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 r132\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "25"
+    },
+    {
+        "index": 55,
+        "name": "strings_four.sage",
+        "source": "// Tests using string.bytes directly as the first argument to puts,\n// mirroring how structs_four accesses .bytes on a struct's string field.\n// Verifies .bytes is a valid address-like value usable at a call site.\n//\n// Expected stdout:\n//   puts(s.bytes, s.length) -> prints \"compiler\"\n// good\n\ns: string = \"compiler\"\nputs(s.bytes, s.length)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 8\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 8 r125 0\nstore 8 ($fp - 8) 8\nmov r126 0\nadd r126 r126 0\nadd r126 r126 0\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r0 r128\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "compiler"
+    },
+    {
+        "index": 56,
+        "name": "string_array_two.sage",
+        "source": "// Tests a string array where every element is overwritten and then read back\n// via puts. Extends arrays_six/seven by covering all three positions.\n//\n// Expected stdout:\n//   puts(arr[0]) -> prints \"alpha\"\n//   puts(arr[1]) -> prints \"beta\"\n//   puts(arr[2]) -> prints \"gamma\"\n// good\n\narr: string[3] = [\"one\", \"two\", \"three\"]\n\narr[0] = \"alpha\"\narr[1] = \"beta\"\narr[2] = \"gamma\"\n\nputs(arr[0], arr[0].length)\nputs(arr[1], arr[1].length)\nputs(arr[2], arr[2].length)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 64\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 3\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 48 r128 r129\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 16\nadd r132 r133 r135\nsub r23 r23 5\nmov r136 r23\nstorea 8 $r132 r136\nscpy 5 r136 59\nadd r137 r132 8\nstorea 8 $r137 5\nsub r139 r24 0\nloada 8 r141 $r139\nmov r142 1\nmul r143 r142 16\nadd r140 r141 r143\nsub r23 r23 4\nmov r144 r23\nstorea 8 $r140 r144\nscpy 4 r144 64\nadd r145 r140 8\nstorea 8 $r145 4\nsub r147 r24 0\nloada 8 r149 $r147\nmov r150 2\nmul r151 r150 16\nadd r148 r149 r151\nsub r23 r23 5\nmov r152 r23\nstorea 8 $r148 r152\nscpy 5 r152 68\nadd r153 r148 8\nstorea 8 $r153 5\nsub r155 r24 0\nloada 8 r157 $r155\nmov r158 0\nmul r159 r158 16\nadd r156 r157 r159\nloada 16 r160 $r156\nsub r162 r24 0\nloada 8 r164 $r162\nmov r165 0\nmul r166 r165 16\nadd r163 r164 r166\nmov r167 0\nadd r167 r167 8\nadd r168 r163 r167\nloada 8 r169 $r168\nmov r0 r160\nmov r1 r169\ncall @2090629905\nsub r171 r24 0\nloada 8 r173 $r171\nmov r174 1\nmul r175 r174 16\nadd r172 r173 r175\nloada 16 r176 $r172\nsub r178 r24 0\nloada 8 r180 $r178\nmov r181 1\nmul r182 r181 16\nadd r179 r180 r182\nmov r183 0\nadd r183 r183 8\nadd r184 r179 r183\nloada 8 r185 $r184\nmov r0 r176\nmov r1 r185\ncall @2090629905\nsub r187 r24 0\nloada 8 r189 $r187\nmov r190 2\nmul r191 r190 16\nadd r188 r189 r191\nloada 16 r192 $r188\nsub r194 r24 0\nloada 8 r196 $r194\nmov r197 2\nmul r198 r197 16\nadd r195 r196 r198\nmov r199 0\nadd r199 r199 8\nadd r200 r195 r199\nloada 8 r201 $r200\nmov r0 r192\nmov r1 r201\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "alphabetagamma"
+    },
+    {
+        "index": 57,
+        "name": "globals_one.sage",
+        "source": "// Tests that global :: constants and global : variables can be freely mixed\n// in the same expression at global scope.\n//\n// Expected stdout:\n//   puti(total, 4) -> prints 1056  (1000 + 56)\n// good\n\nLARGE: int = 1000\nsmall: int = 56\ntotal: int = LARGE + small\nputi(total, 4)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 1000\nmov r26 56\nadd r125 r25 r26\nmov r27 r125\nmov r0 r27\nmov r1 4\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1056"
+    },
+    {
+        "index": 58,
+        "name": "globals_two.sage",
+        "source": "// Tests forward-declared globals used in a function body — the function is\n// defined before the globals it references are declared.\n//\n// Expected stdout:\n//   puti(get_total(), 2) -> prints 30\n// good\n\nget_total :: () -> int {\n    ret X + Y\n}\n\nX: int = 10\nY: int = 20\n\nputi(get_total(), 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r25 10\nmov r26 20\ncall @1301712104\nmov r0 r6\nmov r1 2\ncall @2090629895\nlabel @1301712104\nadd r125 r25 r26\nmov r6 r125\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "30"
+    },
+    {
+        "index": 59,
+        "name": "globals_three.sage",
+        "source": "// Tests a global struct that is populated at global scope (not inside main),\n// mirroring the pattern used throughout the struct tests.\n// Verifies struct fields survive the global initializer phase.\n//\n// Expected stdout:\n//   puti(origin.x, 2) -> prints 0\n//   puti(origin.y, 2) -> prints 0\n//   puti(offset.x, 2) -> prints 5\n//   puti(offset.y, 2) -> prints 10\n// good\n\nVec :: struct {\n    x: int\n    y: int\n}\n\norigin: Vec\norigin.x = 0\norigin.y = 0\n\noffset: Vec\noffset.x = 5\noffset.y = 10\n\nputi(origin.x, 1)\nputi(origin.y, 1)\nputi(offset.x, 1)\nputi(offset.y, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 0\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 0\nmov r129 0\nadd r129 r129 16\nadd r129 r129 0\nsub r130 r24 r129\nstorea 8 $r130 5\nmov r131 0\nadd r131 r131 16\nadd r131 r131 8\nsub r132 r24 r131\nstorea 8 $r132 10\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r135\nmov r1 1\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 1\ncall @2090629895\nmov r139 0\nadd r139 r139 16\nadd r139 r139 0\nsub r140 r24 r139\nloada 8 r141 $r140\nmov r0 r141\nmov r1 1\ncall @2090629895\nmov r142 0\nadd r142 r142 16\nadd r142 r142 8\nsub r143 r24 r142\nloada 8 r144 $r143\nmov r0 r144\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "00510"
+    },
+    {
+        "index": 60,
+        "name": "pointer_deref_three.sage",
+        "source": "// Tests taking the address of a struct field directly (^struct.field),\n// then reading back the value through the pointer.\n// Verifies that address-of on a field offset is computed correctly.\n//\n// Expected stdout:\n//   puti(w.value, 2)  -> prints 42\n//   puti(@ptr, 2)     -> prints 42\n// good\n\nWrapper :: struct {\n    value: int\n}\n\nw: Wrapper\nw.value = 42\n\nptr: int* = ^w.value\n\nputi(w.value, 2)\nputi(@ptr, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 42\nmov r127 0\nadd r127 r127 0\nadd r127 r127 0\nsub r128 r24 r127\nmov r129 r128\nstore 8 ($fp - 8) r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 0\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 r132\nmov r1 2\ncall @2090629895\nloadp 8 r133 ($fp - 8)\nmov r0 r133\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "4242"
+    },
+    {
+        "index": 61,
+        "name": "pointer_deref_five.sage",
+        "source": "// Tests two pointers pointing to two different variables simultaneously.\n// Verifies that dereferencing each pointer yields its own variable's value\n// and that the pointers don't alias each other.\n//\n// Expected stdout:\n//   puti(@pa, 1) -> prints 10\n//   puti(@pb, 1) -> prints 20\n// good\n\na: int = 10\nb: int = 20\n\npa: int* = ^a\npb: int* = ^b\n\nputi(@pa, 2)\nputi(@pb, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nsub r23 r23 8\nsub r23 r23 8\nstore 8 ($fp - 0) 10\nstore 8 ($fp - 8) 20\nloadr r125 ($fp - 0)\nstore 8 ($fp - 16) r125\nloadr r126 ($fp - 8)\nstore 8 ($fp - 24) r126\nloadp 8 r127 ($fp - 16)\nmov r0 r127\nmov r1 2\ncall @2090629895\nloadp 8 r128 ($fp - 24)\nmov r0 r128\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1020"
+    },
+    {
+        "index": 62,
+        "name": "pointer_deref_six.sage",
+        "source": "// Tests reassigning a pointer to point to a different variable.\n// Verifies that after reassignment the pointer tracks the new target.\n//\n// Expected stdout:\n//   puti(@ptr, 1) -> prints 10   (pointing at a)\n//   puti(@ptr, 1) -> prints 20   (now pointing at b)\n// good\n\na: int = 10\nb: int = 20\n\nptr: int* = ^a\nputi(@ptr, 2)\n\nptr = ^b\nputi(@ptr, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nsub r23 r23 8\nstore 8 ($fp - 0) 10\nstore 8 ($fp - 8) 20\nloadr r125 ($fp - 0)\nstore 8 ($fp - 16) r125\nloadp 8 r126 ($fp - 16)\nmov r0 r126\nmov r1 2\ncall @2090629895\nloadr r127 ($fp - 8)\nstore 8 ($fp - 16) r127\nloadp 8 r128 ($fp - 16)\nmov r0 r128\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1020"
+    },
+    {
+        "index": 63,
+        "name": "structs_ten.sage",
+        "source": "// Tests a struct whose fields are used inside an arithmetic expression,\n// including overwriting a field with a computed value.\n//\n// Expected stdout:\n//   puti(v.x, 2) -> prints 40\n//   puti(v.y, 2) -> prints 100\n// good\n\nVector2 :: struct {\n    x: int\n    y: int\n}\n\nv: Vector2\nv.x = 10\nv.y = 5\n\nv.x = v.x * 4\nv.y = v.x * v.y / 2\n\nputi(v.x, 2)\nputi(v.y, 3)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 10\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 5\nmov r129 0\nadd r129 r129 0\nadd r129 r129 0\nsub r130 r24 r129\nmov r131 0\nadd r131 r131 0\nadd r131 r131 0\nsub r132 r24 r131\nloada 8 r133 $r132\nmul r134 r133 4\nstorea 8 $r130 r134\nmov r135 0\nadd r135 r135 0\nadd r135 r135 8\nsub r136 r24 r135\nmov r137 0\nadd r137 r137 0\nadd r137 r137 0\nsub r138 r24 r137\nloada 8 r139 $r138\nmov r140 0\nadd r140 r140 0\nadd r140 r140 8\nsub r141 r24 r140\nloada 8 r142 $r141\nmul r143 r139 r142\ndiv r144 r143 2\nstorea 8 $r136 r144\nmov r145 0\nadd r145 r145 0\nadd r145 r145 0\nsub r146 r24 r145\nloada 8 r147 $r146\nmov r0 r147\nmov r1 2\ncall @2090629895\nmov r148 0\nadd r148 r148 0\nadd r148 r148 8\nsub r149 r24 r148\nloada 8 r150 $r149\nmov r0 r150\nmov r1 3\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "40100"
+    },
+    {
+        "index": 64,
+        "name": "structs_eleven.sage",
+        "source": "// Tests a struct with four fields to verify field offset calculations\n// remain correct as struct size grows beyond two fields.\n//\n// Expected stdout:\n//   puti(r.x, 2) -> prints 1\n//   puti(r.y, 2) -> prints 2\n//   puti(r.z, 2) -> prints 3\n//   puti(r.w, 2) -> prints 4\n// good\n\nQuad :: struct {\n    x: int\n    y: int\n    z: int\n    w: int\n}\n\nr: Quad\nr.x = 1\nr.y = 2\nr.z = 3\nr.w = 4\n\nputi(r.x, 2)\nputi(r.y, 2)\nputi(r.z, 2)\nputi(r.w, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 32\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 1\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 2\nmov r129 0\nadd r129 r129 0\nadd r129 r129 16\nsub r130 r24 r129\nstorea 8 $r130 3\nmov r131 0\nadd r131 r131 0\nadd r131 r131 24\nsub r132 r24 r131\nstorea 8 $r132 4\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r135\nmov r1 2\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 2\ncall @2090629895\nmov r139 0\nadd r139 r139 0\nadd r139 r139 16\nsub r140 r24 r139\nloada 8 r141 $r140\nmov r0 r141\nmov r1 2\ncall @2090629895\nmov r142 0\nadd r142 r142 0\nadd r142 r142 24\nsub r143 r24 r142\nloada 8 r144 $r143\nmov r0 r144\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1\u00002\u00003\u00004\u0000"
+    },
+    {
+        "index": 65,
+        "name": "structs_twelve.sage",
+        "source": "// Tests passing a struct field directly as an argument to a function.\n// Verifies that field loads are materialized correctly at call sites.\n//\n// Expected stdout:\n//   puti(add(v.x, v.y), 2) -> prints 30\n// good\n\nadd :: (a: int, b: int) -> int {\n    ret a + b\n}\n\nVec :: struct {\n    x: int\n    y: int\n}\n\nv: Vec\nv.x = 10\nv.y = 20\n\nresult: int = add(v.x, v.y)\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @193486030\nadd r125 r0 r1\nmov r6 r125\nret\nsub r23 r23 16\nmov r126 0\nadd r126 r126 0\nadd r126 r126 0\nsub r127 r24 r126\nstorea 8 $r127 10\nmov r128 0\nadd r128 r128 0\nadd r128 r128 8\nsub r129 r24 r128\nstorea 8 $r129 20\nmov r130 0\nadd r130 r130 0\nadd r130 r130 0\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r133 0\nadd r133 r133 0\nadd r133 r133 8\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r132\nmov r1 r135\ncall @193486030\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "30"
+    },
+    {
+        "index": 66,
+        "name": "structs_thirteen.sage",
+        "source": "// Tests a struct containing a bool field alongside int fields.\n// Verifies that mixed-type structs compute field offsets correctly.\n//\n// Expected stdout:\n//   puti(s.count, 2) -> prints 7\n// good\n\nState :: struct {\n    active: bool\n    count: int\n}\n\ns: State\ns.active = true\ns.count = 7\n\nputi(s.count, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 9\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 1 $r126 1\nmov r127 0\nadd r127 r127 0\nadd r127 r127 1\nsub r128 r24 r127\nstorea 8 $r128 7\nmov r129 0\nadd r129 r129 0\nadd r129 r129 1\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r0 r131\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "7"
+    },
+    {
+        "index": 67,
+        "name": "structs_fifteen.sage",
+        "source": "// Tests writing to a struct through a pointer and then reading the value\n// back directly from the original struct variable.\n// Verifies pointer store propagates to the underlying memory.\n//\n// Expected stdout:\n//   puti(node.value, 2) -> prints 99\n// good\n\nNode :: struct {\n    value: int\n}\n\nnode: Node\nnode.value = 0\n\nptr: Node* = ^node\nptr.value = 99\n\nputi(node.value, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nsub r23 r23 8\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 0\nloadr r127 ($fp - 0)\nstore 8 ($fp - 8) r127\nmov r128 0\nadd r128 r128 8\nsub r129 r24 r128\nloada 8 r130 $r129\nmov r128 0\nadd r128 r128 0\nsub r131 r130 r128\nstorea 8 $r131 99\nmov r132 0\nadd r132 r132 0\nadd r132 r132 0\nsub r133 r24 r132\nloada 8 r134 $r133\nmov r0 r134\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "99"
+    },
+    {
+        "index": 68,
+        "name": "structs_seventeen.sage",
+        "source": "// Tests a struct returned from a constructor function where the caller then\n// accesses fields immediately on the returned value (no extra temp needed).\n//\n// Expected stdout:\n//   puti(global_v.x, 1) -> prints 7\n//   puti(global_v.y, 1) -> prints 8\n// good\n\nVec2 :: struct {\n    x: i64\n    y: i64\n}\n\nmake_vec :: (x: i64, y: i64) -> Vec2 {\n    v: Vec2\n    v.x = x\n    v.y = y\n    ret v\n}\n\nglobal_v: Vec2 = make_vec(7, 8)\nputi(global_v.x, 1)\nputi(global_v.y, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @1065202816\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 r0\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 r1\nsub r129 r24 8\nsub r130 r6 8\nacpy 16 r130 r129\nret\nsub r23 r23 16\nmov r0 7\nmov r1 8\nmov r6 r23\nsub r23 r23 16\ncall @1065202816\nsub r131 r24 8\nsub r132 r6 8\nacpy 16 r131 r132\nmov r133 0\nadd r133 r133 0\nadd r133 r133 0\nsub r134 r24 r133\nloada 8 r135 $r134\nmov r0 r135\nmov r1 1\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 8\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "78"
+    },
+    {
+        "index": 69,
+        "name": "arrays_nine.sage",
+        "source": "// Tests using an array's .length property inside an arithmetic expression,\n// ensuring .length is treated as a proper value, not just a printable literal.\n//\n// Expected stdout:\n//   puti(doubled_length, 2) -> prints 10\n//   puti(nums[2], 2)        -> prints 30\n// good\n\nnums: i64[5] = [10, 20, 30, 40, 50]\ndoubled_length: i64 = nums.length * 2\nputi(doubled_length, 2)\nputi(nums[2], 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 56\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 5\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 40 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmul r133 r132 2\nmov r25 r133\nmov r0 r25\nmov r1 2\ncall @2090629895\nsub r135 r24 0\nloada 8 r137 $r135\nmov r138 2\nmul r139 r138 8\nadd r136 r137 r139\nloada 8 r140 $r136\nmov r0 r140\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1030"
+    },
+    {
+        "index": 70,
+        "name": "arrays_ten.sage",
+        "source": "// Tests an array returned from a function where the caller then accesses\n// both indexed elements and the .length property on the returned array.\n//\n// Expected stdout:\n//   puti(result[0], 1) -> prints 4\n//   puti(result[1], 1) -> prints 5\n//   puti(result[2], 1) -> prints 6\n//   puti(result.length, 1) -> prints 3\n// good\n\nmake_array :: () -> int[3] {\n    ret [4, 5, 6]\n}\n\nresult: int[3] = make_array()\nputi(result[0], 1)\nputi(result[1], 1)\nputi(result[2], 1)\nputi(result.length, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @340279201\nloada 8 r125 $r6\nmov r126 0\nacpy 24 r125 r126\nret\nmov r127 r23\nmov r128 r23\nsub r128 r23 8\nsub r23 r23 40\nmov r129 r23\nstorea 8 $r127 r129\nstorea 8 $r128 3\nmov r130 r23\nsub r23 r23 40\nmov r131 r23\nstorea 8 $r130 r131\nsub r132 r130 8\nstorea 8 $r132 3\nmov r6 r130\ncall @340279201\nsub r133 r24 0\nloada 8 r134 $r133\nloada 8 r135 $r6\nacpy 24 r134 r135\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 0\nmul r141 r140 8\nadd r138 r139 r141\nloada 8 r142 $r138\nmov r0 r142\nmov r1 1\ncall @2090629895\nsub r144 r24 0\nloada 8 r146 $r144\nmov r147 1\nmul r148 r147 8\nadd r145 r146 r148\nloada 8 r149 $r145\nmov r0 r149\nmov r1 1\ncall @2090629895\nsub r151 r24 0\nloada 8 r153 $r151\nmov r154 2\nmul r155 r154 8\nadd r152 r153 r155\nloada 8 r156 $r152\nmov r0 r156\nmov r1 1\ncall @2090629895\nmov r157 0\nadd r157 r157 0\nadd r157 r157 8\nsub r158 r24 r157\nloada 8 r159 $r158\nmov r0 r159\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "4563"
+    },
+    {
+        "index": 71,
+        "name": "arrays_thirteen.sage",
+        "source": "// Tests passing an array element directly as an argument to a user-defined function.\n// Verifies that indexed loads are correctly materialized at call sites.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 10\n// good\n\ndouble :: (x: int) -> int {\n    ret x * 2\n}\n\nvals: int[3] = [3, 5, 7]\nresult: int = double(vals[1])\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r126 r23\nmov r127 r23\nsub r127 r23 8\nsub r23 r23 40\nmov r128 r23\nstorea 8 $r126 r128\nstorea 8 $r127 3\nload 8 r129 ($fp - 0)\nmov r130 0\nacpy 24 r129 r130\nsub r132 r24 0\nloada 8 r134 $r132\nmov r135 1\nmul r136 r135 8\nadd r133 r134 r136\nloada 8 r137 $r133\nmov r0 r137\ncall @2034064160\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2034064160\nmul r125 r0 2\nmov r6 r125\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "10"
+    },
+    {
+        "index": 72,
+        "name": "arrays_fifteen.sage",
+        "source": "// Tests an array of structs where multiple fields on multiple elements\n// are all written and then read back. Extends arrays_eight with more\n// reads to ensure field indexing stays correct across elements.\n//\n// Expected stdout:\n//   puti(pts[0].x, 2) -> prints 1\n//   puti(pts[0].y, 2) -> prints 2\n//   puti(pts[1].x, 2) -> prints 3\n//   puti(pts[1].y, 2) -> prints 4\n//   puti(pts[2].x, 2) -> prints 5\n//   puti(pts[2].y, 2) -> prints 6\n// good\n\nPoint :: struct {\n    x: i64\n    y: i64\n}\n\npts: Point[3]\n\npts[0].x = 1\npts[0].y = 2\npts[1].x = 3\npts[1].y = 4\npts[2].x = 5\npts[2].y = 6\n\nputi(pts[0].x, 1)\nputi(pts[0].y, 1)\nputi(pts[1].x, 1)\nputi(pts[1].y, 1)\nputi(pts[2].x, 1)\nputi(pts[2].y, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 64\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 3\nsub r129 r24 0\nloada 8 r131 $r129\nmov r132 0\nmul r133 r132 16\nadd r130 r131 r133\nmov r134 0\nadd r134 r134 0\nadd r135 r130 r134\nstorea 8 $r135 1\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 0\nmul r141 r140 16\nadd r138 r139 r141\nmov r142 0\nadd r142 r142 8\nadd r143 r138 r142\nstorea 8 $r143 2\nsub r145 r24 0\nloada 8 r147 $r145\nmov r148 1\nmul r149 r148 16\nadd r146 r147 r149\nmov r150 0\nadd r150 r150 0\nadd r151 r146 r150\nstorea 8 $r151 3\nsub r153 r24 0\nloada 8 r155 $r153\nmov r156 1\nmul r157 r156 16\nadd r154 r155 r157\nmov r158 0\nadd r158 r158 8\nadd r159 r154 r158\nstorea 8 $r159 4\nsub r161 r24 0\nloada 8 r163 $r161\nmov r164 2\nmul r165 r164 16\nadd r162 r163 r165\nmov r166 0\nadd r166 r166 0\nadd r167 r162 r166\nstorea 8 $r167 5\nsub r169 r24 0\nloada 8 r171 $r169\nmov r172 2\nmul r173 r172 16\nadd r170 r171 r173\nmov r174 0\nadd r174 r174 8\nadd r175 r170 r174\nstorea 8 $r175 6\nsub r177 r24 0\nloada 8 r179 $r177\nmov r180 0\nmul r181 r180 16\nadd r178 r179 r181\nmov r182 0\nadd r182 r182 0\nadd r183 r178 r182\nloada 8 r184 $r183\nmov r0 r184\nmov r1 1\ncall @2090629895\nsub r186 r24 0\nloada 8 r188 $r186\nmov r189 0\nmul r190 r189 16\nadd r187 r188 r190\nmov r191 0\nadd r191 r191 8\nadd r192 r187 r191\nloada 8 r193 $r192\nmov r0 r193\nmov r1 1\ncall @2090629895\nsub r195 r24 0\nloada 8 r197 $r195\nmov r198 1\nmul r199 r198 16\nadd r196 r197 r199\nmov r200 0\nadd r200 r200 0\nadd r201 r196 r200\nloada 8 r202 $r201\nmov r0 r202\nmov r1 1\ncall @2090629895\nsub r204 r24 0\nloada 8 r206 $r204\nmov r207 1\nmul r208 r207 16\nadd r205 r206 r208\nmov r209 0\nadd r209 r209 8\nadd r210 r205 r209\nloada 8 r211 $r210\nmov r0 r211\nmov r1 1\ncall @2090629895\nsub r213 r24 0\nloada 8 r215 $r213\nmov r216 2\nmul r217 r216 16\nadd r214 r215 r217\nmov r218 0\nadd r218 r218 0\nadd r219 r214 r218\nloada 8 r220 $r219\nmov r0 r220\nmov r1 1\ncall @2090629895\nsub r222 r24 0\nloada 8 r224 $r222\nmov r225 2\nmul r226 r225 16\nadd r223 r224 r226\nmov r227 0\nadd r227 r227 8\nadd r228 r223 r227\nloada 8 r229 $r228\nmov r0 r229\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "123456"
+    },
+    {
+        "index": 73,
+        "name": "arrays_twelve.sage",
+        "source": "// Tests overwriting every element of an array and then reading them all back.\n// Stresses that element writes are independent and don't alias each other.\n//\n// Expected stdout:\n//   puti(arr[0], 1) -> prints 10\n//   puti(arr[1], 1) -> prints 20\n//   puti(arr[2], 1) -> prints 30\n// good\n\narr: i64[3] = [1, 2, 3]\n\narr[0] = 10\narr[1] = 20\narr[2] = 30\n\nputi(arr[0], 2)\nputi(arr[1], 2)\nputi(arr[2], 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 40\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 3\nload 8 r128 ($fp - 0)\nmov r129 0\nacpy 24 r128 r129\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 8\nadd r132 r133 r135\nstorea 8 $r132 10\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 1\nmul r141 r140 8\nadd r138 r139 r141\nstorea 8 $r138 20\nsub r143 r24 0\nloada 8 r145 $r143\nmov r146 2\nmul r147 r146 8\nadd r144 r145 r147\nstorea 8 $r144 30\nsub r149 r24 0\nloada 8 r151 $r149\nmov r152 0\nmul r153 r152 8\nadd r150 r151 r153\nloada 8 r154 $r150\nmov r0 r154\nmov r1 2\ncall @2090629895\nsub r156 r24 0\nloada 8 r158 $r156\nmov r159 1\nmul r160 r159 8\nadd r157 r158 r160\nloada 8 r161 $r157\nmov r0 r161\nmov r1 2\ncall @2090629895\nsub r163 r24 0\nloada 8 r165 $r163\nmov r166 2\nmul r167 r166 8\nadd r164 r165 r167\nloada 8 r168 $r164\nmov r0 r168\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "102030"
+    },
+    {
+        "index": 74,
+        "name": "functions_thirteen.sage",
+        "source": "// Tests a function with 4 parameters to stress the calling convention\n// and register allocation for argument passing.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 10\n// good\n\nadd_four :: (a: int, b: int, c: int, d: int) -> int {\n    ret a + b + c + d\n}\n\nresult: int = add_four(1, 2, 3, 4)\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @43613129\nadd r125 r0 r1\nadd r126 r125 r2\nadd r127 r126 r3\nmov r6 r127\nret\nmov r0 1\nmov r1 2\nmov r2 3\nmov r3 4\ncall @43613129\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "10"
+    },
+    {
+        "index": 75,
+        "name": "functions_fourteen.sage",
+        "source": "// Tests passing a function call as an argument to another function call.\n// Verifies that the return value of add_one(5) is correctly passed into double().\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 12\n// good\n\ndouble :: (x: int) -> int {\n    ret x * 2\n}\n\nadd_one :: (x: int) -> int {\n    ret x + 1\n}\n\nresult: int = double(add_one(5))\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @521933455\nadd r125 r0 1\nmov r6 r125\nret\nmov r0 5\ncall @521933455\nmov r0 r6\ncall @2034064160\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2034064160\nmul r126 r0 2\nmov r6 r126\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "12"
+    },
+    {
+        "index": 76,
+        "name": "functions_fifteen.sage",
+        "source": "// Tests a function calling another function internally.\n// cube() depends on square(), verifying inter-function call correctness.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 27\n// good\n\nsquare :: (x: int) -> int {\n    ret x * x\n}\n\ncube :: (x: int) -> int {\n    ret x * square(x)\n}\n\nresult: int = cube(3)\nputi(result, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @475982358\nmul r125 r0 r0\nmov r6 r125\nret\nmov r0 3\ncall @2090162116\nmov r25 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nlabel @2090162116\nmov r0 r0\ncall @475982358\nmul r126 r0 r6\nmov r6 r126\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "27"
+    },
+    {
+        "index": 77,
+        "name": "functions_sixteen.sage",
+        "source": "// Tests calling the same function multiple times with different arguments.\n// Verifies that the call frame is correctly reset between invocations.\n//\n// Expected stdout:\n//   puti(r1, 2) -> prints 3\n//   puti(r2, 2) -> prints 10\n//   puti(r3, 2) -> prints 21\n// good\n\nadd :: (x: int, y: int) -> int {\n    ret x + y\n}\n\nr1: int = add(1, 2)\nr2: int = add(3, 7)\nr3: int = add(10, 11)\n\nputi(r1, 1)\nputi(r2, 2)\nputi(r3, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @193486030\nadd r125 r0 r1\nmov r6 r125\nret\nmov r0 1\nmov r1 2\ncall @193486030\nmov r25 r6\nmov r0 3\nmov r1 7\ncall @193486030\nmov r26 r6\nmov r0 10\nmov r1 11\ncall @193486030\nmov r27 r6\nmov r0 r25\nmov r1 1\ncall @2090629895\nmov r0 r26\nmov r1 2\ncall @2090629895\nmov r0 r27\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "31021"
+    },
+    {
+        "index": 78,
+        "name": "functions_seventeen.sage",
+        "source": "// Tests a void function (no return type) that uses several local variables\n// and calls puti internally. Verifies void functions clean up the stack correctly.\n//\n// Expected stdout:\n//   puti(product, 2) -> prints 200\n// good\n\nprint_product :: (a: int, b: int) {\n    product: int = a * b\n    puti(product, 3)\n}\n\nprint_product(10, 20)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @382278514\nmul r125 r0 r1\nmov r25 r125\nmov r0 r25\nmov r1 3\ncall @2090629895\nret\nmov r0 10\nmov r1 20\ncall @382278514\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "200"
+    },
+    {
+        "index": 79,
+        "name": "functions_nineteen.sage",
+        "source": "// Tests a nested function that closes over its outer function's parameter.\n// Verifies that closure capture of parameters (not just locals) works correctly.\n//\n// Expected stdout:\n//   puti(inner result, 2) -> prints 15\n// good but maybe disabled for now\n\nmain :: () {\n    scale: int = 5\n\n    multiply :: (x: int) -> int {\n        ret x * scale\n    }\n\n    result: int = multiply(3)\n    puti(result, 2)\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @1182035717\nmul r125 r0 r25\nmov r6 r125\nret\nlabel @2090499946\nmov r25 5\nmov r0 3\ncall @1182035717\nmov r26 r6\nmov r0 r26\nmov r1 2\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "15"
+    },
+    {
+        "index": 80,
+        "name": "functions_twenty.sage",
+        "source": "// Tests a function with f64 parameters and return type.\n// Verifies floating-point values survive the call frame round-trip.\n//\n// Expected stdout:\n//   puti(result, 4) -> prints 3 (truncated integer view, runtime-dependent)\n//   (the key check is that the bytecode compiles without error)\n// maybe?\n\nfsub :: (x: f64, y: f64) -> f64 {\n    ret x - y\n}\n\nfadd :: (x: f64, y: f64) -> f64 {\n    ret x + y\n}\n\na: f64 = fadd(1.5, 2.5)\nb: f64 = fsub(10.0, 7.0)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nfmov fr0 1.500000\nfmov fr1 2.500000\ncall @2090248212\nfmov fr25 fr6\nfmov fr0 10.000000\nfmov fr1 7.000000\ncall @2090268373\nfmov fr26 fr6\nlabel @2090248212\nfadd fr125 fr0 fr1\nfmov fr6 fr125\nret\nlabel @2090268373\nfsub fr126 fr0 fr1\nfmov fr6 fr126\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": ""
+    },
+    {
+        "index": 81,
+        "name": "functions_twentyone.sage",
+        "source": "// Tests two top-level functions that call each other in sequence (not mutually\n// recursive, just sequentially). Verifies independent call frames don't bleed.\n//\n// Expected stdout:\n//   puti(sum, 2)  -> prints 15\n//   puti(diff, 2) -> prints 5\n// good\n\nadd :: (x: int, y: int) -> int {\n    ret x + y\n}\n\nsub :: (x: int, y: int) -> int {\n    ret x - y\n}\n\nsum: int = add(10, 5)\ndiff: int = sub(10, 5)\n\nputi(sum, 2)\nputi(diff, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @193486030\nadd r125 r0 r1\nmov r6 r125\nret\nlabel @193506191\nsub r126 r0 r1\nmov r6 r126\nret\nmov r0 10\nmov r1 5\ncall @193486030\nmov r25 r6\nmov r0 10\nmov r1 5\ncall @193506191\nmov r26 r6\nmov r0 r25\nmov r1 2\ncall @2090629895\nmov r0 r26\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "155"
+    },
+    {
+        "index": 82,
+        "name": "functions_twentytwo.sage",
+        "source": "// Tests a function with three parameters (between the 2-param and 4-param cases).\n// Verifies that argument ordering is preserved for odd-numbered parameter counts.\n//\n// Expected stdout:\n//   puti(result, 2) -> prints 6  (1 * 2 * 3)\n// good\n\nmultiply_three :: (a: int, b: int, c: int) -> int {\n    ret a * b * c\n}\n\nresult: int = multiply_three(1, 2, 3)\nputi(result, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @884410044\nmul r125 r0 r1\nmul r126 r125 r2\nmov r6 r126\nret\nmov r0 1\nmov r1 2\nmov r2 3\ncall @884410044\nmov r25 r6\nmov r0 r25\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "6"
+    },
+    {
+        "index": 83,
+        "name": "nested_functions_one.sage",
+        "source": "// Tests a three-level nested function call chain: outer defines middle,\n// middle defines inner, inner reads a variable from outer's scope.\n// Stresses closure variable capture across multiple nesting levels.\n//\n// Expected stdout:\n//   puti(bar_value, 3) -> prints 103  (base=100, increment=3, total=103)\n// good, but maybe need to disable\n\nmain :: () {\n    base: int = 100\n\n    outer :: () {\n        increment: int = 3\n\n        inner :: () {\n            bar_value: int = base + increment\n            puti(bar_value, 3)\n        }\n\n        inner()\n    }\n\n    outer()\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @262750241\nadd r125 r25 r26\nmov r27 r125\nmov r0 r27\nmov r1 3\ncall @2090629895\nret\nlabel @270123860\nmov r26 3\ncall @262750241\nret\nlabel @2090499946\nmov r25 100\ncall @270123860\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "103"
+    },
+    {
+        "index": 84,
+        "name": "nested_functions_two.sage",
+        "source": "// Tests that a nested function can be called multiple times and that\n// the closure variables it reads remain correct across calls.\n//\n// Expected stdout (called twice):\n//   puti(val, 2) -> prints 50\n//   puti(val, 2) -> prints 50\n// good\n\nmain :: () {\n    multiplier: int = 10\n\n    scale :: (x: int) -> int {\n        ret x * multiplier\n    }\n\n    puti(scale(5), 2)\n    puti(scale(5), 2)\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @274200205\nmul r125 r0 r25\nmov r6 r125\nret\nlabel @2090499946\nmov r25 10\nmov r0 5\ncall @274200205\nmov r0 r6\nmov r1 2\ncall @2090629895\nmov r0 5\ncall @274200205\nmov r0 r6\nmov r1 2\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "5050"
+    },
+    {
+        "index": 85,
+        "name": "nested_functions_three.sage",
+        "source": "// Tests two sibling nested functions in the same outer scope, each using\n// a different outer variable. Verifies that sibling closures don't share state.\n//\n// Expected stdout:\n//   puti(get_a(), 1) -> prints 10\n//   puti(get_b(), 1) -> prints 20\n// good\n\nmain :: () {\n    a: int = 10\n    b: int = 20\n\n    get_a :: () -> int {\n        ret a\n    }\n\n    get_b :: () -> int {\n        ret b\n    }\n\n    puti(get_a(), 2)\n    puti(get_b(), 2)\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @260061285\nmov r6 r25\nret\nlabel @260061286\nmov r6 r26\nret\nlabel @2090499946\nmov r25 10\nmov r26 20\ncall @260061285\nmov r0 r6\nmov r1 2\ncall @2090629895\ncall @260061286\nmov r0 r6\nmov r1 2\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1020"
+    },
+    {
+        "index": 86,
+        "name": "main_two.sage",
+        "source": "// Tests that global-scope code runs before main is called, and that main\n// can read values set up at global scope.\n//\n// Expected stdout:\n//   puts(msg, msg.length) -> prints \"setup\"\n//   puts(msg2, msg2.length) -> prints \"main\"\n// when a main function is defined the global scope is supposed to run and then continue running the main function\n// if main function is called inside of global then global is the full program entry point and main just becomes another function\n\nmsg: string = \"setup\"\nputs(msg, msg.length)\n\nmain :: () {\n    msg2: string = \"main\"\n    puts(msg2, msg2.length)\n}\n\nmain()\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 0\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "setupsetu"
+    },
+    {
+        "index": 87,
+        "name": "main_three.sage",
+        "source": "// Tests that multiple user-defined functions can all be called from inside main,\n// and that their return values are independently correct.\n//\n// Expected stdout:\n//   puti(a, 1) -> prints 3\n//   puti(b, 1) -> prints 5\n//   puti(c, 1) -> prints 7\n// good\n\ninc :: (x: int) -> int {\n    ret x + 1\n}\n\ndec :: (x: int) -> int {\n    ret x - 1\n}\n\nmain :: () {\n    a: int = inc(2)\n    b: int = inc(4)\n    c: int = dec(8)\n    puti(a, 1)\n    puti(b, 1)\n    puti(c, 1)\n}\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @193489329\nsub r125 r0 1\nmov r6 r125\nret\nlabel @193495071\nadd r126 r0 1\nmov r6 r126\nret\nlabel @2090499946\nmov r0 2\ncall @193495071\nmov r25 r6\nmov r0 4\ncall @193495071\nmov r26 r6\nmov r0 8\ncall @193489329\nmov r27 r6\nmov r0 r25\nmov r1 1\ncall @2090629895\nmov r0 r26\nmov r1 1\ncall @2090629895\nmov r0 r27\nmov r1 1\ncall @2090629895\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "357"
     }
 ]
