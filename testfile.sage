@@ -1,25 +1,25 @@
-// Tests that multiple user-defined functions can all be called from inside main,
-// and that their return values are independently correct.
+// Tests a three-level pointer indirection chain: A -> B -> C -> value.
+// Extends structs_eight's hyper-dim matrix to verify that deeply nested
+// pointer dereferences in field access chains compute correct addresses.
 //
 // Expected stdout:
-//   puti(a, 1) -> prints 3
-//   puti(b, 1) -> prints 5
-//   puti(c, 1) -> prints 7
+//   puti(a.next.next.data, 2) -> prints 99
 // good
 
-inc :: (x: int) -> int {
-    ret x + 1
+Node :: struct {
+    data: int
+    next: Node*
 }
 
-dec :: (x: int) -> int {
-    ret x - 1
-}
+c: Node
+c.data = 99
 
-main :: () {
-    a: int = inc(2)
-    b: int = inc(4)
-    c: int = dec(8)
-    puti(a, 1)
-    puti(b, 1)
-    puti(c, 1)
-}
+b: Node
+b.data = 2
+b.next = ^c
+
+a: Node
+a.data = 1
+a.next = ^b
+
+puti(a.next.next.data, 2)

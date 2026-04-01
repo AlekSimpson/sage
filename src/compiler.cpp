@@ -473,7 +473,16 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                     new_variable_symbol, scanner.symbol_being_scanned(type_lexeme));
             }
 
+            // If the declared type is a fixed array and the init value is an array literal,
+            // pass the element type as a hint so the literal uses the correct element size
+            // (e.g., i32 = 4 bytes) instead of inferring from the literal (always i64 = 8 bytes).
+            if (var_entry->datatype != nullptr &&
+                var_entry->datatype->identify() == ARRAY &&
+                node_manager->get_nodetype(right_most_node) == PN_ARRAY_LITERAL) {
+                array_literal_element_type_hint = ((SageArrayType *)var_entry->datatype)->array_type;
+            }
             scan_all_program_symbols(right_most_node);
+            array_literal_element_type_hint = nullptr;
             return;
         }
         case PN_FOR:
@@ -539,8 +548,13 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto children = node_manager->get_children(current_node);
             if (existing != nullptr || children.empty()) return;
 
-            // infer element type from first element
-            auto *first_element_type = symbol_table.resolve_unknown_expression_type(children[0]);
+            // Use the declared element type if available; otherwise infer from the literal.
+            // Literals always infer as 64-bit types (e.g., numbers -> i64), so a declaration
+            // like i32[3] = [...] would produce the wrong element size without the hint.
+            auto *inferred_element_type = symbol_table.resolve_unknown_expression_type(children[0]);
+            auto *first_element_type = (array_literal_element_type_hint != nullptr)
+                                           ? array_literal_element_type_hint
+                                           : inferred_element_type;
             int64_t array_length = children.size();
             int total_array_bytesize = array_length * first_element_type->size;
 
@@ -552,8 +566,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 case PN_NUMBER: {
                     for (int i = 0; i < array_length; ++i) {
                         int64_t literal_value = stoll(node_manager->get_lexeme(children[i]));
-                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
-                        working_static_pointer += 8;
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, first_element_type->size);
+                        working_static_pointer += first_element_type->size;
                     }
                     break;
                 }

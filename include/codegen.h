@@ -217,6 +217,10 @@ public:
 
     ByteVector static_program_memory_store;
 
+    // Set in PN_VAR_DEC before scanning an array literal so the literal can use
+    // the declared element type instead of inferring from the literal's native type.
+    SageType *array_literal_element_type_hint = nullptr;
+
     CodegenMode codegen_mode;
     const int VOLATILE_REGISTER_SIZE = 200;
     int volatile_index = 0;
