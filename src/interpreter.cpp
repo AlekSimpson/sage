@@ -332,6 +332,7 @@ void SageInterpreter::execute_load_address(std::array<int64_t, 3> &operands, Add
     int64_t bytes = operands[0];
     int64_t dest_register = operands[1];
     int64_t address = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[dest_register] = 0; // zero-extend: partial loads must not leave upper bytes as garbage
     std::memcpy(&registers[dest_register], &memory[address], bytes);
 }
 

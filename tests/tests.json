@@ -871,5 +871,14 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 99\nsub r23 r23 16\nmov r127 0\nadd r127 r127 16\nadd r127 r127 0\nsub r128 r24 r127\nstorea 8 $r128 2\nmov r129 0\nadd r129 r129 16\nadd r129 r129 8\nsub r130 r24 r129\nloadr r131 ($fp - 0)\nstorea 8 $r130 r131\nsub r23 r23 16\nmov r132 0\nadd r132 r132 32\nadd r132 r132 0\nsub r133 r24 r132\nstorea 8 $r133 1\nmov r134 0\nadd r134 r134 32\nadd r134 r134 8\nsub r135 r24 r134\nloadr r136 ($fp - 16)\nstorea 8 $r135 r136\nmov r137 0\nadd r137 r137 32\nadd r137 r137 8\nsub r138 r24 r137\nloada 8 r139 $r138\nmov r137 0\nadd r137 r137 8\nsub r140 r139 r137\nloada 8 r141 $r140\nmov r137 0\nadd r137 r137 0\nsub r142 r141 r137\nloada 8 r143 $r142\nmov r0 r143\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "99"
+    },
+    {
+        "index": 98,
+        "name": "arrays_seventeen.sage",
+        "source": "// Tests a three-level pointer indirection chain: A -> B -> C -> value.\n// Extends structs_eight's hyper-dim matrix to verify that deeply nested\n// pointer dereferences in field access chains compute correct addresses.\n//\n// Expected stdout:\n//   puti(a.next.next.data, 2) -> prints 99\n// good\n\nNode :: struct {\n    data: int\n    next: Node*\n}\n\nc: Node\nc.data = 99\n\nb: Node\nb.data = 2\nb.next = ^c\n\na: Node\na.data = 1\na.next = ^b\n\nputi(a.next.next.data, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 99\nsub r23 r23 16\nmov r127 0\nadd r127 r127 16\nadd r127 r127 0\nsub r128 r24 r127\nstorea 8 $r128 2\nmov r129 0\nadd r129 r129 16\nadd r129 r129 8\nsub r130 r24 r129\nloadr r131 ($fp - 0)\nstorea 8 $r130 r131\nsub r23 r23 16\nmov r132 0\nadd r132 r132 32\nadd r132 r132 0\nsub r133 r24 r132\nstorea 8 $r133 1\nmov r134 0\nadd r134 r134 32\nadd r134 r134 8\nsub r135 r24 r134\nloadr r136 ($fp - 16)\nstorea 8 $r135 r136\nmov r137 0\nadd r137 r137 32\nadd r137 r137 8\nsub r138 r24 r137\nloada 8 r139 $r138\nmov r137 0\nadd r137 r137 8\nsub r140 r139 r137\nloada 8 r141 $r140\nmov r137 0\nadd r137 r137 0\nsub r142 r141 r137\nloada 8 r143 $r142\nmov r0 r143\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "99"
     }
 ]
