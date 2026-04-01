@@ -1,6 +1,3 @@
-// Tests an array of structs where the s  ✓ structs_nine
-  ✓ structs_fourteen
-  ✓ arrays_eleventruct was returned by a factory function.
 // Combines struct constructor functions with struct array element assignment.
 //
 // Expected stdout:
@@ -22,5 +19,5 @@ items: Item[2]
 items[0] = make_item(10)
 items[1] = make_item(20)
 
-puti(items[0].id, 1)
-puti(items[1].id, 1)
+puti(items[0].id, 2)
+puti(items[1].id, 2)
