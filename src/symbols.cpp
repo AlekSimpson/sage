@@ -422,7 +422,7 @@ SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, bool self_r
     string type_identifier = nm->get_identifier(node);
     int scope_id = nm->get_scope_id(node);
     auto *type_symbol = lookup(type_identifier, scope_id);
-    assert(type_symbol != nullptr);
+    if (type_symbol == nullptr) return nullptr;
 
     auto *current_type = type_symbol->datatype;
     if (self_referential_pointer_detected) {

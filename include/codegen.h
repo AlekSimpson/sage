@@ -134,7 +134,6 @@ struct VisitorResult {
     bool is_null() { return symbol_table_index == SAGE_NULL_SYMBOL; }
 };
 
-// TODO: create robust debug settings for debugging the compiler
 class SageCompiler {
 public:
     CompilerOptions options;
