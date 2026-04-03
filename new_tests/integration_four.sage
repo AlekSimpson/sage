@@ -20,5 +20,5 @@ p.name = "Alice"
 p.age = 30
 
 len: int = get_length(p.name)
-puti(len, 2)
+puti(len, 1)
 puts(p.name, len)

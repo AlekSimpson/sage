@@ -1,25 +1,24 @@
-// Tests a three-level pointer indirection chain: A -> B -> C -> value.
-// Extends structs_eight's hyper-dim matrix to verify that deeply nested
-// pointer dereferences in field access chains compute correct addresses.
+// Integration: struct with a string field, where the string's .length is used
+// inside a function that takes the field value as a parameter.
 //
 // Expected stdout:
-//   puti(a.next.next.data, 2) -> prints 99
+//   puti(len, 2) -> prints 5  ("Alice")
+//   puts(name, len)  -> prints Alice
 // good
 
-Node :: struct {
-    data: int
-    next: Node*
+get_length :: (s: string) -> int {
+    ret s.length
 }
 
-c: Node
-c.data = 99
+Person :: struct {
+    name: string
+    age: int
+}
 
-b: Node
-b.data = 2
-b.next = ^c
+p: Person
+p.name = "Alice"
+p.age = 30
 
-a: Node
-a.data = 1
-a.next = ^b
-
-puti(a.next.next.data, 2)
+len: int = get_length(p.name)
+puti(len, 1)
+puts(p.name, len)

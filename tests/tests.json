@@ -14,7 +14,7 @@
         "source": "\n\nstring_length: i64 = 21\nOTHER_CONSTANT: string = \"abc123\"\nprogram_is_working: bool = false\n\nmain :: () {\n    puts(\"hello functions five\\n\", string_length)\n}\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nmov r25 21\nsub r23 r23 6\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 6 r125 0\nstore 8 ($fp - 8) 6\nmov r26 0\nlabel @2090499946\nmov r0 6\nmov r1 r25\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 6\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 6 r125 0\nstore 8 ($fp - 8) 6\nmov r26 0\nmov r25 21\nlabel @2090499946\nmov r0 6\nmov r1 r25\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "hello functions five\n"
     },
     {
@@ -59,7 +59,7 @@
         "source": "\n\n\nmain:: () {\n    adder:: (x: int, y: int) -> int {\n        ret x + y\n    }\n\n    fsub:: (x: f64, y: f64) -> f64 {\n        ret x - y\n    }\n\n    foo :: () {\n        bar:: () {\n            puts(\"bar\", 3)\n        }\n\n        puts(\"foo\", 3)\n        bar()\n        bar()\n        bar()\n    }\n\n\n    foo()\n\n    flt: f64 = fsub(30.1, 123.34)\n    value: int = adder(34, 34)\n\n\n}\n\n\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @193487034\nmov r0 0\nmov r1 3\ncall @2090629905\nret\nlabel @193491849\nmov r0 3\nmov r1 3\ncall @2090629905\ncall @193487034\ncall @193487034\ncall @193487034\nret\nlabel @252892613\nadd r125 r0 r1\nmov r6 r125\nret\nlabel @2090268373\nfsub fr126 fr0 fr1\nfmov fr6 fr126\nret\nlabel @2090499946\ncall @193491849\nfmov fr0 30.100000\nfmov fr1 123.339996\ncall @2090268373\nfmov fr25 fr6\nmov r0 34\nmov r1 34\ncall @252892613\nmov r26 r6\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nlabel @193487034\nmov r0 0\nmov r1 3\ncall @2090629905\nret\nlabel @193491849\nmov r0 3\nmov r1 3\ncall @2090629905\ncall @193487034\ncall @193487034\ncall @193487034\nret\nlabel @252892613\nadd r125 r0 r1\nmov r6 r125\nret\nlabel @2090268373\nfsub fr126 fr0 fr1\nfmov fr6 fr126\nret\nlabel @2090499946\ncall @193491849\nmov r0 34\nmov r1 34\ncall @252892613\nmov r26 r6\nfmov fr0 30.100000\nfmov fr1 123.339996\ncall @2090268373\nfmov fr25 fr6\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "foobarbarbar"
     },
     {
@@ -77,7 +77,7 @@
         "source": "\n\n\nfooo: int = 3 + bar + b + a\n\nb: int = 34\n\nfoo: int = 3 + bar\n\nbar: int = 34 - other_var + a\n\nother_var: int = 3487\n\na: int = 3\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nadd r125 3 r28\nadd r126 r125 r26\nadd r127 r126 r30\nmov r25 r127\nmov r26 34\nadd r128 3 r28\nmov r27 r128\nsub r129 34 r29\nadd r130 r129 r30\nmov r28 r130\nmov r29 3487\nmov r30 3\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nmov r30 3\nmov r26 34\nmov r29 3487\nsub r125 34 r29\nadd r126 r125 r30\nmov r28 r126\nadd r127 3 r28\nmov r27 r127\nadd r128 3 r28\nadd r129 r128 r26\nadd r130 r129 r30\nmov r25 r130\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     },
     {
@@ -122,7 +122,7 @@
         "source": "\n\n\nbyte: i8 = 7\nint32_value: i32 = 9\nint64_value: i64 = 23000\n\nfloat32_value: f32 = 2.0\nfloat64_value: f64 = 234.0\n\nchar_value: char = 'i'\n\nbool_value: bool = true\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nmov r25 7\nmov r26 9\nmov r27 23000\nfmov fr28 2.000000\nfmov fr29 234.000000\nmov r30 39\nmov r31 1\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nmov r31 1\nmov r25 7\nmov r30 39\nfmov fr28 2.000000\nfmov fr29 234.000000\nmov r26 9\nmov r27 23000\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": ""
     },
     {
@@ -329,7 +329,7 @@
         "source": "\n\nmake_string :: () -> string {\n    ret \"some string\"\n}\n\nfactory_string: string = make_string()\nputs(factory_string, factory_string.length)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 11\nmov r125 r23\nstorea 8 $r6 r125\nscpy 11 r125 0\nsub r126 r6 8\nstorea 8 $r126 11\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r127 r24 8\nsub r128 r6 8\nacpy 16 r127 r128\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r0 0\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 11\nmov r125 r23\nstorea 8 $r6 r125\nscpy 11 r125 0\nsub r126 r6 8\nstorea 8 $r126 11\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r127 r24 8\nsub r128 r6 8\nacpy 16 r127 r128\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nload 8 r0 ($fp - 0)\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "some string"
     },
     {
@@ -356,7 +356,7 @@
         "source": "\n\nmake_string :: () -> string {\n    local_test: string = \"it works?\"\n    ret local_test\n}\n\nfactory_string : string = make_string()\nputs(factory_string, factory_string.length)\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 16\nsub r23 r23 9\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 9 r125 0\nstore 8 ($fp - 8) 9\nsub r126 r24 8\nsub r127 r6 8\nacpy 16 r127 r126\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r128 r24 8\nsub r129 r6 8\nacpy 16 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 16\nsub r23 r23 9\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 9 r125 0\nstore 8 ($fp - 8) 9\nsub r126 r24 8\nsub r127 r6 8\nacpy 16 r127 r126\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r128 r24 8\nsub r129 r6 8\nacpy 16 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "it works?"
     },
     {
@@ -770,8 +770,8 @@
         "source": "// Tests that global-scope code runs before main is called, and that main\n// can read values set up at global scope.\n//\n// Expected stdout:\n//   puts(msg, msg.length) -> prints \"setup\"\n//   puts(msg2, msg2.length) -> prints \"main\"\n// when a main function is defined the global scope is supposed to run and then continue running the main function\n// if main function is called inside of global then global is the full program entry point and main just becomes another function\n\nmsg: string = \"setup\"\nputs(msg, msg.length)\n\nmain :: () {\n    msg2: string = \"main\"\n    puts(msg2, msg2.length)\n}\n\nmain()\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 0\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
-        "expected_stdout": "setupsetu"
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nload 8 r0 ($fp - 0)\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "setupmain"
     },
     {
         "index": 87,
@@ -880,5 +880,59 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 99\nsub r23 r23 16\nmov r127 0\nadd r127 r127 16\nadd r127 r127 0\nsub r128 r24 r127\nstorea 8 $r128 2\nmov r129 0\nadd r129 r129 16\nadd r129 r129 8\nsub r130 r24 r129\nloadr r131 ($fp - 0)\nstorea 8 $r130 r131\nsub r23 r23 16\nmov r132 0\nadd r132 r132 32\nadd r132 r132 0\nsub r133 r24 r132\nstorea 8 $r133 1\nmov r134 0\nadd r134 r134 32\nadd r134 r134 8\nsub r135 r24 r134\nloadr r136 ($fp - 16)\nstorea 8 $r135 r136\nmov r137 0\nadd r137 r137 32\nadd r137 r137 8\nsub r138 r24 r137\nloada 8 r139 $r138\nmov r137 0\nadd r137 r137 8\nsub r140 r139 r137\nloada 8 r141 $r140\nmov r137 0\nadd r137 r137 0\nsub r142 r141 r137\nloada 8 r143 $r142\nmov r0 r143\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "99"
+    },
+    {
+        "index": 99,
+        "name": "fwd_decl_two.sage",
+        "source": "// Tests forward declaration where a global variable depends on another global\n// that depends on a global constant — a three-step dependency chain.\n//\n// Expected stdout:\n//   puti(C, 2) -> prints 24  (BASE=6, B=BASE*2=12, C=B*2=24)\n// good\n\nB: int = BASE * 2\nC: int = B * 2\nBASE: int = 6\n\nputi(C, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nmov r27 6\nmul r125 r27 2\nmov r25 r125\nmul r126 r25 2\nmov r26 r126\nmov r0 r26\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "24"
+    },
+    {
+        "index": 100,
+        "name": "fwd_decl_three.sage",
+        "source": "// Tests a struct defined after the variable that uses it — forward struct\n// declaration resolution. Mirrors the pattern in structs_five.\n//\n// Expected stdout:\n//   puti(val.count, 2) -> prints 7\n// good\n\nval: Counter\nval.count = 7\n\nCounter :: struct {\n    count: int\n}\n\nputi(val.count, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 8\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 7\nmov r127 0\nadd r127 r127 0\nadd r127 r127 0\nsub r128 r24 r127\nloada 8 r129 $r128\nmov r0 r129\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "7"
+    },
+    {
+        "index": 101,
+        "name": "struct_array_function.sage",
+        "source": "// Combines struct constructor functions with struct array element assignment.\n//\n// Expected stdout:\n//   puti(items[0].id, 1) -> prints 10\n//   puti(items[1].id, 1) -> prints 20\n// good\n\nItem :: struct {\n    id: i64\n}\n\nmake_item :: (id: i64) -> Item {\n    it: Item\n    it.id = id\n    ret it\n}\n\nitems: Item[2]\nitems[0] = make_item(10)\nitems[1] = make_item(20)\n\nputi(items[0].id, 2)\nputi(items[1].id, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @791503889\nsub r23 r23 8\nmov r128 0\nadd r128 r128 0\nadd r128 r128 0\nsub r129 r24 r128\nstorea 8 $r129 r0\nload 8 r6 ($fp - 0)\nret\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 32\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 2\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 8\nadd r132 r133 r135\nmov r0 10\ncall @791503889\nstorea 8 $r132 r6\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 1\nmul r141 r140 8\nadd r138 r139 r141\nmov r0 20\ncall @791503889\nstorea 8 $r138 r6\nsub r143 r24 0\nloada 8 r145 $r143\nmov r146 0\nmul r147 r146 8\nadd r144 r145 r147\nmov r148 0\nadd r148 r148 0\nadd r149 r144 r148\nloada 8 r150 $r149\nmov r0 r150\nmov r1 2\ncall @2090629895\nsub r152 r24 0\nloada 8 r154 $r152\nmov r155 1\nmul r156 r155 8\nadd r153 r154 r156\nmov r157 0\nadd r157 r157 0\nadd r158 r153 r157\nloada 8 r159 $r158\nmov r0 r159\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1020"
+    },
+    {
+        "index": 102,
+        "name": "main_two.sage",
+        "source": "// Tests that global-scope code runs before main is called, and that main\n// can read values set up at global scope.\n//\n// Expected stdout:\n//   puts(msg, msg.length) -> prints \"setup\"\n//   puts(msg2, msg2.length) -> prints \"main\"\n// good but add this one last, it may not follow language semantics actually double check existing main tests\n\nmsg: string = \"setup\"\nputs(msg, msg.length)\n\nmain :: () {\n    msg2: string = \"main\"\n    puts(msg2, msg2.length)\n}\n\nmain()\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nload 8 r0 ($fp - 0)\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "setupmain"
+    },
+    {
+        "index": 103,
+        "name": "integration_three.sage",
+        "source": "// Integration: global array of structs populated via a constructor function.\n// Combines arrays_eight-style struct arrays with functions_eight-style constructors.\n//\n// Expected stdout:\n//   puti(vecs[0].x, 1) -> prints 1\n//   puti(vecs[0].y, 1) -> prints 2\n//   puti(vecs[1].x, 1) -> prints 3\n//   puti(vecs[1].y, 1) -> prints 4\n// good\n\nVec :: struct {\n    x: i64\n    y: i64\n}\n\nmake_vec :: (x: i64, y: i64) -> Vec {\n    v: Vec\n    v.x = x\n    v.y = y\n    ret v\n}\n\nvecs: Vec[2]\nvecs[0] = make_vec(1, 2)\nvecs[1] = make_vec(3, 4)\n\nputi(vecs[0].x, 1)\nputi(vecs[0].y, 1)\nputi(vecs[1].x, 1)\nputi(vecs[1].y, 1)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @1065202816\nsub r23 r23 16\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 r0\nmov r127 0\nadd r127 r127 0\nadd r127 r127 8\nsub r128 r24 r127\nstorea 8 $r128 r1\nsub r129 r24 8\nsub r130 r6 8\nacpy 16 r130 r129\nret\nmov r131 r23\nmov r132 r23\nsub r132 r23 8\nsub r23 r23 48\nmov r133 r23\nstorea 8 $r131 r133\nstorea 8 $r132 2\nsub r135 r24 0\nloada 8 r137 $r135\nmov r138 0\nmul r139 r138 16\nadd r136 r137 r139\nmov r0 1\nmov r1 2\nmov r6 r23\nsub r23 r23 16\ncall @1065202816\nsub r140 r6 0\nadd r141 r136 0\nacpy 8 r141 r140\nsub r142 r6 8\nadd r143 r136 8\nacpy 8 r143 r142\nsub r145 r24 0\nloada 8 r147 $r145\nmov r148 1\nmul r149 r148 16\nadd r146 r147 r149\nmov r0 3\nmov r1 4\nmov r6 r23\nsub r23 r23 16\ncall @1065202816\nsub r150 r6 0\nadd r151 r146 0\nacpy 8 r151 r150\nsub r152 r6 8\nadd r153 r146 8\nacpy 8 r153 r152\nsub r155 r24 0\nloada 8 r157 $r155\nmov r158 0\nmul r159 r158 16\nadd r156 r157 r159\nmov r160 0\nadd r160 r160 0\nadd r161 r156 r160\nloada 8 r162 $r161\nmov r0 r162\nmov r1 1\ncall @2090629895\nsub r164 r24 0\nloada 8 r166 $r164\nmov r167 0\nmul r168 r167 16\nadd r165 r166 r168\nmov r169 0\nadd r169 r169 8\nadd r170 r165 r169\nloada 8 r171 $r170\nmov r0 r171\nmov r1 1\ncall @2090629895\nsub r173 r24 0\nloada 8 r175 $r173\nmov r176 1\nmul r177 r176 16\nadd r174 r175 r177\nmov r178 0\nadd r178 r178 0\nadd r179 r174 r178\nloada 8 r180 $r179\nmov r0 r180\nmov r1 1\ncall @2090629895\nsub r182 r24 0\nloada 8 r184 $r182\nmov r185 1\nmul r186 r185 16\nadd r183 r184 r186\nmov r187 0\nadd r187 r187 8\nadd r188 r183 r187\nloada 8 r189 $r188\nmov r0 r189\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1234"
+    },
+    {
+        "index": 104,
+        "name": "integration_four.sage",
+        "source": "// Integration: struct with a string field, where the string's .length is used\n// inside a function that takes the field value as a parameter.\n//\n// Expected stdout:\n//   puti(len, 2) -> prints 5  (\"Alice\")\n//   puts(name, len)  -> prints Alice\n// good\n\nget_length :: (s: string) -> int {\n    ret s.length\n}\n\nPerson :: struct {\n    name: string\n    age: int\n}\n\np: Person\np.name = \"Alice\"\np.age = 30\n\nlen: int = get_length(p.name)\nputi(len, 1)\nputs(p.name, len)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 24\nmov r128 0\nadd r128 r128 0\nadd r128 r128 0\nsub r129 r24 r128\nsub r23 r23 5\nmov r130 r23\nstorea 8 $r129 r130\nscpy 5 r130 0\nsub r131 r129 8\nstorea 8 $r131 5\nmov r132 0\nadd r132 r132 0\nadd r132 r132 16\nsub r133 r24 r132\nstorea 8 $r133 30\nmov r134 0\nadd r134 r134 0\nadd r134 r134 0\nsub r135 r24 r134\nmov r0 r135\ncall @1829159046\nmov r25 r6\nmov r0 r25\nmov r1 1\ncall @2090629895\nmov r136 0\nadd r136 r136 0\nadd r136 r136 0\nsub r137 r24 r136\nloada 8 r138 $r137\nmov r0 r138\nmov r1 r25\ncall @2090629905\nlabel @1829159046\nmov r125 0\nadd r125 r125 8\nsub r126 r0 r125\nloada 8 r127 $r126\nmov r6 r127\nret\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "5Alice"
     }
 ]

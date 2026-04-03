@@ -1,51 +1,46 @@
 
 
-sub r23 r23 16
-mov r125 0
-add r125 r125 0
-add r125 r125 0
-sub r126 r24 r125
-storea 8 $r126 99
-sub r23 r23 16
-mov r127 0
-add r127 r127 16
-add r127 r127 0
-sub r128 r24 r127
-storea 8 $r128 2
-mov r129 0
-add r129 r129 16
-add r129 r129 8
-sub r130 r24 r129
-loadr r131 ($fp - 0)
-storea 8 $r130 r131
-sub r23 r23 16
+sub r23 r23 24
+mov r128 0
+add r128 r128 0
+add r128 r128 0
+sub r129 r24 r128
+sub r23 r23 5
+mov r130 r23
+storea 8 $r129 r130
+scpy 5 r130 0
+sub r131 r129 8
+storea 8 $r131 5
 mov r132 0
-add r132 r132 32
 add r132 r132 0
+add r132 r132 16
 sub r133 r24 r132
-storea 8 $r133 1
+storea 8 $r133 30
 mov r134 0
-add r134 r134 32
-add r134 r134 8
+add r134 r134 0
+add r134 r134 0
 sub r135 r24 r134
-loadr r136 ($fp - 16)
-storea 8 $r135 r136
-mov r137 0
-add r137 r137 32
-add r137 r137 8
-sub r138 r24 r137
-loada 8 r139 $r138
-mov r137 0
-add r137 r137 8
-sub r140 r139 r137
-loada 8 r141 $r140
-mov r137 0
-add r137 r137 0
-sub r142 r141 r137
-loada 8 r143 $r142
-mov r0 r143
-mov r1 2
+mov r0 r135
+call @1829159046
+mov r25 r6
+mov r0 r25
+mov r1 1
 call @2090629895
+mov r136 0
+add r136 r136 0
+add r136 r136 0
+sub r137 r24 r136
+loada 8 r138 $r137
+mov r0 r138
+mov r1 r25
+call @2090629905
+label @1829159046
+mov r125 0
+add r125 r125 8
+sub r126 r0 r125
+loada 8 r127 $r126
+mov r6 r127
+ret
 label @2090629895
 mov r22 1
 mov r10 r1

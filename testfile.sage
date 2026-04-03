@@ -1,15 +1,24 @@
-// Tests a struct defined after the variable that uses it — forward struct
-// declaration resolution. Mirrors the pattern in structs_five.
+// Integration: struct with a string field, where the string's .length is used
+// inside a function that takes the field value as a parameter.
 //
 // Expected stdout:
-//   puti(val.count, 2) -> prints 7
+//   puti(len, 2) -> prints 5  ("Alice")
+//   puts(name, len)  -> prints Alice
 // good
 
-val: Counter
-val.count = 7
-
-Counter :: struct {
-    count: int
+get_length :: (s: string) -> int {
+    ret s.length
 }
 
-puti(val.count, 1)
+Person :: struct {
+    name: string
+    age: int
+}
+
+p: Person
+p.name = "Alice"
+p.age = 30
+
+len: int = get_length(p.name)
+puti(len, 1)
+puts(p.name, len)
