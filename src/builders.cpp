@@ -755,12 +755,29 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
                     builder.build_instruction(OP_STOREA, size, absolute_address, temporary_result_register, address_mode + _01);
                 } else {
                     // Large struct: the register holds a pointer to the return slot on the stack.
-                    int lowest_address_adjustment = size - 8;
-                    int dest_address_reg = compiler.get_volatile_register();
-                    int src_address_reg = compiler.get_volatile_register();
-                    builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
-                    builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
-                    builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+                    if (ascending_memory) {
+                        // The return slot uses stack convention: field 0 at [r6], field 1 at [r6-8], etc.
+                        // Ascending memory (array element) expects field 0 at [base+0], field 1 at [base+8], etc.
+                        // These layouts are reversed, so copy each field individually.
+                        SageStructType *struct_type = dynamic_cast<SageStructType *>(entry_type);
+                        int ascending_offset = 0;
+                        for (SageType *field_type : struct_type->member_types) {
+                            int field_size = field_type->size;
+                            int src_reg = compiler.get_volatile_register();
+                            int dest_reg = compiler.get_volatile_register();
+                            builder.build_instruction(OP_SUB, src_reg, temporary_result_register, ascending_offset, _10);
+                            builder.build_instruction(OP_ADD, dest_reg, absolute_address, ascending_offset, _10);
+                            builder.build_instruction(OP_ADDR_MEMCPY, field_size, dest_reg, src_reg, _11);
+                            ascending_offset += field_size;
+                        }
+                    } else {
+                        int lowest_address_adjustment = size - 8;
+                        int dest_address_reg = compiler.get_volatile_register();
+                        int src_address_reg = compiler.get_volatile_register();
+                        builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
+                        builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
+                        builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+                    }
                 }
             } else if (entry_type->identify() == ARRAY || entry_type->identify() == DYN_ARRAY) {
                 SageArrayType *array_type = (SageArrayType *)entry_type;
