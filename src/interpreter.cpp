@@ -46,8 +46,8 @@ size_t SageInterpreter::allocate_on_stack(size_t bytes) {
 void SageInterpreter::push_stack_scope(int func_id) {
     // make new current stack frame
     int program_return_address = program_pointer + 1;
-    registers[24] = stack_pointer() - 1; // frame pointer
-    registers[STACK_POINTER] = stack_pointer() - 1;
+    registers[24] = stack_pointer() - 8; // frame pointer: 8 bytes below caller SP so locals don't write back into caller stack
+    registers[STACK_POINTER] = stack_pointer() - 8;
     int start_stack_address = stack_pointer();
     map<int, int> cached_registers = frame_pointer->saved_caller_values;
     frame_pointer = new StackFrame(frame_pointer,
@@ -60,7 +60,7 @@ void SageInterpreter::push_stack_scope(int func_id) {
 void SageInterpreter::pop_stack_scope() {
     assert(frame_pointer->previous_frame != nullptr);
     registers[24] = frame_pointer->previous_frame->stack_pointer;
-    registers[STACK_POINTER] = frame_pointer->stack_pointer + 1;
+    registers[STACK_POINTER] = frame_pointer->stack_pointer + 8;
     StackFrame *previous = frame_pointer->previous_frame;
     delete frame_pointer;
     frame_pointer = previous;
@@ -332,6 +332,7 @@ void SageInterpreter::execute_load_address(std::array<int64_t, 3> &operands, Add
     int64_t bytes = operands[0];
     int64_t dest_register = operands[1];
     int64_t address = mode[1] == 1 ? registers[operands[2]] : operands[2];
+    registers[dest_register] = 0; // zero-extend: partial loads must not leave upper bytes as garbage
     std::memcpy(&registers[dest_register], &memory[address], bytes);
 }
 

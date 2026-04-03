@@ -1,11 +1,24 @@
+// Integration: struct with a string field, where the string's .length is used
+// inside a function that takes the field value as a parameter.
+//
+// Expected stdout:
+//   puti(len, 2) -> prints 5  ("Alice")
+//   puts(name, len)  -> prints Alice
+// good
 
-
-make_string :: () -> string {
-    local_test: string = "it works?"
-    ret local_test
+get_length :: (s: string) -> int {
+    ret s.length
 }
 
-factory_string : string = make_string()
-puts(factory_string, factory_string.length)
+Person :: struct {
+    name: string
+    age: int
+}
 
+p: Person
+p.name = "Alice"
+p.age = 30
 
+len: int = get_length(p.name)
+puti(len, 1)
+puts(p.name, len)
