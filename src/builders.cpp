@@ -607,9 +607,17 @@ void VisitorResult::to_register_instruction(SageCompiler &compiler, int argument
             auto *entry = symbol_table.lookup_by_index(symbol_table_index);
             if (entry->datatype->size > 8) {
                 if (entry->datatype->match(TR::get_string_type())) {
-                    // Strings store a data pointer in their first field; load it so the callee
-                    // receives the actual buffer address rather than a raw frame offset.
-                    builder.build_load(argument_register, entry->stack_offset, 8);
+                    if (argument_type->match(TR::get_string_type())) {
+                        // Callee expects a string struct: pass the address of the struct
+                        // (r24 - stack_offset) so the callee can access both .bytes and .length.
+                        int addr_reg = compiler.get_volatile_register();
+                        compiler.builder.build_instruction(OP_SUB, addr_reg, 24, entry->stack_offset, _10);
+                        compiler.builder.build_move_register(argument_register, addr_reg);
+                    } else {
+                        // Callee expects a pointer (e.g. puts): pass the buffer address stored
+                        // in the first field of the string struct.
+                        builder.build_load(argument_register, entry->stack_offset, 8);
+                    }
                 } else {
                     // can't fit raw value in register so just move pointer into register
                     builder.build_move_immediate(argument_register, entry->stack_offset);

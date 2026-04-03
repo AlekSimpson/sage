@@ -1,30 +1,24 @@
-// Integration: global array of structs populated via a constructor function.
-// Combines arrays_eight-style struct arrays with functions_eight-style constructors.
+// Integration: struct with a string field, where the string's .length is used
+// inside a function that takes the field value as a parameter.
 //
 // Expected stdout:
-//   puti(vecs[0].x, 1) -> prints 1
-//   puti(vecs[0].y, 1) -> prints 2
-//   puti(vecs[1].x, 1) -> prints 3
-//   puti(vecs[1].y, 1) -> prints 4
+//   puti(len, 2) -> prints 5  ("Alice")
+//   puts(name, len)  -> prints Alice
 // good
 
-Vec :: struct {
-    x: i64
-    y: i64
+get_length :: (s: string) -> int {
+    ret s.length
 }
 
-make_vec :: (x: i64, y: i64) -> Vec {
-    v: Vec
-    v.x = x
-    v.y = y
-    ret v
+Person :: struct {
+    name: string
+    age: int
 }
 
-vecs: Vec[2]
-vecs[0] = make_vec(1, 2)
-vecs[1] = make_vec(3, 4)
+p: Person
+p.name = "Alice"
+p.age = 30
 
-puti(vecs[0].x, 1)
-puti(vecs[0].y, 1)
-puti(vecs[1].x, 1)
-puti(vecs[1].y, 1)
+len: int = get_length(p.name)
+puti(len, 1)
+puts(p.name, len)
