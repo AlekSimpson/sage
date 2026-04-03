@@ -30,11 +30,6 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
         case PN_KEYWORD:
             return visit_statement(node);
 
-        //case PN_VAR_REF:
-        //case PN_NUMBER:
-        //case PN_STRING:
-        //case PN_FLOAT:
-        //case PN_FUNCCALL:
         default:
             return visit_expression(node);
 
@@ -103,6 +98,25 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
         VisitorResult right_node_result = visit_expression(right_node_index);
         bool lhs_is_array_element = node_manager->get_nodetype(node_manager->get_left(LHS)) == PN_ARRAY_ACCESS;
         right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, lhs_is_array_element, _10);
+        return VisitorResult();
+    }
+
+    if (lhs_nodetype == PN_POINTER_DEREFERENCE) {
+        // @ptr = value: load the address stored in ptr, then write RHS to that address
+        auto branch_node = node_manager->get_branch(LHS);
+        auto ptr_visit_result = visit_literal(branch_node);
+        auto *symbol = symbol_table.lookup_by_index(ptr_visit_result.symbol_table_index);
+        auto *ptr_type = dynamic_cast<SagePointerType *>(ptr_visit_result.result_type);
+        int store_size = ptr_type->pointer_type->size;
+
+        int addr_register = get_volatile_register();
+        builder.build_load(addr_register, symbol->stack_offset, 8);
+
+        NodeIndex right_node_index = node_manager->get_right(node);
+        VisitorResult right_result = visit_expression(right_node_index);
+        auto [rhs_value, rhs_is_immediate] = right_result.materialize_register(*this);
+        AddressMode address_mode = rhs_is_immediate ? _10 : _11;
+        builder.build_instruction(OP_STOREA, store_size, addr_register, rhs_value, address_mode);
         return VisitorResult();
     }
 
@@ -393,6 +407,22 @@ VisitorResult SageCompiler::visit_struct_field_access(
                     new_base,
                     offset_register,
                     base_type->type_namespace,
+                    struct_field_is_being_assigned_to,
+                    taking_address_of_field
+                );
+            }
+
+            // String/struct parameters are passed by struct address in their assigned register
+            // (r0, r1, ...) rather than being spilled into the callee's own frame.
+            // Parameters have assigned_register != -1 (set by declare_parameter); local string
+            // variables always have assigned_register == -1 because allocate_registers spills
+            // them before reaching the register-assignment step.
+            if (entry->assigned_register != -1 && entry->datatype->size > 8) {
+                return visit_struct_field_access(
+                    node_manager->get_right(binary_access_node),
+                    entry->assigned_register,
+                    offset_register,
+                    type_entry->type_namespace,
                     struct_field_is_being_assigned_to,
                     taking_address_of_field
                 );
@@ -719,13 +749,9 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     // TODO: multiple return values not supported
     NodeIndex args_node = node_manager->get_branch(node);
     auto arg_children = node_manager->get_children(args_node);
-    vector<VisitorResult> args;
-    args.reserve(arg_children.size());
 
-    for (NodeIndex arg: arg_children) {
-        args.push_back(visit_expression(arg));
-    }
-
+    // Look up the function symbol before evaluating args so we can inspect parameter types
+    // and choose the correct evaluation strategy per argument.
     auto function_name = node_manager->get_identifier(node);
     auto scoped_id = node_manager->get_scope_id(node);
     SymbolEntry *function_symbol = symbol_table.lookup(function_name, scoped_id);
@@ -733,6 +759,32 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
         Token token = node_manager->get_token(node);
         logger.log_error_unsafe(token, sen("Call to undefined function: ", token.lexeme), GENERAL);
         return VisitorResult();
+    }
+
+    vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->datatype)->parameter_types;
+
+    // When first_parameter_pointer_register is set, it occupies parameter slot 0 implicitly,
+    // so explicit arg_children[i] maps to defined_parameter_types[i + 1].
+    int param_offset = (first_parameter_pointer_register != -1) ? 1 : 0;
+
+    vector<VisitorResult> args;
+    args.reserve(arg_children.size());
+    for (int i = 0; i < (int)arg_children.size(); i++) {
+        NodeIndex arg = arg_children[i];
+        int param_idx = i + param_offset;
+        SageType *param_type = (param_idx < (int)defined_parameter_types.size())
+                                   ? defined_parameter_types[param_idx]
+                                   : nullptr;
+
+        // For string parameters passed as a field access (e.g. p.name), evaluate to produce
+        // the struct address instead of loading the buffer pointer from the first field.
+        // The callee uses the struct address to access both .bytes and .length.
+        if (param_type && param_type->match(TR::get_string_type()) &&
+            node_manager->get_nodetype(arg) == PN_FIELD_ACCESS) {
+            args.push_back(visit_literal(arg, true));
+        } else {
+            args.push_back(visit_expression(arg));
+        }
     }
 
     assertm(args.size() <= 6, sen(function_name, "with more than 6 arguments is unimplemented.").data());
@@ -743,7 +795,6 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
         argument_register_address++;
     }
 
-    vector<SageType *> &defined_parameter_types = ((SageFunctionType *) function_symbol->datatype)->parameter_types;
     for (VisitorResult arg_result: args) {
         int possible_literal_memory_pointer = get_literal_static_pointer(arg_result.symbol_table_index);
         if (possible_literal_memory_pointer != -1) {
@@ -759,11 +810,6 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        // int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
-        // builder.build_move_register(6, STACK_POINTER);
-        // builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
-        // function_symbol->spilled = true;
-
         auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->datatype)->return_type[0];
 
         if (return_type->identify() == ARRAY || return_type->identify() == DYN_ARRAY) {
@@ -862,6 +908,7 @@ VisitorResult SageCompiler::visit_binary_operator(NodeIndex node) {
         case TT_EQUALITY:
             break;
         case TT_FIELD_ACCESSOR:
+        case TT_LBRACKET:
             return visit_struct_field_access(node, 24, get_volatile_register(), nullptr, false, false);
         default:
             assertm(false, sen("Node", node, "recieved incorrect node type for binary operation.").data());

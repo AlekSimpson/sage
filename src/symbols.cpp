@@ -422,7 +422,7 @@ SageType *SageSymbolTable::resolve_unknown_type_node(NodeIndex node, bool self_r
     string type_identifier = nm->get_identifier(node);
     int scope_id = nm->get_scope_id(node);
     auto *type_symbol = lookup(type_identifier, scope_id);
-    assert(type_symbol != nullptr);
+    if (type_symbol == nullptr) return nullptr;
 
     auto *current_type = type_symbol->datatype;
     if (self_referential_pointer_detected) {
@@ -535,7 +535,24 @@ SageType *SageSymbolTable::resolve_struct_type(SymbolIndex entry_index) {
         struct_entry.type_namespace->add_field_member(member_symbol);
     }
 
-    return TypeRegistery::get_struct_type(struct_entry.name, member_types);
+    SageType *final_struct_type = TypeRegistery::get_struct_type(struct_entry.name, member_types);
+
+    // Self-referential pointer fields were stored as VOID* during resolution to avoid circular
+    // dependency. Now that the struct type exists, patch those fields to use the real struct pointer.
+    for (auto member_expression: nm->get_children(struct_body)) {
+        auto member_symbol_node = nm->get_left(member_expression);
+        auto member_name = nm->get_identifier(member_symbol_node);
+        auto *member_symbol = lookup(member_name, scope_id);
+        if (member_symbol != nullptr && member_symbol->datatype != nullptr &&
+            member_symbol->datatype->identify() == POINTER) {
+            auto *ptr_type = dynamic_cast<SagePointerType *>(member_symbol->datatype);
+            if (ptr_type != nullptr && ptr_type->pointer_type->identify() == VOID) {
+                member_symbol->datatype = TR::get_pointer_type(final_struct_type);
+            }
+        }
+    }
+
+    return final_struct_type;
 }
 
 SageType *SageSymbolTable::resolve_function_type(SymbolIndex entry_index) {

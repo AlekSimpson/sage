@@ -10,6 +10,9 @@
 #include <cmath>
 #include <array>
 #include <stdexcept>
+#include <iostream>
+#include <chrono>
+#include <ctime>
 
 #include "codegen.h"
 #include "../include/codegen.h"
@@ -20,6 +23,18 @@
 #include "../include/scope_manager.h"
 
 using namespace std;
+
+string get_current_time_string() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+
+    std::tm* now_tm = std::localtime(&now_c);
+
+    char buffer[80];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", now_tm);
+
+    return string(buffer);
+}
 
 SageCompiler::SageCompiler(CompilerOptions options)
     : options(options),
@@ -67,6 +82,20 @@ void SageCompiler::compile_file(string mainfile) {
     symbol_table.initialize();
 
     scan_all_program_symbols(ast_root);
+
+    // Deferred type resolution: any variable whose declared type references a struct
+    // defined later in source order will have datatype == nullptr after the first pass.
+    // Now that all struct definitions have been scanned, resolve those deferred types.
+    // If a type is still unresolvable on this second pass it truly doesn't exist.
+    for (auto symbol_index : symbol_table.variables) {
+        auto *entry = symbol_table.entries.get_pointer(symbol_index);
+        if (entry->type_is_resolved()) continue;
+        entry->datatype = symbol_table.resolve_variable_type(symbol_index, false);
+        if (!entry->type_is_resolved()) {
+            auto token = node_manager->get_token(entry->definition_ast_index);
+            logger.log_error_unsafe(token, sen("Reference to unknown type"), SEMANTIC);
+        }
+    }
 
     comptime_manager.register_task_dependencies(symbol_table);
     bool comptime_is_valid = comptime_manager.verify_comptime_dependencies();
@@ -198,7 +227,11 @@ void SageCompiler::compile_file(string mainfile) {
 
         if (logger.has_errors()) {
             logger.report_errors();
+            return;
         }
+
+        // string finished_compilation_message = sen("Finished compilation at:", get_current_time_string());
+        // printf("%s", finished_compilation_message.c_str());
         return;
     }
 
@@ -366,16 +399,6 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
         return identifier;
     };
 
-    /*
-     * MONDAY TODO:
-     * also need a functions test that returns a static array
-     *
-     * TUESDAY TODO:
-     * implement if, elif, else
-     *
-     *
-     */
-
     auto nodetype = node_manager->get_nodetype(current_node);
     switch (nodetype) {
         case PN_STRUCT: {
@@ -483,7 +506,16 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                     new_variable_symbol, scanner.symbol_being_scanned(type_lexeme));
             }
 
+            // If the declared type is a fixed array and the init value is an array literal,
+            // pass the element type as a hint so the literal uses the correct element size
+            // (e.g., i32 = 4 bytes) instead of inferring from the literal (always i64 = 8 bytes).
+            if (var_entry->datatype != nullptr &&
+                var_entry->datatype->identify() == ARRAY &&
+                node_manager->get_nodetype(right_most_node) == PN_ARRAY_LITERAL) {
+                array_literal_element_type_hint = ((SageArrayType *)var_entry->datatype)->array_type;
+            }
             scan_all_program_symbols(right_most_node);
+            array_literal_element_type_hint = nullptr;
             return;
         }
         case PN_FOR:
@@ -549,8 +581,13 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
             auto children = node_manager->get_children(current_node);
             if (existing != nullptr || children.empty()) return;
 
-            // infer element type from first element
-            auto *first_element_type = symbol_table.resolve_unknown_expression_type(children[0]);
+            // Use the declared element type if available; otherwise infer from the literal.
+            // Literals always infer as 64-bit types (e.g., numbers -> i64), so a declaration
+            // like i32[3] = [...] would produce the wrong element size without the hint.
+            auto *inferred_element_type = symbol_table.resolve_unknown_expression_type(children[0]);
+            auto *first_element_type = (array_literal_element_type_hint != nullptr)
+                                           ? array_literal_element_type_hint
+                                           : inferred_element_type;
             int64_t array_length = children.size();
             int total_array_bytesize = array_length * first_element_type->size;
 
@@ -562,8 +599,8 @@ void SageCompiler::scan_all_program_symbols(NodeIndex current_node, int function
                 case PN_NUMBER: {
                     for (int i = 0; i < array_length; ++i) {
                         int64_t literal_value = stoll(node_manager->get_lexeme(children[i]));
-                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, 8);
-                        working_static_pointer += 8;
+                        memcpy(&static_program_memory_store[working_static_pointer], &literal_value, first_element_type->size);
+                        working_static_pointer += first_element_type->size;
                     }
                     break;
                 }
@@ -775,32 +812,31 @@ void SageCompiler::ScopeDependencyGraph::add_definition_contents_to_dependency_g
     switch (compiler->node_manager->get_host_nodetype(current_node)) {
         case PN_UNARY: {
             auto nodetype = node_manager->get_nodetype(current_node);
-            if (nodetype != PN_IDENTIFIER && nodetype != PN_VAR_REF && nodetype != PN_TYPE && nodetype != PN_FUNCCALL) {
-                auto branch_index = node_manager->get_branch(current_node);
-                if (branch_index == -1) return;
-                add_definition_contents_to_dependency_graph(branch_index);
-                break;
+            if (nodetype == PN_IDENTIFIER || nodetype == PN_VAR_REF || nodetype == PN_TYPE || nodetype == PN_FUNCCALL) {
+                auto identifier = node_manager->get_identifier(current_node);
+                auto symbol = symbol_table.lookup(identifier, local_scope);
+                if (symbol == nullptr) return;
+                if (previously_processed.find(identifier) != previously_processed.end()) return;
+                if (symbol_table.builtins.find(symbol->symbol_index) != symbol_table.builtins.end()) return;
+
+                if (symbol->definition_ast_index == -1) {
+                    Token found_tok = node_manager->get_token(current_node);
+                    logger.log_error_unsafe(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
+                    return;
+                }
+
+                // if the found reference is in scope of working scope
+                // then add data dependency and increment in degree
+                int identifier_index = local_defintions_to_matrix_index[identifier];
+                int root_definition_identifier_index = local_defintions_to_matrix_index[root_definition_identifier];
+                if (pair_seen_previously(root_definition_identifier_index, identifier_index)) return;
+
+                mark(root_definition_identifier_index, identifier_index);
             }
 
-            auto identifier = node_manager->get_identifier(current_node);
-            auto symbol = symbol_table.lookup(identifier, local_scope);
-            if (symbol == nullptr) return;
-            if (previously_processed.find(identifier) != previously_processed.end()) return;
-            if (symbol_table.builtins.find(symbol->symbol_index) != symbol_table.builtins.end()) return;
-
-            if (symbol->definition_ast_index == -1) {
-                Token found_tok = node_manager->get_token(current_node);
-                logger.log_error_unsafe(found_tok, sen("Undefined reference:", identifier), SEMANTIC);
-                return;
-            }
-
-            // if the found reference is in scope of working scope
-            // then add data dependency and increment in degree
-            int identifier_index = local_defintions_to_matrix_index[identifier];
-            int root_definition_identifier_index = local_defintions_to_matrix_index[root_definition_identifier];
-            if (pair_seen_previously(root_definition_identifier_index, identifier_index)) return;
-
-            mark(root_definition_identifier_index, identifier_index);
+            auto branch_index = node_manager->get_branch(current_node);
+            if (branch_index == -1) return;
+            add_definition_contents_to_dependency_graph(branch_index);
             break;
         }
         case PN_BINARY: {
@@ -941,16 +977,44 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
 
     NodeIndex target_ast_root = scope_manager.scope_to_astroot[local_scope];
 
-    // preserve order of non definition statements in scope while prepending new resolved defintion statement order
+    // Build a topological index from Phase 1's result so we can sort trinary assigns
+    // relative to each other. This is needed when globals are declared out of dependency
+    // order (forward declarations): assigns must execute in dependency order, not source order.
+    map<string, int> topo_index;
+    for (int i = 0; i < (int)result_order.size(); ++i) {
+        if (node_manager->get_nodetype(result_order[i]) == PN_VAR_DEC) {
+            auto left = node_manager->get_left(result_order[i]);
+            topo_index[node_manager->get_identifier(left)] = i;
+        }
+    }
+
+    // Buffer trinary assigns and flush them sorted by topological order just before each
+    // non-def statement. This keeps the correct interleaving between assigns and non-def
+    // setup statements (e.g. `val.x = 10` must still precede `result = f(val.x)`) while
+    // ensuring that chained assignments like `B = BASE*2; C = B*2; BASE = 6` execute in
+    // dependency order (BASE=6, then B=BASE*2, then C=B*2).
+    vector<pair<int, NodeIndex>> pending_assigns;
+
+    auto flush_assigns = [&]() {
+        sort(pending_assigns.begin(), pending_assigns.end(),
+             [](const auto& a, const auto& b) { return a.first < b.first; });
+        for (auto& [idx, assign_node] : pending_assigns) {
+            result_order.push_back(assign_node);
+        }
+        pending_assigns.clear();
+    };
+
     for (auto child: node_manager->get_children(target_ast_root)) {
         auto nodetype = node_manager->get_nodetype(child);
-        // if current child is a trinary var dec then we need to push back a new binary assign node using nodes from the trinary dec
+
         if (nodetype == PN_VAR_DEC && node_manager->get_host_nodetype(child) == PN_TRINARY) {
             auto left_node = node_manager->get_left(child);
             auto right_node = node_manager->get_right(child);
             Token token = node_manager->get_token(child);
-            auto new_dec_node = node_manager->create_binary(token, PN_ASSIGN, left_node, right_node);
-            result_order.push_back(new_dec_node);
+            auto new_assign = node_manager->create_binary(token, PN_ASSIGN, left_node, right_node);
+            string name = node_manager->get_identifier(left_node);
+            int idx = topo_index.count(name) ? topo_index.at(name) : (int)pending_assigns.size();
+            pending_assigns.push_back({idx, new_assign});
             continue;
         }
 
@@ -958,8 +1022,10 @@ void SageCompiler::ScopeDependencyGraph::resolve_definition_order() {
             continue;
         }
 
+        flush_assigns();
         result_order.push_back(child);
     }
+    flush_assigns();
 
     node_manager->set_children(target_ast_root, result_order);
 }

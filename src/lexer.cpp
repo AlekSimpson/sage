@@ -280,7 +280,7 @@ Token *SageLexer::lex_for_identifiers() {
         "fallthrough",
         "ret",
         "struct",
-        "with", // previously: 'using'
+        "using",
         "run",
         "true",
         "false",
@@ -325,6 +325,16 @@ Token *SageLexer::get_token() {
     // note: CRITICAL!! We have to call get() before we check eof() becaus eof only updates to eof after a *failed* get() call.
     char_buffer->get(current_char);
     linedepth++;
+    if (current_char == '/' ) {
+        while (current_char == '/' && !char_buffer->eof()) {
+            auto *comment_check = followed_by('/', TT_COMMENT, "//");
+            if (comment_check == nullptr) break;
+
+            while (!char_buffer->eof() && current_char != '\n') char_buffer->get(current_char);
+            if (current_char == '\n') char_buffer->get(current_char);
+        }
+        linedepth = 0;
+    }
     while ((current_char == ' ' || current_char == '\t') && !char_buffer->eof()) {
         char_buffer->get(current_char);
         linedepth++;

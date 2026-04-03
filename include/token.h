@@ -51,6 +51,7 @@ typedef enum {
     TT_POINTER_DEREFERENCE,
     TT_POINTER_REFERENCE,
     TT_NOT,
+    TT_COMMENT
 } TokenType;
 
 class Token {
