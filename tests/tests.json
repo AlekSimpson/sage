@@ -329,7 +329,7 @@
         "source": "\n\nmake_string :: () -> string {\n    ret \"some string\"\n}\n\nfactory_string: string = make_string()\nputs(factory_string, factory_string.length)\n\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 11\nmov r125 r23\nstorea 8 $r6 r125\nscpy 11 r125 0\nsub r126 r6 8\nstorea 8 $r126 11\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r127 r24 8\nsub r128 r6 8\nacpy 16 r127 r128\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nmov r0 0\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 11\nmov r125 r23\nstorea 8 $r6 r125\nscpy 11 r125 0\nsub r126 r6 8\nstorea 8 $r126 11\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r127 r24 8\nsub r128 r6 8\nacpy 16 r127 r128\nmov r129 0\nadd r129 r129 0\nadd r129 r129 8\nsub r130 r24 r129\nloada 8 r131 $r130\nload 8 r0 ($fp - 0)\nmov r1 r131\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "some string"
     },
     {
@@ -356,7 +356,7 @@
         "source": "\n\nmake_string :: () -> string {\n    local_test: string = \"it works?\"\n    ret local_test\n}\n\nfactory_string : string = make_string()\nputs(factory_string, factory_string.length)\n\n\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 16\nsub r23 r23 9\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 9 r125 0\nstore 8 ($fp - 8) 9\nsub r126 r24 8\nsub r127 r6 8\nacpy 16 r127 r126\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r128 r24 8\nsub r129 r6 8\nacpy 16 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_bytecode": "\n\nlabel @1198612761\nsub r23 r23 16\nsub r23 r23 9\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 9 r125 0\nstore 8 ($fp - 8) 9\nsub r126 r24 8\nsub r127 r6 8\nacpy 16 r127 r126\nret\nsub r23 r23 16\nmov r6 r23\nsub r23 r23 16\ncall @1198612761\nsub r128 r24 8\nsub r129 r6 8\nacpy 16 r128 r129\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "it works?"
     },
     {
@@ -770,8 +770,8 @@
         "source": "// Tests that global-scope code runs before main is called, and that main\n// can read values set up at global scope.\n//\n// Expected stdout:\n//   puts(msg, msg.length) -> prints \"setup\"\n//   puts(msg2, msg2.length) -> prints \"main\"\n// when a main function is defined the global scope is supposed to run and then continue running the main function\n// if main function is called inside of global then global is the full program entry point and main just becomes another function\n\nmsg: string = \"setup\"\nputs(msg, msg.length)\n\nmain :: () {\n    msg2: string = \"main\"\n    puts(msg2, msg2.length)\n}\n\nmain()\n",
         "category": "positive",
         "expected_exit_code": 0,
-        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nmov r0 0\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nmov r0 0\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
-        "expected_stdout": "setupsetu"
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nload 8 r0 ($fp - 0)\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "setupmain"
     },
     {
         "index": 87,
@@ -907,5 +907,14 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nlabel @791503889\nsub r23 r23 8\nmov r128 0\nadd r128 r128 0\nadd r128 r128 0\nsub r129 r24 r128\nstorea 8 $r129 r0\nload 8 r6 ($fp - 0)\nret\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 32\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 2\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 8\nadd r132 r133 r135\nmov r0 10\ncall @791503889\nstorea 8 $r132 r6\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 1\nmul r141 r140 8\nadd r138 r139 r141\nmov r0 20\ncall @791503889\nstorea 8 $r138 r6\nsub r143 r24 0\nloada 8 r145 $r143\nmov r146 0\nmul r147 r146 8\nadd r144 r145 r147\nmov r148 0\nadd r148 r148 0\nadd r149 r144 r148\nloada 8 r150 $r149\nmov r0 r150\nmov r1 2\ncall @2090629895\nsub r152 r24 0\nloada 8 r154 $r152\nmov r155 1\nmul r156 r155 8\nadd r153 r154 r156\nmov r157 0\nadd r157 r157 0\nadd r158 r153 r157\nloada 8 r159 $r158\nmov r0 r159\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "1020"
+    },
+    {
+        "index": 102,
+        "name": "main_two.sage",
+        "source": "// Tests that global-scope code runs before main is called, and that main\n// can read values set up at global scope.\n//\n// Expected stdout:\n//   puts(msg, msg.length) -> prints \"setup\"\n//   puts(msg2, msg2.length) -> prints \"main\"\n// good but add this one last, it may not follow language semantics actually double check existing main tests\n\nmsg: string = \"setup\"\nputs(msg, msg.length)\n\nmain :: () {\n    msg2: string = \"main\"\n    puts(msg2, msg2.length)\n}\n\nmain()\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nsub r23 r23 16\nsub r23 r23 5\nmov r129 r23\nstore 8 ($fp - 0) r129\nscpy 5 r129 0\nstore 8 ($fp - 8) 5\nmov r130 0\nadd r130 r130 0\nadd r130 r130 8\nsub r131 r24 r130\nloada 8 r132 $r131\nload 8 r0 ($fp - 0)\nmov r1 r132\ncall @2090629905\ncall @2090499946\nlabel @2090499946\nsub r23 r23 16\nsub r23 r23 4\nmov r125 r23\nstore 8 ($fp - 0) r125\nscpy 4 r125 5\nstore 8 ($fp - 8) 4\nmov r126 0\nadd r126 r126 0\nadd r126 r126 8\nsub r127 r24 r126\nloada 8 r128 $r127\nload 8 r0 ($fp - 0)\nmov r1 r128\ncall @2090629905\nexit\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "setupmain"
     }
 ]

@@ -1,23 +1,17 @@
-// Combines struct constructor functions with struct array element assignment.
+// Tests that global-scope code runs before main is called, and that main
+// can read values set up at global scope.
 //
 // Expected stdout:
-//   puti(items[0].id, 1) -> prints 10
-//   puti(items[1].id, 1) -> prints 20
-// good
+//   puts(msg, msg.length) -> prints "setup"
+//   puts(msg2, msg2.length) -> prints "main"
+// good but add this one last, it may not follow language semantics actually double check existing main tests
 
-Item :: struct {
-    id: i64
+msg: string = "setup"
+puts(msg, msg.length)
+
+main :: () {
+    msg2: string = "main"
+    puts(msg2, msg2.length)
 }
 
-make_item :: (id: i64) -> Item {
-    it: Item
-    it.id = id
-    ret it
-}
-
-items: Item[2]
-items[0] = make_item(10)
-items[1] = make_item(20)
-
-puti(items[0].id, 2)
-puti(items[1].id, 2)
+main()
