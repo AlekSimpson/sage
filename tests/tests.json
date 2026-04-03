@@ -898,5 +898,14 @@
         "expected_exit_code": 0,
         "expected_bytecode": "\n\nsub r23 r23 8\nmov r125 0\nadd r125 r125 0\nadd r125 r125 0\nsub r126 r24 r125\nstorea 8 $r126 7\nmov r127 0\nadd r127 r127 0\nadd r127 r127 0\nsub r128 r24 r127\nloada 8 r129 $r128\nmov r0 r129\nmov r1 1\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
         "expected_stdout": "7"
+    },
+    {
+        "index": 101,
+        "name": "struct_array_function.sage",
+        "source": "// Combines struct constructor functions with struct array element assignment.\n//\n// Expected stdout:\n//   puti(items[0].id, 1) -> prints 10\n//   puti(items[1].id, 1) -> prints 20\n// good\n\nItem :: struct {\n    id: i64\n}\n\nmake_item :: (id: i64) -> Item {\n    it: Item\n    it.id = id\n    ret it\n}\n\nitems: Item[2]\nitems[0] = make_item(10)\nitems[1] = make_item(20)\n\nputi(items[0].id, 2)\nputi(items[1].id, 2)\n",
+        "category": "positive",
+        "expected_exit_code": 0,
+        "expected_bytecode": "\n\nlabel @791503889\nsub r23 r23 8\nmov r128 0\nadd r128 r128 0\nadd r128 r128 0\nsub r129 r24 r128\nstorea 8 $r129 r0\nload 8 r6 ($fp - 0)\nret\nmov r125 r23\nmov r126 r23\nsub r126 r23 8\nsub r23 r23 32\nmov r127 r23\nstorea 8 $r125 r127\nstorea 8 $r126 2\nsub r131 r24 0\nloada 8 r133 $r131\nmov r134 0\nmul r135 r134 8\nadd r132 r133 r135\nmov r0 10\ncall @791503889\nstorea 8 $r132 r6\nsub r137 r24 0\nloada 8 r139 $r137\nmov r140 1\nmul r141 r140 8\nadd r138 r139 r141\nmov r0 20\ncall @791503889\nstorea 8 $r138 r6\nsub r143 r24 0\nloada 8 r145 $r143\nmov r146 0\nmul r147 r146 8\nadd r144 r145 r147\nmov r148 0\nadd r148 r148 0\nadd r149 r144 r148\nloada 8 r150 $r149\nmov r0 r150\nmov r1 2\ncall @2090629895\nsub r152 r24 0\nloada 8 r154 $r152\nmov r155 1\nmul r156 r155 8\nadd r153 r154 r156\nmov r157 0\nadd r157 r157 0\nadd r158 r153 r157\nloada 8 r159 $r158\nmov r0 r159\nmov r1 2\ncall @2090629895\nlabel @2090629895\nmov r22 1\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\nlabel @2090629905\nmov r22 0\nmov r10 r1\nmov r1 r0\nmov r2 r10\nmov r0 1\nsyscall\nret\n",
+        "expected_stdout": "1020"
     }
 ]

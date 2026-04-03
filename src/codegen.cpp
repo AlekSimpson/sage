@@ -773,11 +773,6 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
     }
 
     if (symbol_table.needs_return_stack_pointer(function_symbol->symbol_index)) {
-        // int return_bytesize = symbol_table.get_result_total_byte_size(function_symbol->symbol_index);
-        // builder.build_move_register(6, STACK_POINTER);
-        // builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, return_bytesize, _10);
-        // function_symbol->spilled = true;
-
         auto *return_type = dynamic_cast<SageFunctionType *>(function_symbol->datatype)->return_type[0];
 
         if (return_type->identify() == ARRAY || return_type->identify() == DYN_ARRAY) {

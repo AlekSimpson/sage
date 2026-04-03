@@ -1,15 +1,23 @@
-// Tests a struct defined after the variable that uses it — forward struct
-// declaration resolution. Mirrors the pattern in structs_five.
+// Combines struct constructor functions with struct array element assignment.
 //
 // Expected stdout:
-//   puti(val.count, 2) -> prints 7
+//   puti(items[0].id, 1) -> prints 10
+//   puti(items[1].id, 1) -> prints 20
 // good
 
-val: Counter
-val.count = 7
-
-Counter :: struct {
-    count: int
+Item :: struct {
+    id: i64
 }
 
-puti(val.count, 1)
+make_item :: (id: i64) -> Item {
+    it: Item
+    it.id = id
+    ret it
+}
+
+items: Item[2]
+items[0] = make_item(10)
+items[1] = make_item(20)
+
+puti(items[0].id, 2)
+puti(items[1].id, 2)

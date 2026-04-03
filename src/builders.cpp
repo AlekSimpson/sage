@@ -742,15 +742,20 @@ void VisitorResult::to_stack_instruction_absolute(SageCompiler &compiler, int ab
         case VisitorResultState::TEMP_REGISTER: {
             auto entry_type = visitor_result_entry->datatype->expression_resolution_type();
             if (entry_type->is_struct()) {
-                int size = visitor_result_entry->datatype->size;
-                int lowest_address_adjustment = size - 8;
+                int size = entry_type->size;
 
-                int dest_address_reg = compiler.get_volatile_register();
-                int src_address_reg = compiler.get_volatile_register();
-
-                builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
-                builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
-                builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+                if (size <= 8) {
+                    // Small struct: the value was returned directly in the register (not via a stack slot pointer).
+                    builder.build_instruction(OP_STOREA, size, absolute_address, temporary_result_register, address_mode + _01);
+                } else {
+                    // Large struct: the register holds a pointer to the return slot on the stack.
+                    int lowest_address_adjustment = size - 8;
+                    int dest_address_reg = compiler.get_volatile_register();
+                    int src_address_reg = compiler.get_volatile_register();
+                    builder.build_instruction(OP_SUB, dest_address_reg, absolute_address, lowest_address_adjustment, _10);
+                    builder.build_instruction(OP_SUB, src_address_reg, temporary_result_register, lowest_address_adjustment, _10);
+                    builder.build_instruction(OP_ADDR_MEMCPY, size, dest_address_reg, src_address_reg, _11);
+                }
             } else if (entry_type->identify() == ARRAY || entry_type->identify() == DYN_ARRAY) {
                 SageArrayType *array_type = (SageArrayType *)entry_type;
                 int element_byte_count = array_type->array_size;
