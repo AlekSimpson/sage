@@ -165,7 +165,7 @@ NodeIndex SageParser::parse_run_directive() {
     }
     advance();
 
-    Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum);
+    Token run_token = Token(TT_COMPILER_CREATED, "#run { ... }", current_token->linenum, current_token->linedepth, current_token->filename);
     NodeIndex run_body = parse_body();
     scope_manager->exit_scope(current_token->linenum, run_body);
 
@@ -201,19 +201,19 @@ NodeIndex SageParser::parse_value_dec() {
         string new_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme + " = " + node_manager->
                             to_string(rhs);
 
-        Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum);
+        Token dec_token = Token(TT_ASSIGN, new_lexeme, name_identifier_token.linenum, name_identifier_token.linedepth, name_identifier_token.filename);
         return node_manager->create_trinary(dec_token, PN_VAR_DEC, name_identifier_node, type_identifier_node, rhs);
     }
 
     string dec_lexeme = name_identifier_token.lexeme + " " + type_identifier_token.lexeme;
 
-    Token token = Token(TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.linenum);
+    Token token = Token(TT_COMPILER_CREATED, dec_lexeme, name_identifier_token.linenum, name_identifier_token.linedepth, name_identifier_token.filename);
     return node_manager->create_binary(token, PN_VAR_DEC, name_identifier_node, type_identifier_node);
 }
 
 NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
     if (match_types(current_token->token_type, TT_RPAREN)) {
-        Token token = Token(TT_COMPILER_CREATED, "empty parameter list", current_token->linenum);
+        Token token = Token(TT_COMPILER_CREATED, "empty parameter list", current_token->linenum, current_token->linedepth, current_token->filename);
         return node_manager->create_block(token, PN_PARAM_LIST);
     }
 
@@ -233,7 +233,7 @@ NodeIndex SageParser::parse_value_dec_list(bool for_struct) {
     BlockParseNode *_list_node = node_manager->unbox(list_node);
     _list_node->rep_nodetype = PN_PARAM_LIST;
     string list_token_lexeme = "";
-    Token list_token = Token(TT_COMPILER_CREATED, "", current_token->linenum);
+    Token list_token = Token(TT_COMPILER_CREATED, "", current_token->linenum, current_token->linedepth, current_token->filename);
 
     TokenType separator = for_struct ? TT_NEWLINE : TT_COMMA;
     string separator_error_message = for_struct
@@ -287,7 +287,7 @@ NodeIndex SageParser::parse_assign() {
     NodeIndex righthand_node = parse_expression();
 
     string token_lexeme = lefthand_token.lexeme + " = " + node_manager->get_lexeme(righthand_node);
-    Token token = Token(TT_ASSIGN, token_lexeme, lefthand_token.linenum);
+    Token token = Token(TT_ASSIGN, token_lexeme, lefthand_token.linenum, lefthand_token.linedepth, lefthand_token.filename);
     return node_manager->create_binary(token, PN_ASSIGN, lefthand_node, righthand_node);
 }
 
@@ -314,7 +314,7 @@ NodeIndex SageParser::parse_keyword_statement() {
 
             advance(); // advance past return token
             NodeIndex expression = parse_expression();
-            Token new_token = Token(TT_KEYWORD, "ret", return_token.linenum);
+            Token new_token = Token(TT_KEYWORD, "ret", return_token.linenum, return_token.linedepth, return_token.filename);
             // return expression
             return node_manager->create_unary(new_token, PN_KEYWORD, expression);
         }
@@ -352,7 +352,7 @@ NodeIndex SageParser::parse_if_statement() {
     NodeIndex condition_body = parse_body();
     scope_manager->exit_scope(current_token->linenum, condition_body);
 
-    Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum);
+    Token prime_node_token = Token(TT_COMPILER_CREATED, "if ... { ... }", expression_token.linenum, expression_token.linedepth, expression_token.filename);
     NodeIndex primary_if = node_manager->create_binary(prime_node_token, PN_IF_BRANCH, condition_expression,
                                                        condition_body);
 
@@ -378,7 +378,7 @@ NodeIndex SageParser::parse_if_statement() {
 
             condition_body = parse_body();
             // TODO: more detailed token lexeme
-            Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum);
+            Token node_token = Token(TT_COMPILER_CREATED, "else if ... { ... }", exp_token.linenum, exp_token.linedepth, exp_token.filename);
             NodeIndex next_elif_statement = node_manager->create_binary(node_token, PN_IF_BRANCH, condition_exp,
                                                                         condition_body);
             elif_statements.push_back(next_elif_statement);
@@ -387,7 +387,7 @@ NodeIndex SageParser::parse_if_statement() {
             NodeIndex else_body = parse_body();
             Token body_token = node_manager->get_token(else_body);
 
-            Token node_token = Token(TT_COMPILER_CREATED, "else { ... }", body_token.linenum);
+            Token node_token = Token(TT_COMPILER_CREATED, "else { ... }", body_token.linenum, body_token.linedepth, body_token.filename);
             NodeIndex new_node = node_manager->create_unary(node_token, PN_ELSE_BRANCH, else_body);
             elif_statements.push_back(new_node);
 
@@ -408,7 +408,7 @@ NodeIndex SageParser::parse_while_statement() {
     NodeIndex body_node = parse_body();
     scope_manager->exit_scope(current_token->linenum, body_node);
 
-    Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", node_token.linenum);
+    Token token = Token(TT_COMPILER_CREATED, "while <condition> { ... }", node_token.linenum, node_token.linedepth, node_token.filename);
     return node_manager->create_binary(token, PN_WHILE, condition_node, body_node);
 }
 
@@ -428,7 +428,7 @@ NodeIndex SageParser::parse_for_statement() {
     Token iterator_variable_token;
     iterator_variable_token.fill_with(*current_token);
     NodeIndex identifier_token = node_manager->create_unary(iterator_variable_token, PN_IDENTIFIER);
-    NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum),
+    NodeIndex int_type_token = node_manager->create_unary(Token(TT_NUM, "i32", iterator_variable_token.linenum, iterator_variable_token.linedepth, iterator_variable_token.filename),
                                                           PN_TYPE);
     NodeIndex iterator_variable_node = node_manager->create_binary(
         iterator_variable_token,
@@ -454,7 +454,7 @@ NodeIndex SageParser::parse_for_statement() {
 
     scope_manager->exit_scope(current_token->linenum, body_node);
     string for_lexeme = sen("for", iterator_variable_token.lexeme, "in", range_lexeme, "{...}");
-    Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum);
+    Token for_token = Token(TT_COMPILER_CREATED, for_lexeme, iterator_variable_token.linenum, iterator_variable_token.linedepth, iterator_variable_token.filename);
     return node_manager->create_trinary(for_token, PN_FOR, iterator_variable_node, range_node, body_node);
 }
 
@@ -467,7 +467,7 @@ NodeIndex SageParser::parse_range() {
     NodeIndex rhs = parse_expression();
 
     string range_lex = left_token.lexeme + ".." + node_manager->get_lexeme(rhs);
-    Token range_token = Token(TT_COMPILER_CREATED, range_lex, left_token.linenum);
+    Token range_token = Token(TT_COMPILER_CREATED, range_lex, left_token.linenum, left_token.linedepth, left_token.filename);
 
     return node_manager->create_binary(range_token, PN_RANGE, lhs, rhs);
 }
@@ -518,7 +518,7 @@ NodeIndex SageParser::parse_construct() {
     }
 
     string token_lexeme = sen(name_identifier_token.lexeme, "::", node_manager->get_lexeme(binding_node));
-    Token construct_token = Token(TT_COMPILER_CREATED, token_lexeme, name_identifier_token.linenum);
+    Token construct_token = Token(TT_COMPILER_CREATED, token_lexeme, name_identifier_token.linenum, name_identifier_token.linedepth, name_identifier_token.filename);
     return node_manager->create_binary(construct_token, nodetype, name_identifier_node, binding_node);
 }
 
@@ -583,7 +583,7 @@ NodeIndex SageParser::parse_function() {
         vector<NodeIndex> list_ = vector<NodeIndex>();
         list_.push_back(return_type_node);
         NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_BLOCK, list_);
-        Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
+        Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum, parameter_token.linedepth, parameter_token.filename);
 
         NodeIndex body_node = parse_body();
         scope_manager->exit_scope(current_token->linenum, body_node);
@@ -611,7 +611,7 @@ NodeIndex SageParser::parse_function() {
     NodeIndex return_type_list = node_manager->create_block(return_type_token, PN_BLOCK, list_);
     signature_lexeme += return_type_token.lexeme;
 
-    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum);
+    Token function_signature = Token(TT_COMPILER_CREATED, signature_lexeme, parameter_token.linenum, parameter_token.linedepth, parameter_token.filename);
 
     NodeIndex body_node = parse_body();
     scope_manager->exit_scope(current_token->linenum, body_node);
@@ -625,7 +625,7 @@ NodeIndex SageParser::parse_function_call() {
 
     consume(TT_LPAREN, "Expected function call to include opening '(' bracket.");
 
-    Token params_token = Token(TT_COMPILER_CREATED, "", -1);
+    Token params_token = Token(TT_COMPILER_CREATED, "", -1, -1, function_name_token.filename);
     NodeIndex params_node = node_manager->create_block(params_token, PN_BLOCK);
 
     while (true) {
@@ -647,7 +647,7 @@ NodeIndex SageParser::parse_function_call() {
 NodeIndex SageParser::parse_body() {
     consume(TT_LBRACE, "Expected LBRACE in body definition statement");
 
-    Token body_token = Token(TT_COMPILER_CREATED, "{ ... }", current_token->linenum);
+    Token body_token = Token(TT_COMPILER_CREATED, "{ ... }", current_token->linenum, current_token->linedepth, current_token->filename);
     NodeIndex body_node = node_manager->create_block(body_token, PN_BLOCK);
 
     while (true) {
@@ -692,7 +692,7 @@ NodeIndex SageParser::parse_type() {
     while (current_token->token_type == TT_STAR || current_token->token_type == TT_LBRACKET) {
         if (current_token->token_type == TT_STAR) {
             Token token = node_manager->get_token(current_type_node);
-            Token new_token = Token(token.token_type, token.lexeme + "*", token.linenum);
+            Token new_token = Token(token.token_type, token.lexeme + "*", token.linedepth, token.linenum);
             auto pointer_type_node = node_manager->create_unary(new_token, PN_POINTER_TYPE);
             node_manager->set_branch(current_type_node, pointer_type_node);
             current_type_node = pointer_type_node;
@@ -736,7 +736,7 @@ NodeIndex SageParser::parse_type() {
             advance();
         }
 
-        Token new_token = Token(token.token_type, new_token_string, token.linenum);
+        Token new_token = Token(token.token_type, new_token_string, token.linedepth, token.linenum);
         NodeIndex new_array_node = node_manager->create_unary(new_token, array_type);
 
         node_manager->set_branch(current_type_node, new_array_node);
@@ -832,7 +832,7 @@ NodeIndex SageParser::parse_postfix_operator() {
 
             if (current_token->token_type != TT_FIELD_ACCESSOR) {
                 node_manager->set_binary_left(current_binary_node, current_member_variable_node);
-                Token sentinel_token = Token(TT_COMPILER_CREATED, "null", current_token->linenum);
+                Token sentinel_token = Token(TT_COMPILER_CREATED, "null", current_token->linenum, current_token->linedepth, current_token->filename);
                 NodeIndex null_sentinel = node_manager->create_unary(sentinel_token, PN_UNARY);
                 node_manager->set_binary_right(current_binary_node, null_sentinel);
                 return root_binary_node;

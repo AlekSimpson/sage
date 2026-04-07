@@ -236,7 +236,7 @@ bool SageArrayType::match(SageType *other) {
     }
 
     SageArrayType *other_array = dynamic_cast<SageArrayType *>(other);
-    return (size != other_array->size) && array_type->match(other_array->array_type);
+    return (size == other_array->size) && array_type->match(other_array->array_type);
 }
 
 bool SageArrayType::is_array() {return true;}
@@ -446,6 +446,10 @@ SageStructType::SageStructType(string name, vector<SageType *> member_types, int
 
 CanonicalType SageStructType::identify() {
     return CUSTOM;
+}
+
+void SageStructType::set_namespace(SageNamespace *space) {
+    this->struct_namespace = space;
 }
 
 bool SageStructType::match(SageType *other) {

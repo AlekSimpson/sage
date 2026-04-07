@@ -17,10 +17,9 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
             return VisitorResult();
         }
 
-        case PN_FUNCDEF:
-            return visit_statement(node);
         case PN_STRUCT:
             return VisitorResult();
+        case PN_FUNCDEF:
         case PN_IF:
         case PN_WHILE:
         case PN_FOR:
@@ -32,7 +31,6 @@ VisitorResult SageCompiler::visit(NodeIndex node) {
 
         default:
             return visit_expression(node);
-
     }
 }
 
@@ -74,7 +72,7 @@ VisitorResult SageCompiler::visit_statement(NodeIndex node) {
 VisitorResult SageCompiler::visit_keyword(NodeIndex node) {
     string lexeme = node_manager->get_lexeme(node);
     if (lexeme == "ret") {
-        return visit_function_return(node);
+        return visit_return_statement(node);
     }
     if (lexeme == "continue") {
         return VisitorResult();
@@ -96,8 +94,22 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_node_result = visit_expression(right_node_index);
+        auto *right_result_type = right_node_result.result_type->expression_resolution_type();
+
+        if (!field_access_result.result_type->match(right_result_type)) {
+            Token token = node_manager->get_token(right_node_index);
+            logger.log_error_unsafe(
+                token,
+                str("Cannot assign ", token.lexeme, " (type: ", right_result_type->to_string(), ") to type ",
+                    field_access_result.result_type->to_string()),
+                GENERAL
+            );
+            return VisitorResult();
+        }
+
         bool lhs_is_array_element = node_manager->get_nodetype(node_manager->get_left(LHS)) == PN_ARRAY_ACCESS;
-        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register, lhs_is_array_element, _10);
+        right_node_result.to_stack_instruction_absolute(*this, field_access_result.temporary_result_register,
+                                                        lhs_is_array_element, _10);
         return VisitorResult();
     }
 
@@ -114,6 +126,18 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
 
         NodeIndex right_node_index = node_manager->get_right(node);
         VisitorResult right_result = visit_expression(right_node_index);
+
+        if (!ptr_type->pointer_type->match(right_result.result_type)) {
+            Token token = node_manager->get_token(right_node_index);
+            logger.log_error_unsafe(
+                token,
+                str("Cannot assign ", token.lexeme, " (type: ", right_result.result_type->to_string(), ") to type ",
+                    ptr_type->pointer_type->to_string()),
+                GENERAL
+            );
+            return VisitorResult();
+        }
+
         auto [rhs_value, rhs_is_immediate] = right_result.materialize_register(*this);
         AddressMode address_mode = rhs_is_immediate ? _10 : _11;
         builder.build_instruction(OP_STOREA, store_size, addr_register, rhs_value, address_mode);
@@ -130,15 +154,31 @@ VisitorResult SageCompiler::visit_variable_assign(NodeIndex node) {
     auto scope_id = node_manager->get_scope_id(LHS);
     auto variable_symbol = symbol_table.lookup(lhs_identifier, scope_id);
     assertm(variable_symbol != nullptr, str("variable_symbol was nullptr").data());
+    assertm(variable_symbol->datatype != nullptr, str("variable symbol datatype was nullptr").data());
 
     NodeIndex right_node_index = node_manager->get_right(node);
     VisitorResult right_node_result = visit_expression(right_node_index);
+    auto *right_expression_type = right_node_result.result_type->expression_resolution_type();
+
+    if (!variable_symbol->datatype->match(right_expression_type)) {
+        Token token = node_manager->get_token(right_node_index);
+        logger.log_error_unsafe(
+            token,
+            str("Cannot assign ", token.lexeme, " (type: ", right_expression_type->to_string(), ") to type ",
+                variable_symbol->datatype->to_string()),
+            GENERAL
+        );
+        return VisitorResult();
+    }
+
     return build_store(right_node_result, variable_symbol);
 }
 
 VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
-    string function_name = node_manager->get_lexeme(node_manager->get_left(node));
+    auto name_node = node_manager->get_left(node);
+    string function_name = node_manager->get_lexeme(name_node);
     SymbolEntry *function_entry = symbol_table.lookup(function_name, node_manager->get_scope_id(node));
+    SageFunctionType *function_type = (SageFunctionType *) function_entry->datatype;
 
     symbol_table.push_function_processing_context(function_entry->symbol_index);
 
@@ -151,17 +191,34 @@ VisitorResult SageCompiler::visit_function_definition(NodeIndex node) {
     auto body_node = node_manager->get_right(function_signature_node);
     visit(body_node);
 
-    if (!symbol_table.function_being_processed().has_returned()) {
+    // todo: also would need to check for if every control path in the function matches the return statement count
+    assert(function_type->return_type.size() != 0);
+
+    bool no_return_statement_found_when_one_was_expected = (
+        !function_type->return_type[0]->match(TR::get_byte_type(VOID)) &&
+        function_entry->processed_return_statement_count == 0);
+    if (no_return_statement_found_when_one_was_expected) {
+        Token token = node_manager->get_token(name_node);
+        logger.log_error_unsafe(token, sen("found no return statements when at least one was expected."), GENERAL);
+        return VisitorResult();
+    }
+
+    bool processed_no_return_statements = !(function_entry->processed_return_statement_count > 0);
+    if (processed_no_return_statements) {
         // auto return on void functions
         bool is_main = function_name == "main";
         bool is_global = function_name == GLOBAL_NAME;
-        bool is_final_program_return = symbol_table.program_uses_main_function ? is_main : is_global;
-
-        SageOpCode opcode = OP_RET;
-        if (is_final_program_return) {
-            opcode = VOP_EXIT;
-        }
+        bool is_program_exit = symbol_table.program_uses_main_function ? is_main : is_global;
+        SageOpCode opcode = is_program_exit ? VOP_EXIT : OP_RET;
         builder.build_instruction(opcode, 0, _00);
+
+        builder.exit_frame();
+
+        symbol_table.pop_function_processing_context();
+        return VisitorResult();
+    }
+
+    if (function_entry->processed_return_statement_count == function_entry->max_return_count) {
         builder.exit_frame();
     }
 
@@ -175,40 +232,47 @@ VisitorResult SageCompiler::visit_for(NodeIndex node) { return VisitorResult(); 
 
 VisitorResult SageCompiler::visit_variable_definition(NodeIndex node) {
     auto concrete_node_type = node_manager->get_host_nodetype(node);
-    if (concrete_node_type == PN_BINARY) {
-        // left is variable identifier
-        auto lhs = node_manager->get_left(node);
-        string variable_name = node_manager->get_lexeme(lhs);
-        SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
+    assert(concrete_node_type == PN_BINARY);
 
-        // TODO: also need to generate bytecode to write the variable SageValue default_value to the variables given register or stack position
+    // left is variable identifier
+    auto lhs = node_manager->get_left(node);
+    string variable_name = node_manager->get_lexeme(lhs);
+    SymbolEntry *var_symbol = symbol_table.lookup(variable_name, node_manager->get_scope_id(lhs));
 
-        build_alloca(var_symbol);
+    if (!var_symbol->spilled) return VisitorResult();
+
+    auto datatype_identity = var_symbol->datatype->identify();
+    if (datatype_identity != ARRAY && datatype_identity != DYN_ARRAY) {
+        int offset = var_symbol->datatype->size;
+        builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
+
         return VisitorResult();
     }
 
-    //if (concrete_node_type == PN_TRINARY) {
-    //    // left is variable identifier
-    //    auto lhs = node_manager->get_left(node);
-    //    string variable_name = node_manager->get_lexeme(lhs);
-    //    int scope_id = node_manager->get_scope_id(node);
-    //    SymbolEntry *var_symbol = symbol_table.lookup(variable_name, scope_id);
+    int array_struct_start = get_volatile_register();
+    int array_struct_length_address = get_volatile_register();
+    int array_memory_start = get_volatile_register();
+    builder.build_move_register(array_struct_start, STACK_POINTER);
+    builder.build_move_register(array_struct_length_address, STACK_POINTER);
+    builder.build_instruction(OP_SUB, array_struct_length_address, STACK_POINTER, 8, _10);
 
-    //    auto rightnode = node_manager->get_right(node);
-    //    build_alloca(var_symbol);
-    //    auto rhs = visit_expression(rightnode);
+    int array_byte_size = ((SageArrayType *) var_symbol->datatype)->array_size;
+    int array_length = ((SageArrayType *) var_symbol->datatype)->length;
+    int offset = array_byte_size + var_symbol->datatype->size;
+    // decrement SP first so array_memory_start captures new_SP (= first element address)
+    builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, offset, _10);
+    builder.build_move_register(array_memory_start, STACK_POINTER);
 
-    //    // TODO: also need to check here if the rhs was equal to "--" then we should not generate bytecode to auto initialize the variable
-
-    //    return build_store(rhs, var_symbol);
-    //}
+    builder.build_instruction(OP_STOREA, 8, array_struct_start, array_memory_start, _11);
+    builder.build_instruction(OP_STOREA, 8, array_struct_length_address, array_length, _10);
 
     return VisitorResult();
 }
 
-VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
+VisitorResult SageCompiler::visit_return_statement(NodeIndex node) {
     // TODO: doesn't yet support multiple return values
-    symbol_table.function_being_processed().return_statement_count++;
+    // todo: when we do support multiple returns we need to check that the returned elements match the types in order and size
+    symbol_table.function_being_processed().processed_return_statement_count++;
     int function_symbol_index = symbol_table.function_being_processed().symbol_index;
     SymbolEntry *function_entry = symbol_table.lookup_by_index(function_symbol_index);
     vector<SageType *> return_types = ((SageFunctionType *) function_entry->datatype)->return_type;
@@ -216,36 +280,38 @@ VisitorResult SageCompiler::visit_function_return(NodeIndex node) {
     bool is_main = function_entry->name == "main";
     bool is_global = function_entry->name == GLOBAL_NAME;
     bool is_program_exit = symbol_table.program_uses_main_function ? is_main : is_global;
+    SageOpCode exit_opcode = is_program_exit ? VOP_EXIT : OP_RET;
 
-    SageOpCode opcode = OP_RET;
     auto branch_id = node_manager->get_branch(node);
     if (branch_id == NULL_INDEX) {
-        builder.build_instruction(opcode, 0, _00);
-        if (is_program_exit) {
-            builder.build_instruction(VOP_EXIT, 0, _00);
-        }
-        if (function_entry->return_statement_count == function_entry->max_return_count) {
-            builder.exit_frame();
-        }
+        builder.build_instruction(exit_opcode, 0, _00);
+
         return VisitorResult();
     }
 
+    // if there is a branch then that means we are returning something
 
     VisitorResult return_value = visit_expression(branch_id);
+
+    auto expression_resolution_type = return_value.result_type->expression_resolution_type();
+    if (!expression_resolution_type->match(return_types[0])) {
+        Token token = node_manager->get_token(node);
+        logger.log_error_unsafe(token, sen(function_entry->name, "expected", return_types[0]->to_string(),
+                                           "type but found", expression_resolution_type->to_string(), "type instead."),
+                                TYPE);
+        return VisitorResult();
+    }
+
     if (symbol_table.needs_return_stack_pointer(function_entry->symbol_index)) {
-        return_value.to_stack_instruction_absolute(*this, 6, false, _10); // note: might need to set the ascending_memory bool on whether the func is returning a struct or array
+        return_value.to_stack_instruction_absolute(*this, 6, false, _10);
+        // note: might need to set the ascending_memory bool on whether the func is returning a struct or array
         function_entry->spilled = true;
     } else {
         return_value.to_register_instruction(*this, 6, return_types[0]);
     }
 
-    builder.build_instruction(opcode, 0, _00);
-    if (is_program_exit) {
-        builder.build_instruction(VOP_EXIT, 0, _00);
-    }
-    if (function_entry->return_statement_count == function_entry->max_return_count) {
-        builder.exit_frame();
-    }
+    builder.build_instruction(exit_opcode, 0, _00);
+
     return VisitorResult(symbol_table, function_entry->symbol_index);
 }
 
@@ -280,7 +346,7 @@ VisitorResult SageCompiler::visit_struct_field_access(
             string name = node_manager->get_identifier(current_node);
             SageType *type_entry;
             if (current_namespace->is_builtin()) {
-                type_entry = ((BuiltinNamespace *)current_namespace)->get_field_type(name);
+                type_entry = ((BuiltinNamespace *) current_namespace)->get_field_type(name);
             } else {
                 type_entry = symbol_table.lookup_by_index(current_namespace->fields[name])->datatype;
             }
@@ -329,7 +395,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
     auto current_nodetype = node_manager->get_nodetype(current_node);
 
     if (current_nodetype == PN_ARRAY_ACCESS) {
-        VisitorResult array_access_result = visit_array_access(current_node, base_address_register, offset_register, current_namespace);
+        VisitorResult array_access_result = visit_array_access(current_node, base_address_register, offset_register,
+                                                               current_namespace);
         if (logger.has_errors()) {
             return VisitorResult();
         }
@@ -346,7 +413,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
             // error if trying to access field on non-struct type
             if (!array_access_result.result_type->is_struct()) {
                 Token token = node_manager->get_token(current_node);
-                logger.log_error_unsafe(token, sen("Cannot access field on non-struct type:", array_access_result.result_type->to_string()), GENERAL);
+                logger.log_error_unsafe(token, sen("Cannot access field on non-struct type:",
+                                                   array_access_result.result_type->to_string()), GENERAL);
                 return VisitorResult();
             }
 
@@ -376,7 +444,8 @@ VisitorResult SageCompiler::visit_struct_field_access(
         }
 
         int value_register = get_volatile_register();
-        builder.build_instruction(OP_LOADA, array_access_result.result_type->size, value_register, array_access_result.temporary_result_register, _01);
+        builder.build_instruction(OP_LOADA, array_access_result.result_type->size, value_register,
+                                  array_access_result.temporary_result_register, _01);
         return VisitorResult(value_register, array_access_result.result_type, true);
     }
 
@@ -538,27 +607,28 @@ VisitorResult SageCompiler::visit_array_access(
     auto array_nodetype = node_manager->get_nodetype(array_expr_node);
     if (array_nodetype == PN_VAR_REF || array_nodetype == PN_IDENTIFIER) {
         string name = node_manager->get_identifier(array_expr_node);
-        
+
         if (current_namespace == nullptr) {
             // standalone array variable - look up directly
             SymbolEntry *entry = symbol_table.lookup(name, scope_id);
             current_array_type = entry->datatype;
-            
+
             // calculate array struct address from stack
             builder.build_instruction(OP_SUB, current_array_addr, base_address_register, entry->stack_offset, _10);
         } else {
             // array is a field within a struct
             SymbolEntry *entry = symbol_table.lookup_by_index(current_namespace->fields[name]);
             current_array_type = entry->datatype;
-            
+
             int field_offset = current_namespace->is_builtin()
-                ? ((BuiltinNamespace *)current_namespace)->get_field_offset(name)
-                : current_namespace->get_field_offset(&symbol_table, name);
-            
+                                   ? ((BuiltinNamespace *) current_namespace)->get_field_offset(name)
+                                   : current_namespace->get_field_offset(&symbol_table, name);
+
             builder.build_instruction(OP_ADD, offset_register, offset_register, field_offset, _10);
             builder.build_instruction(OP_SUB, current_array_addr, base_address_register, offset_register, _11);
         }
     }
+    assert(current_array_type != nullptr);
 
     int element_addr = get_volatile_register();
     SageType *element_type = nullptr;
@@ -566,9 +636,9 @@ VisitorResult SageCompiler::visit_array_access(
     // iterate over all indices in the BLOCK
     for (size_t i = 0; i < index_children.size(); i++) {
         if (current_array_type->is_array()) {
-            element_type = ((SageArrayType *)current_array_type)->array_type;
+            element_type = ((SageArrayType *) current_array_type)->array_type;
         } else if (current_array_type->identify() == DYN_ARRAY) {
-            element_type = ((SageDynamicArrayType *)current_array_type)->array_type;
+            element_type = ((SageDynamicArrayType *) current_array_type)->array_type;
         }
 
         // load array.first pointer (offset 0 in array struct)
@@ -661,7 +731,7 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             Token token = node_manager->get_token(branch);
             if (branch_nodetype != PN_IDENTIFIER && branch_nodetype != PN_VAR_REF && branch_nodetype !=
                 PN_FIELD_ACCESS) {
-                logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
+                logger.log_error_unsafe(token, sen(token.lexeme, "has no pointer."), GENERAL);
                 return VisitorResult();
             }
 
@@ -672,17 +742,18 @@ VisitorResult SageCompiler::visit_literal(NodeIndex node, bool taking_address_of
             int dest_register = get_volatile_register();
             if (symbol_entry->static_pointer != -1) {
                 builder.build_move_immediate(dest_register, symbol_entry->static_pointer);
-                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+                return VisitorResult(dest_register, TR::get_pointer_type(symbol_entry->datatype), true);
             }
 
             if (visit_result.state == VisitorResultState::SPILLED) {
                 builder.build_instruction(OP_LOADR, dest_register, symbol_entry->stack_offset, _00);
-                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+                return VisitorResult(dest_register, TR::get_pointer_type(symbol_entry->datatype), true);
             }
             if (visit_result.state == VisitorResultState::TEMP_REGISTER) {
                 // if its a temporary register this this MUST have been from referencing a struct field access
+                symbol_entry->datatype = visit_result.result_type;
                 builder.build_move_register(dest_register, visit_result.temporary_result_register);
-                return VisitorResult(dest_register, TR::get_integer_type(8), true);
+                return VisitorResult(dest_register, TR::get_pointer_type(symbol_entry->datatype), true);
             }
 
             logger.log_error_unsafe(token, sen(token.lexeme, "cannot be referenced."), GENERAL);
@@ -769,10 +840,10 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
 
     vector<VisitorResult> args;
     args.reserve(arg_children.size());
-    for (int i = 0; i < (int)arg_children.size(); i++) {
+    for (int i = 0; i < (int) arg_children.size(); i++) {
         NodeIndex arg = arg_children[i];
         int param_idx = i + param_offset;
-        SageType *param_type = (param_idx < (int)defined_parameter_types.size())
+        SageType *param_type = (param_idx < (int) defined_parameter_types.size())
                                    ? defined_parameter_types[param_idx]
                                    : nullptr;
 
@@ -819,8 +890,8 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
 
             builder.build_move_register(array_struct_address, STACK_POINTER);
 
-            SageArrayType *array_type = (SageArrayType *)return_type;
-            int total_size = return_type->size + array_type->array_size;  // struct + elements
+            SageArrayType *array_type = (SageArrayType *) return_type;
+            int total_size = return_type->size + array_type->array_size; // struct + elements
 
             builder.build_instruction(OP_SUB, STACK_POINTER, STACK_POINTER, total_size, _10);
             builder.build_move_register(array_element_address, STACK_POINTER);

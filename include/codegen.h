@@ -244,7 +244,6 @@ public:
     /* builders */
     VisitorResult build_store(VisitorResult rhs, SymbolEntry *var_symbol);
     VisitorResult build_function_with_block(string);
-    void build_alloca(SymbolEntry *var_symbol);
     VisitorResult build_add(VisitorResult, VisitorResult);
     VisitorResult build_sub(VisitorResult, VisitorResult);
     VisitorResult build_div(VisitorResult, VisitorResult);
@@ -265,7 +264,7 @@ public:
     VisitorResult visit_for(NodeIndex);
     VisitorResult visit_variable_definition(NodeIndex);
     VisitorResult visit_variable_assign(NodeIndex);
-    VisitorResult visit_function_return(NodeIndex);
+    VisitorResult visit_return_statement(NodeIndex);
     VisitorResult visit_expression(NodeIndex);
     VisitorResult visit_literal(NodeIndex, bool taking_address_of_field = false);
     VisitorResult visit_function_call(NodeIndex, int first_parameter_pointer_register = -1);

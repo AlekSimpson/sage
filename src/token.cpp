@@ -3,10 +3,12 @@
 #include <cstdio>
 #include "../include/token.h"
 
-Token::Token(TokenType type, std::string lexeme, int linenum) {
+Token::Token(TokenType type, std::string lexeme, int linenum, int linedepth, std::string filename) {
     this->lexeme = lexeme;
     this->token_type = type;
     this->linenum = linenum;
+    this->linedepth = linedepth;
+    this->filename = filename;
 }
 
 Token::Token(std::string err_message, int linenum) {

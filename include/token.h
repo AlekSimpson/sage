@@ -62,7 +62,7 @@ public:
     int linenum;
     int linedepth;
 
-    Token(TokenType type, string lexeme, int linenum);
+    Token(TokenType type, string lexeme, int linenum, int linedepth, string filename = "");
     Token(string err_message, int linenum);
     Token();
     void fill_with(Token copy_token);

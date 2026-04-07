@@ -58,7 +58,7 @@ struct SymbolEntry {
     int scope_id = -1;
     int symbol_index = -1;
 
-    int return_statement_count = 0;
+    int processed_return_statement_count = 0;
     int max_return_count = 0;
 
     bool spilled = false;
@@ -78,7 +78,7 @@ struct SymbolEntry {
     SymbolEntry(SageValue value, string identifier) : name(identifier), data(value) {}
 
     SageNamespace *get_namespace();
-    bool has_returned() const { return return_statement_count > 0; }
+    bool did_process_return_statements() const { return processed_return_statement_count > 0; }
     bool type_is_resolved();
     bool needs_comptime_resolution();
     void spill(int offset);

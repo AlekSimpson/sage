@@ -130,10 +130,12 @@ public:
     SageType *expression_resolution_type() override;
 };
 
+struct SageNamespace;
 class SageStructType : public SageType {
 public:
     string name;
     vector<SageType *> member_types;
+    SageNamespace *struct_namespace;
 
     SageStructType(
         string name,
@@ -154,6 +156,7 @@ public:
     bool is_callable() override;
     int get_length() override;
     SageType *expression_resolution_type() override;
+    void set_namespace(SageNamespace *);
 };
 
 class SageDynamicArrayType : public SageType {

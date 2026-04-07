@@ -73,6 +73,10 @@ string nodetype_to_string(ParseNodeType nodetype) {
             return "ARRAY_LITERAL";
         case PN_ARRAY_ACCESS:
             return "ARRAY_ACCESS";
+        case PN_POINTER_DEREFERENCE:
+            return "POINTER_DEREFERENCE";
+        case PN_POINTER_REFERENCE:
+            return "POINTER_REFERENCE";
         default:
             return "Unknown Node Type (Could have forgot to add String() impl for new type)";
     }
@@ -189,11 +193,9 @@ string BinaryParseNode::to_string() {
 
     snprintf(buffer,
              sizeof(buffer),
-             "BinaryNode{%s | %s | %s | %s}",
+             "BinaryNode{%s | %s}",
              nodetype_to_string(rep_nodetype).c_str(),
-             token.lexeme.c_str(),
-             left_string.c_str(),
-             right_string.c_str());
+             token.lexeme.c_str());
 
     string retval;
     retval = buffer;
@@ -259,12 +261,9 @@ string TrinaryParseNode::to_string() {
 
     snprintf(buffer,
              sizeof(buffer),
-             "TrinaryNode{%s | %s | %s | %s | %s}",
+             "TrinaryNode{%s | %s}",
              nodetype_to_string(rep_nodetype).c_str(),
-             token.lexeme.c_str(),
-             left_string.c_str(),
-             middle_string.c_str(),
-             right_string.c_str()
+             token.lexeme.c_str()
     );
 
     string retval;
@@ -330,20 +329,10 @@ ParseNodeType UnaryParseNode::get_host_nodetype() {
 string UnaryParseNode::to_string() {
     char buffer[100];
 
-    if (branch != NULL_INDEX) {
-        string branch_string = node_manager->to_string(branch);
-
-        snprintf(buffer,
-                 sizeof(buffer),
-                 "UnaryNode{%s | %s | %s}",
-                 nodetype_to_string(rep_nodetype).c_str(),
-                 token.lexeme.c_str(), branch_string.c_str());
-    } else {
-        snprintf(buffer,
-                 sizeof(buffer),
-                 "UnaryNode{%s | %s}",
-                 nodetype_to_string(rep_nodetype).c_str(), token.lexeme.c_str());
-    }
+    snprintf(buffer,
+         sizeof(buffer),
+         "UnaryNode{%s | %s}",
+         nodetype_to_string(rep_nodetype).c_str(), token.lexeme.c_str());
 
     string retval;
     retval = buffer;

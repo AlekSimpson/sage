@@ -47,7 +47,7 @@ Token *SageLexer::check_for_string() {
         }
 
         if (current_char != '"') {
-            Token tok = Token(TT_STRING, lexeme, linenum);
+            Token tok = Token(TT_STRING, lexeme, linenum, linedepth, sourcename);
             ErrorLogger::get().log_error_unsafe(tok, "Unterminated string literal.", SYNTAX);
         }
 
@@ -68,7 +68,7 @@ Token *SageLexer::check_for_character_literal() {
         linedepth++;
 
         if (current_char != '\'') {
-            Token tok = Token(TT_CHARACTER_LITERAL, "\'", linenum);
+            Token tok = Token(TT_CHARACTER_LITERAL, "\'", linenum, linedepth, sourcename);
             ErrorLogger::get().log_error_unsafe(tok, "Character literals cannot be more than one character long.", SYNTAX);
         }
 
