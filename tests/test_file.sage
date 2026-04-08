@@ -21,4 +21,4 @@ p.age = 30
 
 len: int = get_length(p.name)
 puti(len, 1)
-puts(p.name, len)
+puts(p.name.bytes, len)

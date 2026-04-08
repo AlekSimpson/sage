@@ -330,10 +330,16 @@ Token *SageLexer::get_token() {
             auto *comment_check = followed_by('/', TT_COMMENT, "//");
             if (comment_check == nullptr) break;
 
-            while (!char_buffer->eof() && current_char != '\n') char_buffer->get(current_char);
-            if (current_char == '\n') char_buffer->get(current_char);
+            while (!char_buffer->eof() && current_char != '\n') {
+                char_buffer->get(current_char);
+                linedepth++;
+            }
+            if (current_char == '\n') {
+                linenum++;
+                char_buffer->get(current_char);
+                linedepth = 0;
+            }
         }
-        linedepth = 0;
     }
     while ((current_char == ' ' || current_char == '\t') && !char_buffer->eof()) {
         char_buffer->get(current_char);

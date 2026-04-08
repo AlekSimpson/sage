@@ -29,6 +29,7 @@ call @2090629895
 mov r136 0
 add r136 r136 0
 add r136 r136 0
+add r136 r136 0
 sub r137 r24 r136
 loada 8 r138 $r137
 mov r0 r138

@@ -874,6 +874,14 @@ VisitorResult SageCompiler::visit_function_call(NodeIndex node, int first_parame
             continue;
         }
 
+        if (!arg_result.result_type->expression_resolution_type()->match(defined_parameter_types[argument_register_address])) {
+            Token token = node_manager->get_token(node);
+            logger.log_error_unsafe(token, sen(function_name, "function parameter type was expected to be",
+                                               defined_parameter_types[argument_register_address]->to_string(),
+                                               "but found ", arg_result.result_type->expression_resolution_type()->to_string(), "type instead."), TYPE);
+            return VisitorResult();
+        }
+
         arg_result.to_register_instruction(
             *this, argument_register_address, defined_parameter_types[argument_register_address]);
 

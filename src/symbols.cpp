@@ -312,11 +312,7 @@ void SageSymbolTable::initialize() {
     declare_builtin_type_symbol("f64", TypeRegistery::get_float_type(8));
     declare_builtin_type_symbol("void", TypeRegistery::get_byte_type(VOID));
 
-    auto type_symbol_index = declare_builtin_type_symbol("string", TypeRegistery::get_struct_type("string", {
-                                                                             TypeRegistery::get_pointer_type(
-                                                                                 TypeRegistery::get_byte_type(CHAR)),
-                                                                             TypeRegistery::get_integer_type(8)
-                                                                         }));
+    auto type_symbol_index = declare_builtin_type_symbol("string", TypeRegistery::get_string_type());
     auto *string_namespace = new BuiltinNamespace();
     entries.get_pointer(type_symbol_index)->type_namespace = string_namespace;
     string_namespace->add_field_member("bytes", TR::get_pointer_type(TR::get_byte_type(CHAR)));
@@ -328,7 +324,7 @@ void SageSymbolTable::initialize() {
         TypeRegistery::get_integer_type(8)
     };
     vector<SageType *> puts_params = {
-        TypeRegistery::get_pointer_type(TypeRegistery::get_byte_type(CHAR)),
+        TypeRegistery::get_pointer_type(TR::get_byte_type(CHAR)),
         TypeRegistery::get_integer_type(8)
     };
     vector<SageType *> return_type = {
@@ -337,14 +333,9 @@ void SageSymbolTable::initialize() {
     declare_builtin_function("puti", TypeRegistery::get_function_type(puti_params, return_type));
     declare_builtin_function("puts", TypeRegistery::get_function_type(puts_params, return_type));
     declare_builtin_function(GLOBAL_NAME, TR::get_function_type(return_type, return_type));
-    //int index = declare_builtin_symbol("global", TR::get_function_type(return_type, return_type));
-    //auto *entry = lookup_by_index(index);
-    //entry->function_info = FunctionVisit(index);
-    //function_visitor_state.push(&entry->function_info);
 }
 
 SageType *SageSymbolTable::resolve_unknown_expression_type(NodeIndex node_index) {
-    // TODO: implement HM type resolution algorithm here for robust expression type resolution
     switch (nm->get_nodetype(node_index)) {
         case PN_NUMBER:
             return TR::get_integer_type(8);
@@ -366,28 +357,12 @@ SageType *SageSymbolTable::resolve_builtin_struct_type(SymbolIndex entry_index) 
     auto *entry = entries.get_pointer(entry_index);
     assert(entry != nullptr);
 
-    NodeIndex current_node = entry->definition_ast_index;
-    SageType *resolved_type = nullptr;
-    while (current_node != NULL_INDEX) {
-        switch (nm->get_nodetype(current_node)) {
-            case PN_STATIC_ARRAY_TYPE: {
-                int array_length = stoll(nm->get_lexeme(current_node));
-                resolved_type = TR::get_array_type(resolved_type, array_length);
-                break;
-            }
-            case PN_DYNAMIC_ARRAY_TYPE: {
-                resolved_type = TR::get_dyn_array_type(resolved_type);
-                break;
-            }
-            case PN_ARRAY_REFERENCE_TYPE: {
-                resolved_type = TR::get_reference_type(resolved_type, 0);
-                break;
-            }
-            default:
-                resolved_type = resolve_unknown_type_node(current_node);
-        }
-        current_node = nm->get_branch(current_node);
-    }
+    // resolve_unknown_type_node already traverses the full branch chain (array
+    // dimensions, pointer modifiers, etc.), so one call gives the complete type.
+    // The old loop iterated branches manually AND called resolve_unknown_type_node
+    // on the root, causing the chain to be applied twice and wrapping types like
+    // SageArrayType(i64,4) in a second SageArrayType — making arr.first: i64[4]*.
+    SageType *resolved_type = resolve_unknown_type_node(entry->definition_ast_index);
     assert(resolved_type != nullptr);
 
     BuiltinNamespace *namespace_ = (BuiltinNamespace *)entry->type_namespace;

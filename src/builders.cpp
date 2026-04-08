@@ -507,15 +507,14 @@ VisitorResult SageCompiler::build_operator(
     int64_t register2 = material2.first;
     bool two_is_immediate = material2.second;
 
+    // register1/register2 are already set correctly from materialize_register above.
+    // Overriding them with immediate_value would crash if immediate_value is a
+    // default-constructed SageValue (byte_data == nullptr) returned from an error path.
     if (one_is_immediate && two_is_immediate) {
-        register1 = value1.immediate_value;
-        register2 = value2.immediate_value;
         mode = _00;
     } else if (one_is_immediate) {
-        register1 = value1.immediate_value;
         mode = _01;
     } else if (two_is_immediate) {
-        register2 = value2.immediate_value;
         mode = _10;
     }
 
